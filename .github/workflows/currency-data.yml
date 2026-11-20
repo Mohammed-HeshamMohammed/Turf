@@ -12,7 +12,7 @@ on:
     paths:
       - "Caller Whale CRM/tools/currency-data.mjs"
       - "apps/website/src/currency-data.ts"
-      - "Caller Whale CRM/services/auth/currency_data.go"
+      - "services/auth/currency_data.go"
       - ".github/workflows/currency-data.yml"
 
 permissions:

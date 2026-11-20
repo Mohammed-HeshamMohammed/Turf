@@ -1,0 +1,296 @@
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"net/mail"
+	"strings"
+	"testing"
+)
+
+func get(t *testing.T, path string) (int, map[string]any) {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	newMux().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("not JSON: %v", err)
+	}
+	return rec.Code, body
+}
+
+func TestHealthNamesTheService(t *testing.T) {
+	code, body := get(t, "/healthz")
+	if code != 200 || body["service"] != "notifications" || body["ok"] != true {
+		t.Fatalf("got %d %v", code, body)
+	}
+}
+
+func TestVersionIsReported(t *testing.T) {
+	code, body := get(t, "/version")
+	if code != 200 || body["version"] != version {
+		t.Fatalf("got %d %v", code, body)
+	}
+}
+
+func TestUnknownPathsAreNotFound(t *testing.T) {
+	if code, _ := get(t, "/nope"); code != 404 {
+		t.Fatalf("got %d", code)
+	}
+}
+
+type fakeSender struct {
+	sent []Message
+	err  error
+}
+
+func (f *fakeSender) Send(m Message) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.sent = append(f.sent, m)
+	return nil
+}
+
+const testToken = "auth-token-with-24-or-more-chars"
+
+func post(t *testing.T, s *Server, token, body string) (int, map[string]any) {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/v1/mail", strings.NewReader(body))
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	rec := httptest.NewRecorder()
+	s.mux().ServeHTTP(rec, req)
+	var out map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &out)
+	return rec.Code, out
+}
+
+func TestMailNeedsAServiceToken(t *testing.T) {
+	s := newServer(map[string][]string{"auth": {testToken}}, &fakeSender{}, true)
+	for _, token := range []string{"", "wrong-token-wrong-token-wrong"} {
+		if code, _ := post(t, s, token, `{"template":"mfa_code","to":"a@example.com","data":{"code":"123456"}}`); code != 401 {
+			t.Fatalf("token %q: got %d", token, code)
+		}
+	}
+}
+
+func TestACodeIsSentThroughTheTemplate(t *testing.T) {
+	f := &fakeSender{}
+	s := newServer(map[string][]string{"auth": {testToken}}, f, true)
+	code, _ := post(t, s, testToken, `{"template":"mfa_code","to":"a@example.com","data":{"code":"123456"}}`)
+	if code != 202 || len(f.sent) != 1 {
+		t.Fatalf("got %d, sent %d", code, len(f.sent))
+	}
+	if f.sent[0].To != "a@example.com" || !strings.HasPrefix(f.sent[0].Text, "123456 is your Caller Whale code") || f.sent[0].Subject != "Your Caller Whale code" {
+		t.Fatalf("unexpected message %+v", f.sent[0])
+	}
+}
+
+func TestAnInvitationHasBothPartsAndEscapesTheName(t *testing.T) {
+	f := &fakeSender{}
+	s := newServer(map[string][]string{"core-api": {testToken}}, f, true)
+	body := `{"template":"invitation","to":"sami@example.com","data":{"name":"<b>Sami</b>","inviter":"Mo","monthly_credits":12500,"link":"https://example.test/signup"}}`
+	if code, _ := post(t, s, testToken, body); code != 202 {
+		t.Fatalf("got %d", code)
+	}
+	m := f.sent[0]
+	if !strings.Contains(m.Text, "12,500 credits a month") || strings.Contains(m.HTML, "<b>Sami") || !strings.Contains(m.HTML, "&lt;b&gt;Sami") || m.Subject != "Mo invited you to Caller Whale" {
+		t.Fatalf("unexpected message %+v", m)
+	}
+}
+
+func TestTeamInvitationDoesNotInventCreditsAndEscapesRole(t *testing.T) {
+	m, err := Render("team_invitation", "sami@example.com", map[string]any{"inviter": "Mo", "role": "<admin>", "link": "https://callerwhale.com/dashboard"})
+	if err != nil || strings.Contains(m.Text, "credits") || !strings.Contains(m.Text, "expires one hour") || strings.Contains(m.HTML, "<admin>") || !strings.Contains(m.HTML, "&lt;admin&gt;") {
+		t.Fatalf("team invitation: %+v %v", m, err)
+	}
+}
+
+func TestAContactMessageGoesToTheInboxWithAReplyAddress(t *testing.T) {
+	f := &fakeSender{}
+	s := newServer(map[string][]string{"core-api": {testToken}}, f, true)
+	body := `{"template":"contact","to":"hello@example.com","data":{"name":"<b>Sami</b>","email":"sami@example.com","message":"Hi <script>there"}}`
+	if code, _ := post(t, s, testToken, body); code != 202 {
+		t.Fatalf("got %d", code)
+	}
+	m := f.sent[0]
+	if m.To != "hello@example.com" || m.ReplyTo != "sami@example.com" || m.Subject != "Contact form: <b>Sami</b>" || strings.Contains(m.HTML, "<script>") || strings.Contains(m.HTML, "<b>Sami") {
+		t.Fatalf("unexpected message %+v", m)
+	}
+	raw, err := build(&mail.Address{Address: "from@example.com"}, &mail.Address{Address: m.To}, m)
+	if err != nil || !strings.Contains(string(raw), "Reply-To: <sami@example.com>") {
+		t.Fatalf("no reply address in %q (%v)", raw, err)
+	}
+}
+
+func TestAContactMessageWithOddFieldsIsRefused(t *testing.T) {
+	f := &fakeSender{}
+	s := newServer(map[string][]string{"core-api": {testToken}}, f, true)
+	for _, data := range []string{
+		`{"email":"not an address","message":"hello"}`,
+		`{"email":"a@example.com","message":""}`,
+		`{"email":"a@example.com\r\nBcc: x@example.com","message":"hello"}`,
+		`{"name":"A\r\nBcc: x@example.com","email":"a@example.com","message":"hello"}`,
+	} {
+		if code, _ := post(t, s, testToken, `{"template":"contact","to":"hello@example.com","data":`+data+`}`); code != 400 {
+			t.Errorf("%s: got %d, want 400", data, code)
+		}
+	}
+	if len(f.sent) != 0 {
+		t.Fatalf("something was sent: %+v", f.sent)
+	}
+}
+
+func TestAConfirmationEmailCarriesTheLinkAndRefusesOddOnes(t *testing.T) {
+	f := &fakeSender{}
+	s := newServer(map[string][]string{"auth": {testToken}}, f, true)
+	good := `{"template":"confirm_email","to":"a@example.com","data":{"name":"<i>Al</i>","link":"https://callerwhale.com/verify?token=abc"}}`
+	if code, _ := post(t, s, testToken, good); code != 202 {
+		t.Fatalf("got %d", code)
+	}
+	m := f.sent[0]
+	if !strings.Contains(m.Text, "https://callerwhale.com/verify?token=abc") || strings.Contains(m.HTML, "<i>Al") || m.Subject != "Confirm your Caller Whale email" {
+		t.Fatalf("unexpected message %+v", m)
+	}
+	for _, body := range []string{`{"template":"confirm_email","to":"a@example.com","data":{}}`, `{"template":"confirm_email","to":"a@example.com","data":{"link":"javascript:alert(1)"}}`} {
+		if code, _ := post(t, s, testToken, body); code != 400 {
+			t.Fatalf("%q: got %d", body, code)
+		}
+	}
+}
+
+func TestBadRequestsAreRefusedBeforeSending(t *testing.T) {
+	f := &fakeSender{}
+	s := newServer(map[string][]string{"auth": {testToken}}, f, true)
+	for _, body := range []string{`not json`, `{"template":"nope","to":"a@example.com"}`, `{"template":"mfa_code","to":"a@example.com","data":{}}`, `{"template":"mfa_code","to":"a@example.com","data":{"code":"12 34"}}`} {
+		if code, _ := post(t, s, testToken, body); code != 400 {
+			t.Fatalf("%q: got %d", body, code)
+		}
+	}
+	if len(f.sent) != 0 {
+		t.Fatal("something was sent")
+	}
+}
+
+func TestNoMailServerAnswers503(t *testing.T) {
+	s := newServer(map[string][]string{"auth": {testToken}}, nil, false)
+	if code, _ := post(t, s, testToken, `{"template":"mfa_code","to":"a@example.com","data":{"code":"123456"}}`); code != 503 {
+		t.Fatalf("got %d", code)
+	}
+}
+
+func TestAMailServerFailureIsA502WithoutTheReason(t *testing.T) {
+	s := newServer(map[string][]string{"auth": {testToken}}, &fakeSender{err: errors.New("535 bad login for secret@host")}, true)
+	code, body := post(t, s, testToken, `{"template":"mfa_code","to":"a@example.com","data":{"code":"123456"}}`)
+	if code != 502 || strings.Contains(body["error"].(string), "secret") {
+		t.Fatalf("got %d %v", code, body)
+	}
+}
+
+func TestACallerIsLimitedPerMinute(t *testing.T) {
+	s := newServer(map[string][]string{"auth": {testToken}}, &fakeSender{}, true)
+	var last int
+	for i := 0; i < perMinute+1; i++ {
+		last, _ = post(t, s, testToken, `{"template":"mfa_code","to":"a@example.com","data":{"code":"123456"}}`)
+	}
+	if last != 429 {
+		t.Fatalf("got %d", last)
+	}
+}
+
+func TestTokensShorterThan24AreIgnored(t *testing.T) {
+	t.Setenv("NOTIFY_TOKENS", "short=abc,auth="+testToken)
+	if cfg := loadConfig(); len(cfg.Tokens) != 1 || len(cfg.Tokens["auth"]) != 1 || cfg.Tokens["auth"][0] != testToken {
+		t.Fatalf("got %v", cfg.Tokens)
+	}
+}
+
+func TestACallerMayHoldTwoTokensWhileOneIsReplaced(t *testing.T) {
+	newer := strings.Repeat("n", 40)
+	t.Setenv("NOTIFY_TOKENS", "auth="+testToken+",auth="+newer+",auth="+strings.Repeat("x", 40))
+	cfg := loadConfig()
+	if got := cfg.Tokens["auth"]; len(got) != 2 || got[0] != testToken || got[1] != newer {
+		t.Fatalf("got %v", got)
+	}
+	s := newServer(cfg.Tokens, &fakeSender{}, true)
+	for _, token := range []string{testToken, newer} {
+		r := httptest.NewRequest("POST", "/v1/mail", nil)
+		r.Header.Set("Authorization", "Bearer "+token)
+		if name, ok := s.caller(r); !ok || name != "auth" {
+			t.Fatalf("%s… was refused", token[:4])
+		}
+	}
+}
+
+func TestTeamInvitationSaysTheRoleInWordsAndHowLongItWorks(t *testing.T) {
+	m, err := Render("team_invitation", "sami@example.com", map[string]any{"inviter": "Mo", "role": "manager", "role_name": "Team manager", "expires": "72 hours", "link": "https://callerwhale.com/dashboard"})
+	if err != nil || !strings.Contains(m.Text, "as Team manager.") || !strings.Contains(m.Text, "expires 72 hours after") || strings.Contains(m.Text, "one hour") || !strings.Contains(m.HTML, "<strong>Team manager</strong>") {
+		t.Fatalf("team invitation: %+v %v", m, err)
+	}
+}
+
+func TestTeamInvitationNamesTheAgencyAndLinksToTheInvitation(t *testing.T) {
+	link := "https://callerwhale.com/dashboard?invitation=abc"
+	m, err := Render("team_invitation", "sami@example.com", map[string]any{"inviter": "Mo", "agency": "Blue <Door> Homes", "role": "caller", "role_name": "Caller", "expires": "72 hours", "link": link})
+	if err != nil || m.Subject != "Join Blue <Door> Homes on Caller Whale" || !strings.Contains(m.Text, "join Blue <Door> Homes on Caller Whale as Caller") || !strings.Contains(m.Text, link) {
+		t.Fatalf("named agency: %+v %v", m, err)
+	}
+	if strings.Contains(m.HTML, "<Door>") || !strings.Contains(m.HTML, "Blue &lt;Door&gt; Homes") {
+		t.Fatalf("the agency name is escaped in the page: %s", m.HTML)
+	}
+	m, _ = Render("team_invitation", "sami@example.com", map[string]any{"inviter": "Mo", "agency": "Evil\r\nBcc: x@y.z", "role": "caller", "link": link})
+	if m.Subject != "Your Caller Whale invitation" || strings.Contains(m.Text, "Bcc") {
+		t.Fatalf("a name on two lines is left out: %+v", m)
+	}
+}
+
+// Step 32: a report holds totals and a link only.
+func TestTheReportTemplateHoldsTotalsOnly(t *testing.T) {
+	m, err := Render("report", "owner@example.com", map[string]any{"agency": "Blue Door Homes", "period": "Week of 9 November 2026",
+		"lines": []any{map[string]any{"label": "Calls", "value": float64(1234)}, map[string]any{"label": "Deals won", "value": float64(2)}},
+		"link":  "https://app.callerwhale.com/?view=reports"})
+	if err != nil || !strings.Contains(m.Text, "Calls: 1,234") || !strings.Contains(m.HTML, "Open the details") || m.Subject != "Blue Door Homes: Week of 9 November 2026" {
+		t.Fatalf("%v %+v", err, m)
+	}
+	if _, err := Render("report", "x@example.com", map[string]any{"agency": "A", "period": "P", "lines": []any{}, "link": "https://x"}); err == nil {
+		t.Fatal("a report without totals")
+	}
+}
+
+// Step 34: status emails and breach notices.
+func TestStatusAndBreachTemplates(t *testing.T) {
+	m, err := Render("status", "owner@example.com", map[string]any{"title": "Caller Whale: Calls are down", "message": "We are on it.", "link": "https://callerwhale.com/status"})
+	if err != nil || m.Subject != "Caller Whale: Calls are down" || !strings.Contains(m.Text, "https://callerwhale.com/status") {
+		t.Fatalf("%v %+v", err, m)
+	}
+	b, err := Render("breach_notice", "owner@example.com", map[string]any{"what": "A key was exposed.", "to_do": "Sign in again.", "discovered": "18 November 2026, 09:00 UTC"})
+	if err != nil || !strings.Contains(b.Text, "A key was exposed.") || !strings.Contains(b.HTML, "What you should do") {
+		t.Fatalf("%v %+v", err, b)
+	}
+	if _, err := Render("breach_notice", "x@example.com", map[string]any{"what": "x"}); err == nil {
+		t.Fatal("a notice without what to do")
+	}
+}
+
+// Step 35: the new-device email.
+func TestNewSignInTemplate(t *testing.T) {
+	m, err := Render("new_sign_in", "a@example.com", map[string]any{"device": "Chrome on Windows", "place": "US", "at": "18 November 2026, 09:00 UTC", "link": "https://callerwhale.com/account/not-me?token=x"})
+	if err != nil || !strings.Contains(m.Text, "Chrome on Windows") || !strings.Contains(m.HTML, "This wasn't me") {
+		t.Fatalf("%v %+v", err, m)
+	}
+}
+
+// Step 40: a support reply names the reply and links to the conversation.
+func TestSupportReplyEmail(t *testing.T) {
+	m, err := Render("support_reply", "owner@example.com", map[string]any{"title": "Caller Whale support replied", "message": "Map the Owner column to name.", "link": "https://callerwhale.com/dashboard/support"})
+	if err != nil || !strings.Contains(m.Text, "Map the Owner column") || !strings.Contains(m.HTML, "Read and reply") {
+		t.Fatalf("%v %+v", err, m)
+	}
+	if _, err := Render("support_reply", "x@example.com", map[string]any{"title": "T", "message": "", "link": "https://x"}); err == nil {
+		t.Fatal("an empty reply was rendered")
+	}
+}

@@ -4,8 +4,8 @@
     "auth": {
       "description": "Central sign-in service: brokers Firebase, issues Caller Whale sessions and verifies second factors and human challenges.",
       "sources": [
-        "services/auth/config.go",
-        "services/auth/oauth.go"
+        "../services/auth/config.go",
+        "../services/auth/oauth.go"
       ],
       "variables": {
         "PORT": "Runtime HTTP listening port; default 8101. Match Coolify's container port and private auth URLs when changing it.",
@@ -43,7 +43,7 @@
     "gateway": {
       "description": "Public API gateway: routes hostnames, verifies auth tokens, rate-limits requests and gates the private monitoring subpath.",
       "sources": [
-        "services/gateway/main.go"
+        "../services/gateway/main.go"
       ],
       "variables": {
         "PORT": "Gateway HTTP listen port; default 8100. Match Coolify's upstream container port.",
@@ -93,8 +93,8 @@
     "notifications": {
       "description": "Central mail sender: only authorized backend callers can request messages; SMTP credentials stay here.",
       "sources": [
-        "services/notifications/main.go",
-        "services/notifications/mail.go"
+        "../services/notifications/main.go",
+        "../services/notifications/mail.go"
       ],
       "variables": {
         "PORT": "Notification API HTTP listening port; default 8102. Match Coolify's private/public upstream configuration.",
@@ -112,7 +112,7 @@
       "description": "Compose stack containing private grafana-proxy and Grafana; no direct public domain. Proxy enforces staff sessions; Grafana trusts only that proxy.",
       "sources": [
         "deploy/grafana/compose.yml",
-        "services/grafana-proxy/main.go",
+        "../services/grafana-proxy/main.go",
         "env/container-variable-inventory.json"
       ],
       "variables": {
@@ -226,7 +226,7 @@
     "mcp": {
       "description": "The address AI assistants (Claude, ChatGPT, Gemini) connect to. Keeps no data; asks auth who each access token belongs to and runs the few tools that person allowed.",
       "sources": [
-        "services/mcp/main.go"
+        "../services/mcp/main.go"
       ],
       "variables": {
         "PORT": "MCP HTTP listening port; default 8106. Match Coolify's container port and the domain's upstream.",
@@ -239,7 +239,7 @@
     "importing-lists": {
       "description": "The import worker: loads uploaded lists into the CRM database, drops identical rows, matches columns, cleans data and finds repeats. Idle until a list is queued. No domain; no memory or CPU limit.",
       "sources": [
-        "services/features/importing-lists/server.py"
+        "../services/importing-lists/server.py"
       ],
       "variables": {
         "PORT": "HTTP port for the health check; default 8111.",
@@ -252,7 +252,7 @@
     "assistant": {
       "description": "The helper chat on the website: answers common questions from a script and the rest through an AI (OpenRouter), within limits. Keeps no data.",
       "sources": [
-        "services/assistant/main.go"
+        "../services/assistant/main.go"
       ],
       "variables": {
         "PORT": "HTTP port; default 8109. Match Coolify's container port and the gateway's ROUTES.",
@@ -269,7 +269,7 @@
     "crm-core": {
       "description": "The CRM's backend: leads, tasks, notes, calls, deals and handoffs, synced to the web CRM and the desktop app, plus uploaded lists. No domain; the gateway routes gate.callerwhale.com to it.",
       "sources": [
-        "services/crm-core/main.go"
+        "../services/crm-core/main.go"
       ],
       "variables": {
         "PORT": "HTTP port; default 8107. Match Coolify's container port and the gateway's ROUTES.",
@@ -311,7 +311,7 @@
     "learning": {
       "description": "The learning store: keyed hashes and shapes of imported leads (never the leads), and the flags people gave them, in its own database. Takes nothing in until LEARNING_ENABLED is true.",
       "sources": [
-        "services/learning/main.go"
+        "../services/learning/main.go"
       ],
       "variables": {
         "PORT": "HTTP port; default 8112. Match Coolify's container port.",
@@ -325,7 +325,7 @@
     "dialer-sms": {
       "description": "Calling, auto dialing and texting through Telnyx (or its simulator), and the carrier's webhooks; finished calls are logged in crm-core. Needs a public address for /webhooks/telnyx in live mode.",
       "sources": [
-        "services/features/dialer-sms/main.go"
+        "../services/dialer-sms/main.go"
       ],
       "variables": {
         "PORT": "HTTP port; default 8113. Match Coolify's container port and the gateway's ROUTES.",
@@ -357,7 +357,7 @@
     "messaging": {
       "description": "Team chats, groups and announcements (step 16): keeps chats in its own database and tells the live server; the gateway routes chat.callerwhale.com to it. Network alias messaging, port 8108, no domain.",
       "sources": [
-        "services/messaging/main.go"
+        "../services/messaging/main.go"
       ],
       "variables": {
         "PORT": "HTTP port; default 8108. Match Coolify's container port and the gateway's ROUTES.",
@@ -375,7 +375,7 @@
     "live": {
       "description": "The live server (Centrifugo, built from services/live): holds the apps' sockets and delivers what messaging tells it; the gateway routes live.callerwhale.com to it. Network alias centrifugo, port 8000, no domain.",
       "sources": [
-        "services/live/config.json"
+        "../services/live/config.json"
       ],
       "variables": {
         "CENTRIFUGO_HTTP_API_KEY": "Secret: 64 random hex characters. Only the messaging service calls the API, with this key (its LIVE_API_KEY).",

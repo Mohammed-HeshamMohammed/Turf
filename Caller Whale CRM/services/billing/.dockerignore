@@ -1,8 +1,0 @@
-.venv
-tests
-__pycache__
-*.pyc
-requirements-test.txt
-openapi.yaml
-README.md
-.dockerignore

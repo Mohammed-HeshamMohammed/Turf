@@ -1,0 +1,16 @@
+# The build context is the repository root (step 50+51): send only this service and the shared Go modules.
+*
+!packages/go
+!services/billing
+**/node_modules
+**/__pycache__
+**/.env
+**/.env.*
+**/*.exe
+services/billing/.venv
+services/billing/tests
+services/billing/__pycache__
+services/billing/*.pyc
+services/billing/requirements-test.txt
+services/billing/openapi.yaml
+services/billing/README.md

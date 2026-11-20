@@ -46,7 +46,7 @@ jobs:
     if: contains(fromJSON(needs.changes.outputs.parts), 'crm-core')
     uses: ./.github/workflows/service-check.yml
     with:
-      dir: Caller Whale CRM/services/crm-core
+      dir: services/crm-core
       language: go
       # The tests reset the schemas with the superuser and run the service as an ordinary login, so row security applies.
       setup: |
@@ -69,7 +69,7 @@ jobs:
     if: contains(fromJSON(needs.changes.outputs.parts), 'messaging')
     uses: ./.github/workflows/service-check.yml
     with:
-      dir: Caller Whale CRM/services/messaging
+      dir: services/messaging
       language: go
       setup: |
         psql -h localhost -U postgres -c "CREATE ROLE messaging_ci LOGIN PASSWORD 'apppass' NOSUPERUSER NOBYPASSRLS"
@@ -87,7 +87,7 @@ jobs:
     if: contains(fromJSON(needs.changes.outputs.parts), 'dialer-sms')
     uses: ./.github/workflows/service-check.yml
     with:
-      dir: Caller Whale CRM/services/features/dialer-sms
+      dir: services/dialer-sms
       language: go
       race: true
       # The tests remake the dialer_sms schema and play every call and text against the built-in Telnyx simulator.
@@ -101,7 +101,7 @@ jobs:
     if: contains(fromJSON(needs.changes.outputs.parts), 'auth')
     uses: ./.github/workflows/service-check.yml
     with:
-      dir: Caller Whale CRM/services/auth
+      dir: services/auth
       language: go
       env: AUTH_TEST_DATABASE_URL=postgres://postgres:testpass@localhost:5432/postgres?sslmode=disable
       must_pass: |
@@ -113,7 +113,7 @@ jobs:
     if: contains(fromJSON(needs.changes.outputs.parts), 'authz')
     uses: ./.github/workflows/service-check.yml
     with:
-      dir: Caller Whale CRM/services/authz
+      dir: services/authz
       language: go
       env: AUTHZ_TEST_DATABASE_URL=postgres://postgres:testpass@localhost:5432/postgres?sslmode=disable
       must_pass: "--- PASS: TestPostgresTeamTree"
@@ -123,7 +123,7 @@ jobs:
     if: contains(fromJSON(needs.changes.outputs.parts), 'learning')
     uses: ./.github/workflows/service-check.yml
     with:
-      dir: Caller Whale CRM/services/learning
+      dir: services/learning
       language: go
       setup: |
         psql -h localhost -U postgres -c "CREATE ROLE learning_ci LOGIN PASSWORD 'apppass' NOSUPERUSER NOBYPASSRLS"
@@ -136,7 +136,7 @@ jobs:
     if: contains(fromJSON(needs.changes.outputs.parts), 'notifications')
     uses: ./.github/workflows/service-check.yml
     with:
-      dir: Caller Whale CRM/services/notifications
+      dir: services/notifications
       language: go
 
   mcp:
@@ -144,7 +144,7 @@ jobs:
     if: contains(fromJSON(needs.changes.outputs.parts), 'mcp')
     uses: ./.github/workflows/service-check.yml
     with:
-      dir: Caller Whale CRM/services/mcp
+      dir: services/mcp
       language: go
 
   assistant:
@@ -152,7 +152,24 @@ jobs:
     if: contains(fromJSON(needs.changes.outputs.parts), 'assistant')
     uses: ./.github/workflows/service-check.yml
     with:
-      dir: Caller Whale CRM/services/assistant
+      dir: services/assistant
+      language: go
+
+  # The shared Go modules (packages/go, step 50+51); every service that imports them also runs when they change.
+  authverify:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'go-packages')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: packages/go/authverify
+      language: go
+
+  runtimelog:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'go-packages')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: packages/go/runtimelog
       language: go
 
   gateway:
@@ -160,7 +177,7 @@ jobs:
     if: contains(fromJSON(needs.changes.outputs.parts), 'gateway')
     uses: ./.github/workflows/service-check.yml
     with:
-      dir: Caller Whale CRM/services/gateway
+      dir: services/gateway
       language: go
 
   grafana-proxy:
@@ -168,7 +185,7 @@ jobs:
     if: contains(fromJSON(needs.changes.outputs.parts), 'grafana')
     uses: ./.github/workflows/service-check.yml
     with:
-      dir: Caller Whale CRM/services/grafana-proxy
+      dir: services/grafana-proxy
       language: go
 
   alert-relay:
@@ -176,7 +193,7 @@ jobs:
     if: contains(fromJSON(needs.changes.outputs.parts), 'grafana')
     uses: ./.github/workflows/service-check.yml
     with:
-      dir: Caller Whale CRM/services/alert-relay
+      dir: services/alert-relay
       language: go
 
   billing:
@@ -184,7 +201,7 @@ jobs:
     if: contains(fromJSON(needs.changes.outputs.parts), 'billing')
     uses: ./.github/workflows/service-check.yml
     with:
-      dir: Caller Whale CRM/services/billing
+      dir: services/billing
       language: python
       env: TEST_DATABASE_URL=postgres://postgres:testpass@localhost:5432/postgres?sslmode=disable
       must_pass: "^test_the_ready_made_plans_are_there_and_a_membership_keeps_only_the_limits_that_differ .* \\.\\.\\. ok$"
@@ -194,7 +211,7 @@ jobs:
     if: contains(fromJSON(needs.changes.outputs.parts), 'importing-lists')
     uses: ./.github/workflows/service-check.yml
     with:
-      dir: Caller Whale CRM/services/features/importing-lists
+      dir: services/importing-lists
       language: python
       # The end-to-end test builds crm-core's tables from its numbered scripts.
       env: CRM_TEST_ADMIN_URL=postgres://postgres:testpass@localhost:5432/postgres?sslmode=disable
@@ -212,13 +229,14 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - run: node --test "Caller Whale CRM/tools/*.test.mjs" "Caller Whale CRM/deploy/grafana/*.test.mjs" "Caller Whale CRM/services/live/*.test.mjs" "packages/*/test/*.test.mjs"
+      - run: node --test "Caller Whale CRM/tools/*.test.mjs" "Caller Whale CRM/deploy/grafana/*.test.mjs" "services/live/*.test.mjs" "packages/*/test/*.test.mjs"
       - run: node "Caller Whale CRM/tools/env-notes.mjs" check
-      - name: Every copy matches its source (token check, request logs)
+      # Every call between services has a timeout (one stuck service must not hang the ones that call it).
+      - run: node "Caller Whale CRM/tools/check-timeouts.mjs"
+      - name: Every image starts through the log wrapper; the scaffold copies match their source
         run: |
-          node "Caller Whale CRM/tools/auth-verify/sync.mjs" --check
-          # The log runner copies are not kept on main (the generator adds them to the branches), so write them, check, and make sure
-          # nothing that is kept changed (a stale request adapter or Dockerfile).
+          # The deployed images build the wrapper from packages/go/runtimelog. The scaffolds (until step 54) get generated copies,
+          # which are not kept on main: write them, check, and make sure nothing that is kept changed.
           node "Caller Whale CRM/tools/runtime-log/sync.mjs"
           node "Caller Whale CRM/tools/runtime-log/sync.mjs" --check
           git diff --exit-code
@@ -283,7 +301,7 @@ jobs:
     # The check `main` requires. Passing means every part that had to run passed.
     name: CI summary
     if: always()
-    needs: [changes, crm-core, messaging, dialer-sms, auth, authz, learning, notifications, mcp, assistant, gateway, grafana-proxy, alert-relay, billing, importing-lists, tools, crm-app, website]
+    needs: [changes, authverify, runtimelog, crm-core, messaging, dialer-sms, auth, authz, learning, notifications, mcp, assistant, gateway, grafana-proxy, alert-relay, billing, importing-lists, tools, crm-app, website]
     runs-on: ubuntu-latest
     steps:
       - name: Every part that ran passed

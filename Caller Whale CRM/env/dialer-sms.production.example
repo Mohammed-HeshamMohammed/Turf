@@ -1,5 +1,5 @@
 # The dialer on Coolify (application "dialer-sms", port 8113, network alias dialer-sms). Not deployed yet: ask the owner before adding it.
-# Setup and the switch from simulate to live: services/features/dialer-sms/README.md. Paste into Environment Variables -> Developer View; secrets stay in Coolify.
+# Setup and the switch from simulate to live: services/dialer-sms/README.md. Paste into Environment Variables -> Developer View; secrets stay in Coolify.
 # HTTP port; default 8113. Match Coolify's container port and the gateway's ROUTES.
 PORT=8113
 # Secret PostgreSQL URI of the dialer database. The service creates its own tables (schema dialer_sms) at start.

@@ -23,18 +23,18 @@ updates:
   # --- Go: the gateway, auth, authorization, notifications and the Grafana login proxy -------------------------------------
   - package-ecosystem: gomod
     directories:
-      - "/Caller Whale CRM/services/gateway"
-      - "/Caller Whale CRM/services/auth"
-      - "/Caller Whale CRM/services/authz"
-      - "/Caller Whale CRM/services/notifications"
-      - "/Caller Whale CRM/services/grafana-proxy"
-      - "/Caller Whale CRM/services/features/dialer-sms"
-      - "/Caller Whale CRM/services/crm-core"
-      - "/Caller Whale CRM/services/messaging"
-      - "/Caller Whale CRM/services/assistant"
-      - "/Caller Whale CRM/services/learning"
-      - "/Caller Whale CRM/services/mcp"
-      - "/Caller Whale CRM/services/alert-relay"
+      - "/services/gateway"
+      - "/services/auth"
+      - "/services/authz"
+      - "/services/notifications"
+      - "/services/grafana-proxy"
+      - "/services/dialer-sms"
+      - "/services/crm-core"
+      - "/services/messaging"
+      - "/services/assistant"
+      - "/services/learning"
+      - "/services/mcp"
+      - "/services/alert-relay"
     schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
     groups:
@@ -45,8 +45,8 @@ updates:
   # --- Python: billing, and the skip-tracing engine ------------------------------------------------------------------------
   - package-ecosystem: pip
     directories:
-      - "/Caller Whale CRM/services/billing"
-      - "/Caller Whale CRM/services/features/importing-lists"
+      - "/services/billing"
+      - "/services/importing-lists"
       - "/service"
     schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
@@ -71,24 +71,24 @@ updates:
   # --- Containers: the base image of every Dockerfile (node, golang, python, rust, nginx, distroless) ------------------------
   - package-ecosystem: docker
     directories:
-      - "/Caller Whale CRM/services/gateway"
-      - "/Caller Whale CRM/services/auth"
-      - "/Caller Whale CRM/services/authz"
-      - "/Caller Whale CRM/services/billing"
-      - "/Caller Whale CRM/services/notifications"
-      - "/Caller Whale CRM/services/grafana-proxy"
+      - "/services/gateway"
+      - "/services/auth"
+      - "/services/authz"
+      - "/services/billing"
+      - "/services/notifications"
+      - "/services/grafana-proxy"
       - "/Caller Whale CRM/services/features/ai-campaigns"
       - "/Caller Whale CRM/services/features/backup-restore"
       - "/Caller Whale CRM/services/features/crm"
-      - "/Caller Whale CRM/services/features/dialer-sms"
-      - "/Caller Whale CRM/services/crm-core"
-      - "/Caller Whale CRM/services/messaging"
-      - "/Caller Whale CRM/services/assistant"
-      - "/Caller Whale CRM/services/learning"
-      - "/Caller Whale CRM/services/mcp"
-      - "/Caller Whale CRM/services/alert-relay"
+      - "/services/dialer-sms"
+      - "/services/crm-core"
+      - "/services/messaging"
+      - "/services/assistant"
+      - "/services/learning"
+      - "/services/mcp"
+      - "/services/alert-relay"
       - "/Caller Whale CRM/services/features/exports"
-      - "/Caller Whale CRM/services/features/importing-lists"
+      - "/services/importing-lists"
       - "/Caller Whale CRM/services/features/leads-map"
       - "/Caller Whale CRM/services/features/skip-tracing"
     schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }

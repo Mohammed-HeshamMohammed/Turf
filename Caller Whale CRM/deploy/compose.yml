@@ -13,7 +13,8 @@ services:
     image: redis:7
   gateway:
     build:
-      context: ../services/gateway
+      context: ../..
+      dockerfile: services/gateway/Dockerfile
     environment:
       PORT: "8100"
       UPSTREAMS: "auth=http://auth:8101,notifications=http://notifications:8102,billing=http://billing:8103,importing-lists=http://importing-lists:8111,skip-tracing=http://skip-tracing:8112,dialer-sms=http://dialer-sms:8113,leads-map=http://leads-map:8114,crm=http://crm:8115,ai-campaigns=http://ai-campaigns:8116,exports=http://exports:8117,backup-restore=http://backup-restore:8118,messaging=http://messaging:8108"
@@ -22,7 +23,8 @@ services:
     restart: unless-stopped
   auth:
     build:
-      context: ../services/auth
+      context: ../..
+      dockerfile: services/auth/Dockerfile
     environment:
       PORT: "8101"
       DATABASE_URL: "${AUTH_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_auth}"
@@ -33,13 +35,15 @@ services:
     restart: unless-stopped
   notifications:
     build:
-      context: ../services/notifications
+      context: ../..
+      dockerfile: services/notifications/Dockerfile
     environment:
       PORT: "8102"
     restart: unless-stopped
   billing:
     build:
-      context: ../services/billing
+      context: ../..
+      dockerfile: services/billing/Dockerfile
     environment:
       PORT: "8103"
       DATABASE_URL: "${BILLING_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_billing}"
@@ -50,7 +54,8 @@ services:
     restart: unless-stopped
   authz:
     build:
-      context: ../services/authz
+      context: ../..
+      dockerfile: services/authz/Dockerfile
     environment:
       PORT: "8104"
       DATABASE_URL: "${AUTHZ_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_authz?sslmode=disable}"
@@ -61,7 +66,8 @@ services:
     restart: unless-stopped
   crm-core:
     build:
-      context: ../services/crm-core
+      context: ../..
+      dockerfile: services/crm-core/Dockerfile
     environment:
       PORT: "8107"
       DATABASE_URL: "${CRM_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_crm?sslmode=disable}"
@@ -78,7 +84,8 @@ services:
     restart: unless-stopped
   messaging:
     build:
-      context: ../services/messaging
+      context: ../..
+      dockerfile: services/messaging/Dockerfile
     environment:
       PORT: "8108"
       DATABASE_URL: "${MESSAGING_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_messaging?sslmode=disable}"
@@ -97,7 +104,8 @@ services:
   # The live server: holds the apps' sockets and delivers what the messaging service tells it. Only messaging calls its API.
   centrifugo:
     build:
-      context: ../services/live
+      context: ../..
+      dockerfile: services/live/Dockerfile
     environment:
       CENTRIFUGO_HTTP_API_KEY: "${LIVE_API_KEY:?set LIVE_API_KEY in env/compose.env}"
       CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY: "${LIVE_TOKEN_SECRET:?set LIVE_TOKEN_SECRET in env/compose.env}"
@@ -107,7 +115,8 @@ services:
     restart: unless-stopped
   assistant:
     build:
-      context: ../services/assistant
+      context: ../..
+      dockerfile: services/assistant/Dockerfile
     environment:
       PORT: "8109"
       CORS_ORIGINS: "${SITE_ORIGIN:-http://localhost:5200}"
@@ -116,7 +125,8 @@ services:
     restart: unless-stopped
   importing-lists:
     build:
-      context: ../services/features/importing-lists
+      context: ../..
+      dockerfile: services/importing-lists/Dockerfile
     environment:
       PORT: "8111"
       # One machine for trying things out: the worker uses the database owner. Production gives it its own login (IMPORT_DB_ROLE on crm-core).
@@ -136,7 +146,8 @@ services:
     restart: unless-stopped
   dialer-sms:
     build:
-      context: ../services/features/dialer-sms
+      context: ../..
+      dockerfile: services/dialer-sms/Dockerfile
     environment:
       PORT: "8113"
     restart: unless-stopped
