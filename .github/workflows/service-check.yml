@@ -60,7 +60,7 @@ jobs:
         shell: bash
         working-directory: ${{ inputs.dir }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Test variables
         env:
           LINES: ${{ inputs.env }}
@@ -72,7 +72,7 @@ jobs:
         run: bash -euo pipefail -c "$SETUP"
 
       - if: inputs.language == 'go'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: ${{ inputs.dir }}/go.mod
           cache-dependency-path: ${{ inputs.dir }}/go.sum
@@ -83,7 +83,7 @@ jobs:
         run: go test ./... -count=1 -v ${{ inputs.race && '-race' || '' }} 2>&1 | tee test.log; test ${PIPESTATUS[0]} -eq 0
 
       - if: inputs.language == 'python'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - if: inputs.language == 'python'
