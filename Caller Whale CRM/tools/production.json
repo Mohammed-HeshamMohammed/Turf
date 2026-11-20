@@ -140,7 +140,8 @@
         {
           "name": "cw-messaging",
           "context": ".",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "t8rinub6nqgympnlhs8uom9w" }
         }
       ]
     },
@@ -291,7 +292,8 @@
         {
           "name": "cw-billing",
           "context": ".",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "a9jtxsbmazlno460ldvhj1k5" }
         }
       ]
     },
