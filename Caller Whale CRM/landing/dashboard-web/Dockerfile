@@ -6,7 +6,7 @@ FROM golang:1 AS runtime-log-build
 COPY ["Caller Whale CRM/landing/dashboard-web/runtime-log/main.go", "/src/main.go"]
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.go
 
-FROM node:24-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /repo
 COPY package.json package-lock.json .npmrc ./
 COPY packages/ packages/
@@ -29,7 +29,7 @@ ENV VITE_CALLERWHALE_AUTH_URL=$VITE_CALLERWHALE_AUTH_URL \
     VITE_CALLERWHALE_REQUIRE_SIGN_IN=true
 RUN mkdir -p /out && node /headers/security-headers.mjs /out/security-headers.conf && npx tsc -p . && npx vite build && cp -r dist/client /out/client
 
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 COPY --from=runtime-log-build /runtime-log /usr/local/bin/callerwhale-log
 ENV CALLERWHALE_LOG_SERVICE="Dashboard"
 COPY ["Caller Whale CRM/landing/dashboard-web/nginx.conf", "/etc/nginx/conf.d/default.conf"]

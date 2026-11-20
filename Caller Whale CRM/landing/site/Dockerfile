@@ -5,7 +5,7 @@ FROM golang:1 AS runtime-log-build
 COPY ["Caller Whale CRM/landing/site/runtime-log/main.go", "/src/main.go"]
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.go
 
-FROM node:24-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /repo
 COPY package.json package-lock.json .npmrc ./
 COPY packages/ packages/
@@ -23,7 +23,7 @@ ARG VITE_CALLERWHALE_ASSISTANT_URL=https://assistant.callerwhale.com
 ENV VITE_CALLERWHALE_ASSISTANT_URL=$VITE_CALLERWHALE_ASSISTANT_URL
 RUN mkdir -p /out && npm test && npm run build && node scripts/security-headers.mjs /out/security-headers.conf dist && cp -r dist /out/dist
 
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 COPY --from=runtime-log-build /runtime-log /usr/local/bin/callerwhale-log
 ENV CALLERWHALE_LOG_SERVICE="Landing"
 COPY ["Caller Whale CRM/landing/site/nginx.conf", "/etc/nginx/conf.d/default.conf"]
