@@ -1,5 +1,5 @@
 """Which CRM field each source column is, from its header. The wording is the same as the CRM's own column matching
-(desktop/frontend/react/src/field-vocabulary.ts): phrases are compared after case, punctuation and spacing are evened out,
+(apps/crm/src/field-vocabulary.ts): phrases are compared after case, punctuation and spacing are evened out,
 so "Owner Name", "OWNER_NAME" and "ownerName" read the same. A column it does not know is suggested as "not used"."""
 import re
 
