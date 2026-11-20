@@ -1,0 +1,496 @@
+/* Caller Whale's calendar and date field (calendar.jsx), shared by the CRM, the website and the desktop app.
+   The one copy: the apps import it as @callerwhale/calendar (npm workspaces, D383).
+   Each app's own colours come through its tokens (--raised, --ink, --muted, --line, --well, --accent, --accent-ink,
+   --accent-soft); an app can also set the --cal-* ones below. */
+
+.cal,
+.cal-pop,
+.cal-field {
+  --cal-surface: var(--raised, #fff);
+  --cal-ink: var(--ink, #121212);
+  --cal-muted: var(--muted, #595959);
+  --cal-line: var(--line, #dcdcdc);
+  --cal-hover: var(--well, #e6e6e6);
+  --cal-selected: var(--accent, #ecc394);
+  --cal-selected-ink: var(--accent-ink, #805015);
+  --cal-band: var(--accent-soft, #fbdfc2);
+  --cal-today: var(--accent, #ecc394);
+  --cal-ring: var(--accent-ink, #805015);
+  --cal-dot: var(--accent-ink, #805015);
+  --cal-ease: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* ─── Calendar ─── */
+
+.cal {
+  width: 100%;
+  max-width: 300px;
+  color: var(--cal-ink);
+  font-size: 13px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.cal button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  margin: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.cal button:focus-visible {
+  outline: 2px solid var(--cal-ring);
+  outline-offset: 1px;
+}
+.cal-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.cal-nav {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--cal-muted) !important;
+  transition: background-color 150ms, color 150ms;
+}
+.cal-nav:hover:not(:disabled) {
+  background: var(--cal-hover);
+  color: var(--cal-ink) !important;
+}
+.cal-nav:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.cal-title {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+}
+.cal-jump {
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-weight: 550 !important;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 150ms;
+}
+.cal-jump:hover:not(:disabled),
+.cal-jump[aria-pressed="true"] {
+  background: var(--cal-hover);
+}
+.cal-jump:disabled {
+  cursor: default;
+}
+.cal-bar {
+  color: var(--cal-muted);
+  opacity: 0.4;
+}
+
+.cal-body {
+  position: relative;
+  overflow: hidden;
+}
+.cal-weekdays,
+.cal-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.cal-weekdays {
+  margin-bottom: 2px;
+}
+.cal-weekdays span {
+  display: grid;
+  place-items: center;
+  height: 28px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cal-muted);
+}
+.cal-grid {
+  display: grid;
+  gap: 2px;
+}
+.cal-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+/* The range band: full width between the ends, half width on the end days so it meets their round fill. */
+.cal-band::before,
+.cal-band-start::before,
+.cal-band-end::before {
+  content: "";
+  position: absolute;
+  inset: 2px 0;
+  background: var(--cal-band);
+}
+.cal-band-start::before {
+  left: 50%;
+}
+.cal-band-end::before {
+  right: 50%;
+}
+.cal-day {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  max-width: 38px;
+  aspect-ratio: 1;
+  padding: 0;
+  border-radius: 50%;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 150ms, color 150ms;
+}
+.cal-day:hover:not(.is-selected):not([aria-disabled]) {
+  background: var(--cal-hover);
+}
+.cal-day.is-outside {
+  color: var(--cal-muted) !important;
+  opacity: 0.55;
+}
+.cal-day.is-today:not(.is-selected) {
+  box-shadow: inset 0 0 0 1.5px var(--cal-today);
+  font-weight: 600 !important;
+}
+.cal-day.is-selected {
+  background: var(--cal-selected);
+  color: var(--cal-selected-ink) !important;
+  font-weight: 600 !important;
+  opacity: 1;
+}
+.cal-day.is-disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.cal-day.is-booked {
+  color: var(--cal-muted) !important;
+  text-decoration: line-through;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.cal-dot {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: var(--cal-dot);
+}
+
+.cal-picks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px 0;
+}
+.cal-pick {
+  height: 44px;
+  border-radius: 12px;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 150ms;
+}
+.cal-pick:hover:not(:disabled):not(.is-selected) {
+  background: var(--cal-hover);
+}
+.cal-pick.is-today:not(.is-selected) {
+  box-shadow: inset 0 0 0 1.5px var(--cal-today);
+}
+.cal-pick.is-selected {
+  background: var(--cal-selected);
+  color: var(--cal-selected-ink) !important;
+  font-weight: 600 !important;
+}
+.cal-pick:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* The month slides in from the side it comes from; the month and year lists fade in. */
+.cal-from-right {
+  animation: cal-from-right 180ms var(--cal-ease);
+}
+.cal-from-left {
+  animation: cal-from-left 180ms var(--cal-ease);
+}
+.cal-fade {
+  animation: cal-fade 150ms var(--cal-ease);
+}
+@keyframes cal-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+@keyframes cal-from-left {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+@keyframes cal-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ─── Date field ─── */
+
+.cal-field {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: middle;
+}
+.cal-trigger {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cal-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.cal-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-value.is-empty {
+  color: var(--cal-muted);
+}
+.cal-field-icon {
+  flex: none;
+  color: var(--cal-muted);
+}
+.cal-trigger[aria-expanded="true"] .cal-field-icon {
+  color: var(--cal-selected-ink);
+}
+/* Holds the value for the form and lets the browser point at the field when a required date is missing. */
+.cal-field > input.cal-native {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cal-pop {
+  position: fixed;
+  z-index: 2000;
+  box-sizing: border-box;
+  width: 300px;
+  max-width: calc(100vw - 16px);
+  padding: 12px 12px 8px;
+  border-radius: 18px;
+  background: var(--cal-surface);
+  color: var(--cal-ink);
+  box-shadow:
+    0 18px 44px -12px #0004,
+    0 0 0 1px #0001;
+  font-size: 13px;
+  text-align: left;
+  animation: cal-pop-in 140ms var(--cal-ease);
+}
+.cal-pop .cal {
+  max-width: none;
+}
+.cal-pop.is-leaving {
+  animation: cal-pop-out 140ms ease-in forwards;
+  pointer-events: none;
+}
+.cal-pop button {
+  font: inherit;
+}
+.cal-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--cal-line);
+}
+.cal-foot:empty {
+  display: none;
+}
+.cal-foot button {
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--cal-selected-ink);
+  cursor: pointer;
+}
+.cal-foot button:hover {
+  background: var(--cal-hover);
+}
+.cal-foot button:only-child {
+  margin-left: auto;
+}
+.cal-foot button:focus-visible,
+.cal-done:focus-visible {
+  outline: 2px solid var(--cal-ring);
+  outline-offset: 1px;
+}
+@keyframes cal-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+@keyframes cal-pop-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+/* On a phone: a sheet from the bottom of the screen, as wide as it is, with bigger days to tap. */
+.cal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1999;
+  background: #0006;
+  animation: cal-fade 180ms ease-out;
+}
+.cal-backdrop.is-leaving {
+  animation: cal-fade-out 140ms ease-in forwards;
+}
+.cal-pop.is-sheet {
+  inset: auto 0 0 0;
+  width: auto;
+  max-width: none;
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  padding: 8px max(16px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  border-radius: 24px 24px 0 0;
+  font-size: 15px;
+  animation: cal-sheet-in 220ms var(--cal-ease);
+}
+.cal-pop.is-sheet.is-leaving {
+  animation: cal-sheet-out 160ms ease-in forwards;
+}
+.cal-pop.is-sheet > * {
+  max-width: 420px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.cal-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  margin-bottom: 4px;
+}
+.cal-sheet-head strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+}
+.cal-done {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--cal-hover);
+  color: var(--cal-ink);
+  font-weight: 600;
+  cursor: pointer;
+}
+.cal-pop.is-sheet .cal-nav {
+  width: 40px;
+  height: 40px;
+}
+.cal-pop.is-sheet .cal-jump {
+  padding: 8px 10px;
+}
+.cal-pop.is-sheet .cal-weekdays span {
+  height: 32px;
+  font-size: 13px;
+}
+.cal-pop.is-sheet .cal-day {
+  max-width: 48px;
+}
+.cal-pop.is-sheet .cal-pick {
+  height: 52px;
+}
+.cal-pop.is-sheet .cal-foot button {
+  min-height: 40px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+@keyframes cal-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes cal-sheet-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+@keyframes cal-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* A calendar on the page itself (not in a field) on a narrow screen fills the width, with days to tap. */
+@media (max-width: 559px) {
+  .cal-days .cal-day {
+    min-height: 36px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cal *,
+  .cal-pop,
+  .cal-backdrop {
+    animation-duration: 1ms !important;
+    transition: none !important;
+  }
+  .cal-from-right,
+  .cal-from-left {
+    animation-name: cal-fade;
+  }
+}
