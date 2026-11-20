@@ -207,7 +207,8 @@
         {
           "name": "cw-assistant",
           "context": ".",
-          "dockerfile": "Dockerfile"
+          "dockerfile": "Dockerfile",
+          "deploy": { "coolify": "ttx1uhqkq0yqyynypljgdg1b" }
         }
       ]
     },
