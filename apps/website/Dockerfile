@@ -2,8 +2,8 @@
 # image needs. The auth service's address is fixed at build time (it is also in the content security policy);
 # the build stops without it, so a site that would send people to localhost is never made.
 FROM golang:1 AS runtime-log-build
-COPY ["apps/website/runtime-log/main.go", "/src/main.go"]
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log /src/main.go
+COPY packages/go/runtimelog /src
+RUN cd /src && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log ./cmd/callerwhale-log
 
 FROM node:24-alpine AS build
 WORKDIR /repo
