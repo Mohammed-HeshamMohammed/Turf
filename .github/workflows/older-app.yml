@@ -7,12 +7,16 @@ on:
   pull_request:
     paths:
       - "Caller Whale App/**"
+      # The root Rust workspace sits above this app (it is excluded there, step 52).
+      - "Cargo.toml"
       - "service/**"
       - ".github/workflows/older-app.yml"
   push:
     branches: [main]
     paths:
       - "Caller Whale App/**"
+      # The root Rust workspace sits above this app (it is excluded there, step 52).
+      - "Cargo.toml"
       - "service/**"
       - ".github/workflows/older-app.yml"
   workflow_dispatch:

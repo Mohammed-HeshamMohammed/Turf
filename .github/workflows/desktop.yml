@@ -7,7 +7,11 @@ name: Desktop app
 on:
   pull_request:
     paths:
-      - "Caller Whale CRM/desktop/**"
+      - "apps/crm/**"
+      - "apps/crm-desktop/**"
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
       - "Caller Whale CRM/Cargo.toml"
       - "Caller Whale CRM/Cargo.lock"
       - "Caller Whale CRM/services/features/**"
@@ -19,7 +23,11 @@ on:
   push:
     branches: [main]
     paths:
-      - "Caller Whale CRM/desktop/**"
+      - "apps/crm/**"
+      - "apps/crm-desktop/**"
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
       - "Caller Whale CRM/Cargo.toml"
       - "Caller Whale CRM/Cargo.lock"
       - "Caller Whale CRM/services/features/**"
