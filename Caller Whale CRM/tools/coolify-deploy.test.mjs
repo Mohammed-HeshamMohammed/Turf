@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { deploy, plan, readRecords, accessHeaders } from "./coolify-deploy.mjs";
+import { deploy, plan, readRecords, deployHeaders } from "./coolify-deploy.mjs";
 
 const APP = "cs7nxvwhusacrlrsmolbqll9";
 const d = n => `sha256:${String(n).repeat(64)}`;
@@ -108,8 +108,7 @@ test("Cloudflare's challenge page is named, not shown as a Coolify refusal", asy
   await assert.rejects(deploy(plan([rec("cw-a", "")]), { base: "https://c.test", token: "t", log: () => {} }), /Cloudflare's bot check answered instead of Coolify .*https:\/\/c\.test\/api\//);
 });
 
-test("the Cloudflare Access service token is sent only when both halves are set", () => {
-  assert.deepEqual(accessHeaders({ CF_ACCESS_CLIENT_ID: "id.access", CF_ACCESS_CLIENT_SECRET: "s" }), { "CF-Access-Client-Id": "id.access", "CF-Access-Client-Secret": "s" });
-  assert.deepEqual(accessHeaders({ CF_ACCESS_CLIENT_ID: "id.access" }), {});
-  assert.deepEqual(accessHeaders({}), {});
+test("the deploy secret is sent as x-callerwhale-deploy only when it is set", () => {
+  assert.deepEqual(deployHeaders({ COOLIFY_DEPLOY_SECRET: "s3cret" }), { "x-callerwhale-deploy": "s3cret" });
+  assert.deepEqual(deployHeaders({}), {});
 });

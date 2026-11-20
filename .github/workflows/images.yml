@@ -240,9 +240,8 @@ jobs:
       - env:
           COOLIFY_URL: ${{ vars.COOLIFY_URL }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
-          # Cloudflare Access service token: lets this job past the bot check on coolify.callerwhale.com/api/ (coolify-image-swap.md).
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          # Sent as x-callerwhale-deploy: the owner's Cloudflare rule lets only this past the bot check on /api/ (coolify-image-swap.md).
+          COOLIFY_DEPLOY_SECRET: ${{ secrets.COOLIFY_DEPLOY_SECRET }}
         # bash with pipefail: a refused deploy fails the job instead of hiding behind tee.
         shell: bash
         run: node "Caller Whale CRM/tools/coolify-deploy.mjs" deploys | tee -a "$GITHUB_STEP_SUMMARY"
