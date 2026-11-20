@@ -2,7 +2,7 @@
 
 **Written:** 2026-11-16 and 2026-11-17. **State:** plan only, nothing built. Scope is the **web version** (the Dashboard on `callerwhale.com` and the CRM on `app.callerwhale.com`); the desktop (Tauri) app and other local apps are out of scope for now.
 
-This plan began as a review of the invitation flow (`services/auth/invitations.go`, `services/authz/tree.go`, `landing/site/src/AccessManagement.tsx`, `desktop/frontend/react/src/RemoteGate.jsx`) and of messaging (`services/messaging`), and grew through twelve rounds of questions answered by the owner. Everything under "What exists today" was read in the code, not run.
+This plan began as a review of the invitation flow (`services/auth/invitations.go`, `services/authz/tree.go`, `apps/website/src/AccessManagement.tsx`, `apps/crm/src/RemoteGate.jsx`) and of messaging (`services/messaging`), and grew through twelve rounds of questions answered by the owner. Everything under "What exists today" was read in the code, not run.
 
 ## Files
 

@@ -1,0 +1,13 @@
+# The build context is the repository root (npm workspaces, D383): send only what the website's image needs.
+*
+!package.json
+!package-lock.json
+!.npmrc
+!packages
+!apps/website
+!apps/crm/package.json
+**/node_modules
+**/dist
+**/dist-ssr
+**/.env
+**/.env.*

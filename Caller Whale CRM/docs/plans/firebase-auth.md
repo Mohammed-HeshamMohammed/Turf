@@ -81,11 +81,11 @@ Console steps and `tools/firebase/configure-auth.mjs` below. Two projects: `call
 - `setupMfa` returns the setup key and `otpauth://` link from `TotpMultiFactorGenerator`; `confirmMfa` returns no recovery codes, and the screens that showed them say what to do instead.
 
 ### 3. Desktop sign-in with Google (done), and Apple
-Firebase's popup and redirect do not work inside the Tauri window, and Google blocks embedded sign-in. The container already listens on `127.0.0.1:<port>` (`desktop/container/rust/src/signin.rs`); it is kept:
+Firebase's popup and redirect do not work inside the Tauri window, and Google blocks embedded sign-in. The container already listens on `127.0.0.1:<port>` (`apps/crm-desktop/src/signin.rs`); it is kept:
 1. The app opens the person's browser at Google with a **Desktop** OAuth client, PKCE, and `redirect_uri=http://127.0.0.1:<port>`.
 2. The listener receives the code; the app trades it for Google's ID token.
 3. `signInWithCredential(GoogleAuthProvider.credential(idToken))` signs in to Firebase.
-Steps 1 and 2 run in the container (`google_sign_in` in `desktop/container/rust/src/signin.rs`), which also checks the `state`; the window does step 3. In the window Firebase starts without its redirect helper, so it loads nothing of Google's.
+Steps 1 and 2 run in the container (`google_sign_in` in `apps/crm-desktop/src/signin.rs`), which also checks the `state`; the window does step 3. In the window Firebase starts without its redirect helper, so it loads nothing of Google's.
 
 The Google ID token's audience is the Desktop client. If Firebase refuses it, add that client id under **Authentication → Sign-in method → Google → Safelist client IDs**.
 

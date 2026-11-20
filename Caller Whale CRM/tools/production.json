@@ -1,5 +1,5 @@
 {
-  "comment": "One production branch per part (docs/plans/production-branches.md). `checks`: GitHub checks that must have passed on the commit, besides CI summary, before the branch changes. `paths` are relative to `base` (default 'Caller Whale CRM'); a branch holds only those, at those paths, plus .gitignore. `rust: true` adds the Cargo workspace file, cut down to the members present, and Cargo.lock (`rust: \"<folder>\"`: from and to that folder). The web apps and the desktop app use `base: \"\"` (the repository layout), so their branches carry the npm workspace: the root package.json, its lock file and packages/ (D383, step 49). `images`: the container images built from the branch's files (.github/workflows/images.yml, step 47): `context` and `dockerfile` are paths in the branch; `buildArgs` maps a build argument to the repository's Actions variable that holds it.",
+  "comment": "One production branch per part (docs/plans/production-branches.md). `checks`: GitHub checks that must have passed on the commit, besides CI summary, before the branch changes. `paths` are relative to `base` (default 'Caller Whale CRM'); a branch holds only those, at those paths, plus .gitignore. `rust: true` adds the Cargo workspace file, cut down to the members present, and Cargo.lock (`rust: \"<folder>\"`: from and to that folder). The web apps and the desktop app use `base: \"\"` (the repository layout, apps/ since step 52), so their branches carry the npm workspace: the root package.json, its lock file and packages/ (D383, step 49); the desktop branch carries the root Rust workspace whole. `images`: the container images built from the branch's files (.github/workflows/images.yml, step 47): `context` and `dockerfile` are paths in the branch; `buildArgs` maps a build argument to the repository's Actions variable that holds it.",
   "components": [
     {
       "name": "landing-web-production",
@@ -11,16 +11,16 @@
         "package-lock.json",
         ".npmrc",
         "packages",
-        "Caller Whale CRM/landing/site",
-        "Caller Whale CRM/desktop/frontend/react/package.json"
+        "apps/website",
+        "apps/crm/package.json"
       ],
-      "build": "npm ci at the repository root (npm workspaces), then npm run build in Caller Whale CRM/landing/site. The image is built in GitHub Actions from this branch's files with the branch root as the context (images.yml); set VITE_CALLERWHALE_AUTH_URL as a build variable (env/landing-web.production.example)",
+      "build": "npm ci at the repository root (npm workspaces), then npm run build in apps/website. The image is built in GitHub Actions from this branch's files with the branch root as the context (images.yml); set VITE_CALLERWHALE_AUTH_URL as a build variable (env/landing-web.production.example)",
       "note": false,
       "images": [
         {
           "name": "cw-website",
           "context": ".",
-          "dockerfile": "Caller Whale CRM/landing/site/Dockerfile",
+          "dockerfile": "apps/website/Dockerfile",
           "deploy": { "coolify": "7iglktaamqg3fsnxkzydofiz" },
           "buildArgs": {
             "VITE_CALLERWHALE_AUTH_URL": "CALLERWHALE_AUTH_URL"
@@ -37,20 +37,20 @@
         "package-lock.json",
         ".npmrc",
         "packages",
-        "Caller Whale CRM/landing/dashboard-web",
-        "Caller Whale CRM/desktop/frontend/react",
-        "Caller Whale CRM/landing/site/package.json"
+        "apps/crm-web",
+        "apps/crm",
+        "apps/website/package.json"
       ],
-      "build": "Coolify: base directory /, Dockerfile /landing/dashboard-web/Dockerfile, port 8080, health /healthz, build args VITE_CALLERWHALE_AUTH_URL and VITE_CALLERWHALE_API_URL",
+      "build": "The image is built in GitHub Actions from this branch's files with the branch root as the context (images.yml): Dockerfile apps/crm-web/Dockerfile, port 8080, health /healthz, build args VITE_CALLERWHALE_AUTH_URL, VITE_CALLERWHALE_API_URL and VITE_CALLERWHALE_MESSAGING_URL",
       "note": false,
       "exclude": [
-        "Caller Whale CRM/landing/dashboard-web/README.md"
+        "apps/crm-web/README.md"
       ],
       "images": [
         {
           "name": "cw-crm-web",
           "context": ".",
-          "dockerfile": "Caller Whale CRM/landing/dashboard-web/Dockerfile",
+          "dockerfile": "apps/crm-web/Dockerfile",
           "deploy": { "coolify": "tdqx7o94epfaiqpp38gqx3ya" },
           "buildArgs": {
             "VITE_CALLERWHALE_AUTH_URL": "CALLERWHALE_AUTH_URL",
@@ -319,14 +319,16 @@
         "package-lock.json",
         ".npmrc",
         "packages",
-        "Caller Whale CRM/.gitignore",
-        "Caller Whale CRM/desktop",
-        "Caller Whale CRM/landing/site/package.json",
+        "Cargo.toml",
+        "Cargo.lock",
+        "apps/crm",
+        "apps/crm-desktop",
+        "crates/desktop-features",
+        "apps/website/package.json",
         "Caller Whale CRM/env/desktop.env.example",
         "Caller Whale CRM/env/README.md"
       ],
-      "rust": "Caller Whale CRM",
-      "build": "npm install && npm run build in desktop/frontend/react; cargo test --workspace at the root (the feature modules); cargo build in desktop/container/rust. Their tests start the Skip Tracing engine from skip-engine-production: set CALLERWHALE_SERVICE_ROOT to its checkout",
+      "build": "npm ci at the repository root, then npm run build in apps/crm; cargo test --workspace at the root (the window and the feature crates)",
       "base": ""
     },
     {

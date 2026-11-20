@@ -10,7 +10,7 @@ test("a change runs its part and what depends on it", () => {
   assert.deepEqual(partsFor(["package-lock.json"]), ["crm-app", "website"]);
   assert.deepEqual(partsFor(["service/x.py"]), ["crm-app"]);
   // The desktop apps have their own workflows.
-  assert.deepEqual(partsFor(["Caller Whale CRM/desktop/container/rust/src/main.rs", "Caller Whale App/src/App.tsx"]), []);
+  assert.deepEqual(partsFor(["apps/crm-desktop/src/main.rs", "Caller Whale App/src/App.tsx"]), []);
 });
 
 test("docs alone run nothing; CI files, main and manual runs run everything", () => {

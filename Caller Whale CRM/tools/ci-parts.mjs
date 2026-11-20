@@ -30,8 +30,8 @@ export const PARTS = {
   // Also every place a shared file is copied to (the token check, the request-log adapters and runner): the tools job checks that
   // each copy matches its source. It also runs the tests of packages/.
   tools: [C + "tools/", C + "deploy/", C + "env/", S, C + "landing/", "packages/"],
-  "crm-app": [C + "desktop/frontend/", C + "landing/dashboard-web/", "service/", ...NPM],
-  website: [C + "landing/site/", ...NPM],
+  "crm-app": ["apps/crm/", "apps/crm-web/", "service/", ...NPM],
+  website: ["apps/website/", ...NPM],
 };
 // The desktop apps and the engine they ship are not here: they have their own development and their own workflows (desktop.yml,
 // older-app.yml), which do not block merging to main.

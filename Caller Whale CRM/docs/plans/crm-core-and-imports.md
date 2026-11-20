@@ -25,7 +25,7 @@ Not needed: a storage bucket (files come through our server), a second Redis (th
 
 ## crm-core, first version
 
-Answers what the web CRM calls today (`desktop/frontend/react/src/remote/api.ts`, `RemoteGate.jsx`, `remote/engine.ts`, `remote/translate.ts`):
+Answers what the web CRM calls today (`apps/crm/src/remote/api.ts`, `RemoteGate.jsx`, `remote/engine.ts`, `remote/translate.ts`):
 
 - `GET /api/v1/account`, `GET /api/v1/me` (person, workspaces, roles, capabilities, second-step state, plan state, access revision).
 - `GET /sync/snapshot`, `GET /sync/pull`, `POST /sync/push` with the operation kinds in `translate.ts` (`lead.*`, `note.*`, `task.*`, `call.record`, `deal.*`, `handoff.*`; `message.draft` refused until messaging exists).
@@ -112,7 +112,7 @@ Secrets (database passwords, the `core-api` token for authz) are set by the owne
 
 ## Reorganising imports and lists (decided 2026-11-10)
 
-Problem: the import itself runs on the server, but `/sync/snapshot` sends every visible lead in one response, and the browser then holds them all in memory and in the encrypted offline copy. Big lists and weak PCs crash. (Sources: `services/crm-core/sync.go` snapshot, `desktop/frontend/react/src/remote/engine.ts`.)
+Problem: the import itself runs on the server, but `/sync/snapshot` sends every visible lead in one response, and the browser then holds them all in memory and in the encrypted offline copy. Big lists and weak PCs crash. (Sources: `services/crm-core/sync.go` snapshot, `apps/crm/src/remote/engine.ts`.)
 
 Decisions:
 

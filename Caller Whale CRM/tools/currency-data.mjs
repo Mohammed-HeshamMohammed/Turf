@@ -1,7 +1,7 @@
 // Builds the currency tables from the official sources, so nobody types them by hand:
 //   - which currencies exist, and how many decimals each has: ISO 4217, from SIX (the standard's maintenance agency)
 //   - which currency each country uses: Unicode CLDR (unicode-org/cldr-json, published on npm as cldr-core)
-// Writes landing/site/src/currency-data.ts and services/auth/currency_data.go (generated: do not edit them).
+// Writes apps/website/src/currency-data.ts and services/auth/currency_data.go (generated: do not edit them).
 //
 //   node tools/currency-data.mjs           fetch the sources and rewrite both files
 //   node tools/currency-data.mjs --check   fetch them and fail when a file is out of date (run monthly by .github/workflows/currency-data.yml)
@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ISO_URL = "https://www.six-group.com/dam/download/financial-information/data-center/iso-currrency/lists/list-one.xml";
 const CLDR_URL = "https://cdn.jsdelivr.net/npm/cldr-core@latest/supplemental/currencyData.json";
-const OUT_TS = join(root, "landing", "site", "src", "currency-data.ts");
+const OUT_TS = join(root, "..", "apps", "website", "src", "currency-data.ts");
 const OUT_GO = join(root, "services", "auth", "currency_data.go");
 
 // Not currencies a person is charged in: precious metals, special drawing rights, test and "no currency" codes, and the funds codes.

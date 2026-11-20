@@ -114,7 +114,7 @@ Rules for all three: the person connects their own account; Caller Whale sends o
 
 ## Where this plugs into the code that exists
 
-- `landing/site/src/SettingsConnections.tsx` is the page; each "Coming soon" badge becomes a Connect button as its phase ships.
+- `apps/website/src/SettingsConnections.tsx` is the page; each "Coming soon" badge becomes a Connect button as its phase ships.
 - `services/auth` gains the OAuth endpoints and the `connector_*` tables; the gateway allow-list and `openapi.yaml` are updated with them.
 - `services/authz` is unchanged: connectors ask it the same questions the CRM does.
 - `env/` gets `mcp.production.example` and `integrations.production.example`, and `tools/production.json` gets `mcp-backend-production` and `integrations-backend-production`.

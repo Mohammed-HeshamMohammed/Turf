@@ -8,7 +8,6 @@ FROM rust:1 AS build
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY services ./services
-COPY desktop ./desktop
 RUN cargo build --release -p callerwhale-crm
 
 FROM debian:bookworm-slim

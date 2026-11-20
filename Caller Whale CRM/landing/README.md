@@ -30,7 +30,7 @@ All copy lives in `web/src/content.js`. Every feature and security point carries
 
 ## Screenshots
 
-`web/public/screens/*.webp` are captures of the CRM in its sample workspace. To refresh them after the app changes, start the CRM (`npm run dev` in `Caller Whale CRM/desktop/frontend/react`), then:
+`web/public/screens/*.webp` are captures of the CRM in its sample workspace. To refresh them after the app changes, start the CRM (`npm run dev` in `apps/crm`), then:
 
 ```bash
 node landing/web/scripts/capture-screens.mjs http://localhost:5190 shots

@@ -69,7 +69,8 @@ for (const s of stack.services) {
 
 // ---- desktop modules ----
 for (const m of stack.desktopModules) {
-  const dir = `desktop/backend/features/${m.name}`;
+  // Desktop modules are in the repository's root Rust workspace (step 52), outside this folder.
+  const dir = `../crates/desktop-features/${m.name}`;
   const vars = {
     NAME: m.name, SLUG: m.name, TITLE: m.title, DESC: m.desc, PORT: "", DIR: dir, PART: "Desktop backend module (runs on the person's computer)",
     LANG_NAME: "Rust (a library crate the container links in)", OWNS: "No (it reads and writes the local workspace through the desktop backend)",
@@ -82,27 +83,23 @@ for (const m of stack.desktopModules) {
     join(dest, "README.md"),
     fill(readFileSync(join(templates, "common", "README.md.tpl"), "utf8"), vars)
       .replace(/\| Default port \| .*\n/, "")
-      .replace(/- Answer `GET \/healthz`[\s\S]*?\n\n## Data/, "- Never need the server to do its job: opening, checking and exporting must work offline.\n- Keep every function callable from a Tauri command in `desktop/container/rust` and from tests, with no window.\n- Share nothing with the other modules except through the desktop backend crate.\n\n## Data")
+      .replace(/- Answer `GET \/healthz`[\s\S]*?\n\n## Data/, "- Never need the server to do its job: opening, checking and exporting must work offline.\n- Keep every function callable from a Tauri command in `apps/crm-desktop` and from tests, with no window.\n- Share nothing with the other modules except through the desktop backend crate.\n\n## Data")
       .replace(/- Keep its API in `openapi.yaml`.*\n- Talk to other services[\s\S]*?\n- Verify the signed-in person[^\n]*\n/, ""),
     created,
   );
 }
 
-// ---- the Cargo workspace: every Rust crate, with the existing standalone crates left out ----
-const rustCrates = [
-  ...stack.services.filter(s => s.lang === "rust").map(s => s.dir),
-  ...stack.desktopModules.map(m => `desktop/backend/features/${m.name}`),
-];
+// ---- the scaffolds' Cargo workspace: the Rust services here (the desktop modules are in the root workspace, step 52) ----
+const rustCrates = stack.services.filter(s => s.lang === "rust").map(s => s.dir);
 put(
   join(root, "Cargo.toml"),
-  `# One workspace, one lock file and one \`cargo test --workspace\` for the new Rust crates (see docs/plans/service-architecture.md).
-# The desktop container (Tauri) keeps its own lock file: it pulls in a large dependency tree.
+  `# The scaffold crates (D384: never built into a production image), in their own workspace so their Dockerfiles build from this
+# folder. The desktop app's crates are in the repository's root workspace (step 52). Step 54 moves these to scaffolds/.
 [workspace]
 resolver = "2"
 members = [
 ${rustCrates.map(c => `  "${c}",`).join("\n")}
 ]
-exclude = ["desktop/container/rust"]
 `,
   created,
 );

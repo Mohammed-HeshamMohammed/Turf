@@ -4,10 +4,10 @@ Everything a US privacy and technology lawyer needs to review Caller Whale is in
 
 | Document | Who it is for | Where it lives |
 |---|---|---|
-| Terms of Service | customers | `landing/site/src/legal/terms.md` (page `/terms`) |
-| Privacy Notice | everyone | `landing/site/src/legal/privacy.md` (`/privacy`) |
-| Data Processing Addendum | customers | `landing/site/src/legal/dpa.md` (`/dpa`) |
-| Acceptable Use and Calling Policy | customers | `landing/site/src/legal/acceptable-use.md` (`/acceptable-use`) |
+| Terms of Service | customers | `apps/website/src/legal/terms.md` (page `/terms`) |
+| Privacy Notice | everyone | `apps/website/src/legal/privacy.md` (`/privacy`) |
+| Data Processing Addendum | customers | `apps/website/src/legal/dpa.md` (`/dpa`) |
+| Acceptable Use and Calling Policy | customers | `apps/website/src/legal/acceptable-use.md` (`/acceptable-use`) |
 | Remove my information (public page) | people in lists | page `/remove-my-information` |
 | **Lawyer brief** (facts, data map, questions, what to fill) | the lawyer | [lawyer-brief.md](lawyer-brief.md) |
 | Retention and deletion schedule | owner, lawyer | [retention-schedule.md](retention-schedule.md) |
@@ -18,6 +18,6 @@ Everything a US privacy and technology lawyer needs to review Caller Whale is in
 
 ## How the texts reach the product
 
-- A text's **version** line (for example `Version 2026-11-10`) must equal `TERMS_VERSION` in `landing/site/src/setup.ts` and `termsVersion` in `services/auth/onboarding.go`. A test (`landing/site/tests/legal.test.mjs`) checks the site side. Changing the version makes **every** account accept the new text at its next sign-in (the sign-up and setup screens already ask).
+- A text's **version** line (for example `Version 2026-11-10`) must equal `TERMS_VERSION` in `apps/website/src/setup.ts` and `termsVersion` in `services/auth/onboarding.go`. A test (`apps/website/tests/legal.test.mjs`) checks the site side. Changing the version makes **every** account accept the new text at its next sign-in (the sign-up and setup screens already ask).
 - Change a text by editing its `.md` file, bumping the version line in all four, `TERMS_VERSION` and `termsVersion`, then deploying the auth service first and the website second (the auth service still accepts the previous version for a while so nobody is locked out in between).
-- `[PLACEHOLDERS]` in capitals are drawn highlighted. The test does not block them, so search for `\[[A-Z]` in `landing/site/src/legal` before relying on a text.
+- `[PLACEHOLDERS]` in capitals are drawn highlighted. The test does not block them, so search for `\[[A-Z]` in `apps/website/src/legal` before relying on a text.

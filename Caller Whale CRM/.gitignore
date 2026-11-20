@@ -5,8 +5,6 @@ dist/
 .vercel/
 
 .env*
-desktop/container/rust/target/
-desktop/container/rust/gen/
 
 # Landing API database
 

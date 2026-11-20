@@ -6,7 +6,7 @@ What follows is the plan as written before that work. It follows the work alread
 
 Two parts: **A** brings the tidying and matching up to published practice; **B** makes a 1,000,000-row list fast. B changes how rows are written, so do B before the parts of A that touch the same statements (A1, A3, A4).
 
-Code: `services/features/importing-lists` (Python worker), `services/crm-core/imports.go` (Go), `desktop/frontend/react/src/ServerImport.jsx` (screens).
+Code: `services/features/importing-lists` (Python worker), `services/crm-core/imports.go` (Go), `apps/crm/src/ServerImport.jsx` (screens).
 
 ---
 

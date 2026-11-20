@@ -71,18 +71,18 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
+            .
             Caller Whale CRM
-            Caller Whale CRM/desktop/container/rust
       - run: pip install -r service/requirements.txt
       # The window embeds the built frontend, so it is built first.
       # npm workspaces (D383): install once at the root, then build the frontend.
       - run: npm ci
       - run: npm run build
-        working-directory: Caller Whale CRM/desktop/frontend/react
+        working-directory: apps/crm
+      # The desktop app's window and feature crates (the root workspace, step 52), then the scaffold crates' own workspace.
+      - run: cargo test --workspace --locked
       - run: cargo test --workspace --locked
         working-directory: Caller Whale CRM
-      - run: cargo test --locked
-        working-directory: Caller Whale CRM/desktop/container/rust
 
 
   summary:

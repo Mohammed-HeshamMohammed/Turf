@@ -102,4 +102,4 @@ A person can belong to several agencies (D1) but signs in once. When agencies se
 
 ## Note on where these screens live (D328, D329)
 
-Everything in this file about managing people (the invite form, team screens, member lists, the hand-on screen) is built in the CRM, not on the website Dashboard. Today those panels are in `landing/site/src/AccessManagement.tsx`; step 3 and step 11 move them. The Dashboard keeps the person's own account, sign-up, plans and billing, and still lists pending invitations.
+Everything in this file about managing people (the invite form, team screens, member lists, the hand-on screen) is built in the CRM, not on the website Dashboard. Today those panels are in `apps/website/src/AccessManagement.tsx`; step 3 and step 11 move them. The Dashboard keeps the person's own account, sign-up, plans and billing, and still lists pending invitations.
