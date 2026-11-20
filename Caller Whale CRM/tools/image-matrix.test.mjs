@@ -17,7 +17,7 @@ test("every deployed branch has its images; the desktop branches have none", () 
 test("moved images name their Coolify application and setting; the rest have none (step 48)", () => {
   const list = matrix(config);
   const moved = list.filter(i => i.coolify);
-  assert.deepEqual(moved.map(i => [i.image, i.setting]).sort(), [["cw-alert-relay", "CW_ALERT_RELAY_IMAGE"], ["cw-assistant", ""], ["cw-grafana-proxy", "CW_GRAFANA_PROXY_IMAGE"], ["cw-learning", ""], ["cw-mcp", ""], ["cw-notifications", ""]]);
+  assert.deepEqual(moved.map(i => [i.image, i.setting]).sort(), [["cw-alert-relay", "CW_ALERT_RELAY_IMAGE"], ["cw-assistant", ""], ["cw-grafana-proxy", "CW_GRAFANA_PROXY_IMAGE"], ["cw-learning", ""], ["cw-live", ""], ["cw-mcp", ""], ["cw-notifications", ""]]);
   for (const i of list.filter(i => !i.coolify)) assert.equal(i.setting, "");
 });
 
