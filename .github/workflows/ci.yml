@@ -213,7 +213,9 @@ jobs:
     with:
       dir: services/importing-lists
       language: python
-      must_pass: "^test_the_worker_lists_and_fetches_the_pieces .* \\.\\.\\. ok$"
+      # The queue test builds crm-core's tables from its numbered scripts.
+      env: CRM_TEST_ADMIN_URL=postgres://postgres:testpass@localhost:5432/postgres?sslmode=disable
+      must_pass: "^test_.* \\(test_queue\\.QueueTest.* \\.\\.\\. ok$"
 
   # The importing worker, its own container since split 1: it fetches each upload from importing-lists.
   importing-worker:

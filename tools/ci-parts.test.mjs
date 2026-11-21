@@ -4,7 +4,7 @@ import { PARTS, partsFor } from "./ci-parts.mjs";
 
 test("a change runs its part and what depends on it", () => {
   assert.deepEqual(partsFor(["services/crm-core/main.go"]), ["crm-core", "tools"]);
-  assert.deepEqual(partsFor(["services/crm-core/migrations/0049_x.sql"]), ["crm-core", "importing-worker", "tools"]);
+  assert.deepEqual(partsFor(["services/crm-core/migrations/0049_x.sql"]), ["crm-core", "importing-lists", "importing-worker", "tools"]);
   assert.deepEqual(partsFor(["services/auth/help.go"]), ["auth", "gateway", "tools"]);
   assert.deepEqual(partsFor(["packages/calendar/calendar.jsx"]), ["tools", "crm-app", "website"]);
   assert.deepEqual(partsFor(["package-lock.json"]), ["crm-app", "website"]);
