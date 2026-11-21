@@ -1,7 +1,7 @@
 """Structured JSON logs with sensitive-value redaction.
 
 Records go to stderr (stdout is reserved for the IPC protocol) and to a rotating file,
-<app data>/Caller Whale App/logs/service.log (5 MB x 3), unless CALLERWHALE_LOG_FILE=0.
+<app data>/apps/lists-desktop/logs/service.log (5 MB x 3), unless CALLERWHALE_LOG_FILE=0.
 """
 
 from __future__ import annotations

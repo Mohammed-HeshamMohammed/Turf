@@ -1,11 +1,11 @@
 """Builds the service into one executable for the installer, so a packaged Caller Whale needs no Python.
 
-    python service/tools/build_service.py [--dist <folder>] [--work <folder>]
+    python engines/skip-engine/tools/build_service.py [--dist <folder>] [--work <folder>]
 
-Writes service/dist/callerwhale-service.exe (callerwhale-service on other systems), or into `--dist`; `--work` is where the build
+Writes engines/skip-engine/dist/callerwhale-service.exe (callerwhale-service on other systems), or into `--dist`; `--work` is where the build
 keeps its working files (a few hundred megabytes), for a drive with more room. The desktop host looks for it in the bundle's
 `service` folder and starts it with `--resources <bundle>`; the database updates travel beside it (see src-tauri/tauri.package.conf.json).
-Needs PyInstaller (`pip install pyinstaller`) and everything in service/requirements.txt.
+Needs PyInstaller (`pip install pyinstaller`) and everything in engines/skip-engine/requirements.txt.
 """
 
 from __future__ import annotations

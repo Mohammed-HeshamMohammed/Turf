@@ -1,9 +1,9 @@
 # Skip Tracing engine (Python)
 
-This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in `service/` on `main`.
+This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in `engines/skip-engine/` on `main`.
 
-- Last changed from `main` at `6462647` (2026-11-20)
-- Content id: `58b7c5a2582ed67e6e03b34f3a7815fff10547b6` (the branch is only refreshed when this changes)
+- Last changed from `main` at `040c547` (2026-11-21)
+- Content id: `09a4dbc3d15d1fe3796dec91ae2088dd019f8f41` (the branch is only refreshed when this changes)
 - Holds: `.`
 - 100 files
 - Build and test: pip install -r requirements.txt pytest && python -m pytest
