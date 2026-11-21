@@ -894,6 +894,31 @@ func (s *server) linkCoOwners(ctx context.Context, sc scope, job string) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
+	// Once every property of the agency has its address key stored (0050), the stored keys and their index answer; until then the
+	// keys are worked out here, as before.
+	var missing bool
+	if err = tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM properties WHERE org_id = cw_org() AND addr_key IS NULL)`).Scan(&missing); err != nil {
+		return err
+	}
+	if !missing {
+		if _, err = tx.Exec(ctx, `
+			WITH mine AS (
+				SELECT DISTINCT l.id, l.name, a.addr_key AS k FROM importing.rows r
+				JOIN leads l ON l.id = r.lead_id AND l.deleted_at IS NULL JOIN properties a ON a.id = l.property_id
+				WHERE r.job_id = $1 AND r.state = 'merged' AND a.addr_key <> ''
+			), pairs AS (
+				SELECT m.id AS a, o.id AS b FROM mine m
+				JOIN properties pa ON pa.org_id = cw_org() AND pa.addr_key = m.k
+				JOIN leads o ON o.property_id = pa.id AND o.id <> m.id AND o.deleted_at IS NULL
+				WHERE lower(trim(o.name)) <> lower(trim(m.name))
+			)
+			INSERT INTO lead_links (org_id, lead_id, related_id)
+			SELECT cw_org(), a, b FROM pairs UNION SELECT cw_org(), b, a FROM pairs
+			ON CONFLICT DO NOTHING`, job); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
+	}
 	if _, err = tx.Exec(ctx, `
 		WITH mine AS (
 			SELECT DISTINCT l.id, l.name, importing.addr_key(a.address, a.postal_code) AS k FROM importing.rows r
