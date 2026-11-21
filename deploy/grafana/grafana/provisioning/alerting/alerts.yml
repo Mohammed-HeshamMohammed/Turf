@@ -1,4 +1,4 @@
-# Written by deploy/grafana/alerts.mjs (build step 42). Do not edit by hand: change that file and run it.
+# Written by deploy/monitoring/alerts.mjs (build step 42). Do not edit by hand: change that file and run it.
 apiVersion: 1
 contactPoints:
   - orgId: 1

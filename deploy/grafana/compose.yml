@@ -3,7 +3,7 @@
 # The gateway alone reaches grafana-proxy through the shared Coolify network.
 #
 # Locally (from the repository folder "Caller Whale CRM"), building grafana-proxy and alert-relay from source:
-#   docker compose --env-file deploy/grafana/.env -f deploy/grafana/compose.yml -f deploy/grafana/compose.local.yml up --build
+#   docker compose --env-file deploy/monitoring/.env -f deploy/monitoring/compose.yml -f deploy/monitoring/compose.local.yml up --build
 #
 # grafana-proxy and alert-relay are not built on the server (step 48, D379): they run the images GitHub Actions built, pinned by
 # digest in CW_GRAFANA_PROXY_IMAGE and CW_ALERT_RELAY_IMAGE. The Images workflow's deploy job sets both in Coolify and redeploys.

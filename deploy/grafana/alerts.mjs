@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Writes grafana/provisioning/alerting/alerts.yml: Grafana's alert rules, where alerts go and when routine ones wait (build step 42,
-// D300-D302). Edit the lists here, run `node deploy/grafana/alerts.mjs`, push, and redeploy the monitoring resource.
+// D300-D302). Edit the lists here, run `node deploy/monitoring/alerts.mjs`, push, and redeploy the monitoring resource.
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -39,7 +39,7 @@ const q = s => JSON.stringify(s).replaceAll("$", () => "$$");
 
 export function render() {
   const out = [
-    "# Written by deploy/grafana/alerts.mjs (build step 42). Do not edit by hand: change that file and run it.",
+    "# Written by deploy/monitoring/alerts.mjs (build step 42). Do not edit by hand: change that file and run it.",
     "apiVersion: 1",
     "contactPoints:",
     "  - orgId: 1",

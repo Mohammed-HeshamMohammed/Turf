@@ -7,7 +7,7 @@ current Auth platform role on every forwarded request. No session means no Grafa
 content; a failed access check fails closed. Cookies are HttpOnly, Secure in
 production, and scoped to `/staff/monitoring/`. All monitoring responses are no-store.
 
-Deployment and cutover: [Grafana README](../../deploy/grafana/README.md).
+Deployment and cutover: [Grafana README](../../deploy/monitoring/README.md).
 
 The path is reachable on the internet but access-controlled; this is not a VPN-only
 service. Browser visibility is not an authorization mechanism. Activity timeout

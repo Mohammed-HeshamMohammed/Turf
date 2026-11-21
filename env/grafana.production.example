@@ -1,2 +1,2 @@
-# Grafana's proxy on Coolify: see deploy/grafana/.env.example (Docker Compose resource; no public domain on either component; accessed only through the gateway). Values: CALLERWHALE_AUTH_URL=https://auth.callerwhale.com, CALLERWHALE_WEBSITE_URL=https://callerwhale.com,
+# Grafana's proxy on Coolify: see deploy/monitoring/.env.example (Docker Compose resource; no public domain on either component; accessed only through the gateway). Values: CALLERWHALE_AUTH_URL=https://auth.callerwhale.com, CALLERWHALE_WEBSITE_URL=https://callerwhale.com,
 # GRAFANA_PUBLIC_URL=https://gate.callerwhale.com/staff/monitoring/.
