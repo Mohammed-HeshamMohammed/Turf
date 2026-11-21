@@ -160,7 +160,7 @@ func newEnv(t *testing.T) *env {
 	hubCtx, stop := context.WithCancel(ctx)
 	t.Cleanup(stop)
 	go s.hub.listen(hubCtx, appURL)
-	if err = s.startJobs(hubCtx, true); err != nil { // the merges and assignments run through the job queue, as in production
+	if err = s.startJobs(hubCtx, allQueues); err != nil { // the merges and assignments run through the job queue, as in production
 		t.Fatal(err)
 	}
 	t.Cleanup(s.stopJobs)

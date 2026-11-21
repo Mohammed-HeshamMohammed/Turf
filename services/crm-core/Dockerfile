@@ -1,5 +1,5 @@
-# crm-core (plan: docs/plans/crm-core-and-imports.md). Build with this folder as the context:
-#   docker build -t callerwhale-crm-core services/crm-core
+# crm-core (plan: docs/plans/crm-core-and-imports.md). Build with the repository root as the context:
+#   docker build -f services/crm-core/Dockerfile .
 FROM golang:1 AS runtime-log-build
 COPY packages/go/runtimelog /src
 RUN cd /src && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log ./cmd/callerwhale-log

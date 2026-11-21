@@ -77,11 +77,36 @@ services:
       AUTHZ_TOKEN: "${AUTHZ_CORE_TOKEN:?set AUTHZ_CORE_TOKEN in env/compose.env}"
       NOTIFY_URL: "http://notifications:8102"
       IMPORT_DIR: "/data/imports"
+      # The job queue is worked by crm-merge and crm-outbox below (split 2).
+      CRM_RUN_JOBS: "false"
     volumes:
       - imports:/data/imports
     depends_on:
       - postgres
       - authz
+    restart: unless-stopped
+  # Split 2: crm-core's job containers, the same code with only their queues switched on. They wait for crm-core's database update.
+  crm-merge:
+    build:
+      context: ../..
+      dockerfile: services/crm-core/Dockerfile.merge
+    environment:
+      PORT: "8120"
+      DATABASE_URL: "${CRM_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_crm?sslmode=disable}"
+    depends_on:
+      - crm-core
+    restart: unless-stopped
+  crm-outbox:
+    build:
+      context: ../..
+      dockerfile: services/crm-core/Dockerfile.outbox
+    environment:
+      PORT: "8121"
+      DATABASE_URL: "${CRM_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_crm?sslmode=disable}"
+      AUTHZ_URL: "http://authz:8104"
+      AUTHZ_TOKEN: "${AUTHZ_CORE_TOKEN:?set AUTHZ_CORE_TOKEN in env/compose.env}"
+    depends_on:
+      - crm-core
     restart: unless-stopped
   messaging:
     build:

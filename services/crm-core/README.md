@@ -36,6 +36,22 @@ Handing on work (`/api/v1/handon`): someone who left, was removed or is suspende
 
 The uploaded CSV exists only in the worker volume during processing and is removed after its rows are loaded. Original cells from completed imports remain as rows in PostgreSQL (`importing.rows`) linked to the resulting lead. Deleting a lead also removes its linked source rows; deleting a source list deletes its leads, related records, import jobs, and source rows. Failed or cancelled holding rows expire after 14 days. Source rows from completed imports before migration `0004` may lack a lead link; deleting their source list still removes them.
 
+## Three containers, one code base (split 2)
+
+The code is package `crm`; each program under `cmd/` is a container with its own image, port, health check, limits and settings:
+
+| Program | Image | Port | Does |
+| --- | --- | --- | --- |
+| `cmd/crm-core` | `cw-crm-core` (`Dockerfile`) | 8107 | Every route, the `/events` socket, the database updates and the importer grant |
+| `cmd/crm-merge` | `cw-crm-merge` (`Dockerfile.merge`) | 8120 | The merge, assignment and upkeep queues: lead and call merges, lead assignments, the import-row sweep, learning copies |
+| `cmd/crm-outbox` | `cw-crm-outbox` (`Dockerfile.outbox`) | 8121 | The outbox queue: webhooks, email waits, scheduled reports, shared learning, file scans |
+
+The work goes through [River](https://riverqueue.com), a job queue kept in this database (`queue.go`). A request queues its job in the same transaction as the change it records. Merges and assignments run in two-minute slices and go back in line between them, so a huge list neither holds a worker for long nor keeps other workspaces waiting; a check every minute adopts work that has no job (from before the queue, or from a container that stopped). Timed jobs run on one elected copy only, so nothing is sent twice. "Finished" messages go through `pg_notify`, so whichever API copy holds a browser's socket tells it. The job containers never change the structure: at start they wait until crm-core has applied every update. They answer only `/healthz`, `/version` and `/status` (their queues). `CRM_RUN_JOBS` (default on) makes crm-core work every queue itself; set it to `false` once crm-merge and crm-outbox are healthy.
+
+## Merge speed
+
+`merge_scale_test.go` times both merges at a real size (`MERGE_SCALE`, `CALL_SCALE`, `EXISTING_LEADS`); `bench/` runs it as a throwaway Coolify app with its own PostgreSQL 17, so the numbers are the server's. Row security keeps PostgreSQL from using an expression index (like `lower(btrim(name))` or `importing.addr_key(...)`) in crm-core's queries, because those functions are not leakproof; match on stored columns or on rows read once per batch instead. A ReadyMode call history is merged inside the database (`importing.merge_call_batch`, migration 0049), a batch of 1,000 per call, reading the leads that share a name with the batch once. Properties keep their address key in `addr_key` (0050: a trigger keeps it, the upkeep task `address_keys` fills older rows), which the co-owner link and the import worker's `lead_match` view use.
+
 ## Run and test
 
 ```bash
@@ -48,7 +64,7 @@ The database tests need a disposable PostgreSQL: `CRM_TEST_ADMIN_URL` (a superus
 
 ## Coolify
 
-Branch `crm-core-backend-production`, Dockerfile `/Dockerfile`, port 8107, network alias `crm-core`, no domain. Settings: [env/crm-core.production.example](../../env/crm-core.production.example). Core needs no upload volume.
+Branch `crm-core-backend-production`, Dockerfile `/Dockerfile`, port 8107, network alias `crm-core`, no domain. Settings: [env/crm-core.production.example](../../env/crm-core.production.example). Core needs no upload volume. The job containers: "CRM Merge" (image `cw-crm-merge`, port 8120, alias `crm-merge`, [settings](../../env/crm-merge.production.example)) and "CRM Outbox" (image `cw-crm-outbox`, port 8121, alias `crm-outbox`, [settings](../../env/crm-outbox.production.example)), no domains.
 
 ## Clients (build step 23)
 

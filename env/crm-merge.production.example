@@ -1,0 +1,13 @@
+# crm-merge on Coolify (application "CRM Merge", image cw-crm-merge, port 8120, network alias crm-merge, NO domain). Split 2.
+# It runs crm-core's heavy database work from the job queue: lead and call merges, lead assignments, the import-row sweep and the
+# learning copies. It uses crm-core's database and code, and waits at start until crm-core has applied the database update.
+# Give it its own memory limit (the merges use the most); once it and crm-outbox are healthy, set CRM_RUN_JOBS=false on crm-core.
+# Paste into Environment Variables -> Developer View. Fill every <...>. Secrets stay in Coolify; never commit a filled copy.
+# HTTP port for /healthz, /version and /status; default 8120. Nothing else listens; no domain.
+PORT=8120
+# Secret PostgreSQL URI of the CRM database: the same login as crm-core's DATABASE_URL. crm-merge never changes the structure; it waits for crm-core's update.
+DATABASE_URL=<the same value as crm-core's DATABASE_URL>
+# The learning store's private address, like http://learning:8112. Empty turns the learning copy off: no list leaves crm-core.
+LEARNING_URL=
+# The learning store's LEARNING_TOKEN (at least 32 characters). Needed when LEARNING_URL is set.
+LEARNING_TOKEN=

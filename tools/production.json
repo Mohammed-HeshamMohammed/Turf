@@ -137,6 +137,16 @@
           "context": ".",
           "dockerfile": "services/crm-core/Dockerfile",
           "deploy": { "coolify": "pbhaa90fu9dh3tl2x9kzjdly" }
+        },
+        {
+          "name": "cw-crm-merge",
+          "context": ".",
+          "dockerfile": "services/crm-core/Dockerfile.merge"
+        },
+        {
+          "name": "cw-crm-outbox",
+          "context": ".",
+          "dockerfile": "services/crm-core/Dockerfile.outbox"
         }
       ]
     },

@@ -320,7 +320,46 @@
         "CLAMD_ADDR": "ClamAV's daemon on the private network, like clamav:3310, which scans files on leads (step 38). Its StreamMaxLength must be above 25 MB. Empty: files wait unopened.",
         "CARRIER_CHECK": "Step 39: on holds imports until the carriers verify the agency's business, as the dialer reports it. Turn on (CARRIER_CHECK=on) once the dialer runs live with 10DLC registration; empty or off: imports are not held.",
         "RESTORE_COPY_URL": "Step 41: the database a CRM backup was restored into, to restore one agency from (docs/plans/backups-and-recovery.md). Secret PostgreSQL URI with crm-core's login. Empty except while a restore is being done.",
-        "SHARED_LEARNING": "Step 45: on lets agencies' agreed patterns be used (shared learning). Leave off until the lawyer approved the agreement's text and the notice check (checks-by-hand W-9); off: nothing is used, agencies can still agree."
+        "SHARED_LEARNING": "Step 45: on lets agencies' agreed patterns be used (shared learning). Leave off until the lawyer approved the agreement's text and the notice check (checks-by-hand W-9); off: nothing is used, agencies can still agree.",
+        "CRM_RUN_JOBS": "Default on: this API also runs the merges, assignments and timed jobs. Set false only once crm-merge and crm-outbox are healthy (split 2)."
+      }
+    },
+    "crm-merge": {
+      "description": "crm-core's heavy database work in its own container (split 2): lead and call merges, assignments, the import-row sweep and learning copies. Image cw-crm-merge, port 8120, no domain.",
+      "sources": [
+        "env/crm-merge.production.example",
+        "services/crm-core/roles.go"
+      ],
+      "variables": {
+        "PORT": "HTTP port for /healthz, /version and /status; default 8120. Nothing else listens; no domain.",
+        "DATABASE_URL": "Secret PostgreSQL URI of the CRM database: the same login as crm-core's DATABASE_URL. crm-merge never changes the structure; it waits for crm-core's update.",
+        "LEARNING_URL": "The learning store's private address, like http://learning:8112. Empty turns the learning copy off: no list leaves crm-core.",
+        "LEARNING_TOKEN": "The learning store's LEARNING_TOKEN (at least 32 characters). Needed when LEARNING_URL is set."
+      }
+    },
+    "crm-outbox": {
+      "description": "crm-core's work that waits on other services, in its own container (split 2): webhooks, email waits, scheduled reports, shared learning, file scans. Image cw-crm-outbox, port 8121, no domain.",
+      "sources": [
+        "env/crm-outbox.production.example",
+        "services/crm-core/roles.go"
+      ],
+      "variables": {
+        "PORT": "HTTP port for /healthz, /version and /status; default 8121. Nothing else listens; no domain.",
+        "DATABASE_URL": "Secret PostgreSQL URI of the CRM database: the same login as crm-core's DATABASE_URL. crm-outbox never changes the structure; it waits for crm-core's update.",
+        "AUTHZ_URL": "The authorization service's private address, like http://authz:8104.",
+        "AUTHZ_TOKEN": "Secret: the same value as crm-core's AUTHZ_TOKEN (core-api= in authz's AUTHZ_TOKENS). Emails and reports look up teams and members.",
+        "LEARNING_URL": "The learning store's private address, like http://learning:8112. Empty turns the learning copy off: no list leaves crm-core.",
+        "LEARNING_TOKEN": "The learning store's LEARNING_TOKEN (at least 32 characters). Needed when LEARNING_URL is set.",
+        "SHARED_LEARNING": "Step 45: on lets agencies' agreed patterns be used (shared learning). Leave off until the lawyer approved the agreement's text and the notice check (checks-by-hand W-9); off: nothing is used, agencies can still agree.",
+        "APP_URL": "The CRM web app's public address (https, no trailing slash): links in calendar events and report emails, and where people return from Google.",
+        "EMAIL_SES_REGION": "Amazon SES region for email to leads (step 29), like us-east-1. Empty turns email to leads off.",
+        "AWS_ACCESS_KEY_ID": "Secret: the access key of an IAM user allowed ses:SendRawEmail, ses:SendEmail, ses:CreateEmailIdentity and ses:GetEmailIdentity.",
+        "AWS_SECRET_ACCESS_KEY": "Secret: that IAM user's secret access key.",
+        "EMAIL_PUBLIC_URL": "This service's public address at the gateway (https, no trailing slash), like https://gate.callerwhale.com: email links, unsubscribe, SES's SNS subscription, website forms' addresses and shared-file links use it.",
+        "EMAIL_REPLY_DOMAIN": "A domain whose mail SES receives (its MX at SES receiving), like reply.callerwhale.com; replies to leads' emails go to reply+<token>@ it.",
+        "NOTIFY_MAIL_URL": "The notification service's private address, like http://notifications:8102, for scheduled report emails (step 32). Empty: reports are not sent.",
+        "NOTIFY_MAIL_TOKEN": "Secret: the value after crm-core= in notifications' NOTIFY_TOKENS, 24+ characters.",
+        "CLAMD_ADDR": "ClamAV's daemon on the private network, like clamav:3310, which scans files on leads (step 38). Its StreamMaxLength must be above 25 MB. Empty: files wait unopened."
       }
     },
     "learning": {

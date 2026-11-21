@@ -101,7 +101,9 @@ type adoptWorker struct {
 	s *server
 }
 
-func (w *adoptWorker) Work(ctx context.Context, _ *river.Job[adoptArgs]) error { return w.s.adoptWork(ctx) }
+func (w *adoptWorker) Work(ctx context.Context, _ *river.Job[adoptArgs]) error {
+	return w.s.adoptWork(ctx)
+}
 
 // again puts a sliced job back in line when more is left (a snooze does not count as a failed try).
 func again(more bool) error {
@@ -125,9 +127,17 @@ func quietLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 }
 
-// startJobs makes the job queue's client. With work set this process also works the merge and assignment queues and runs the adopt
-// check every minute (River runs a periodic job on one elected copy only); without it the client only queues jobs.
-func (s *server) startJobs(ctx context.Context, work bool) error {
+// The queues each program works (split 2): the API all of them until CRM_RUN_JOBS=false hands them to the two job containers.
+var (
+	mergeQueues  = map[string]river.QueueConfig{queueMerge: {MaxWorkers: 1}, queueAssign: {MaxWorkers: 2}, queueUpkeep: {MaxWorkers: 2}}
+	outboxQueues = map[string]river.QueueConfig{queueOutbox: {MaxWorkers: 4}}
+	allQueues    = map[string]river.QueueConfig{queueMerge: {MaxWorkers: 1}, queueAssign: {MaxWorkers: 2}, queueUpkeep: {MaxWorkers: 2}, queueOutbox: {MaxWorkers: 4}}
+)
+
+// startJobs makes the job queue's client and, when queues is not empty, works those queues. Every working client carries the whole list
+// of periodic jobs, because River runs them on whichever client is elected leader; each lands in its own queue for the container that
+// works it. With no queues the client only adds jobs.
+func (s *server) startJobs(ctx context.Context, queues map[string]river.QueueConfig) error {
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &leadMergeWorker{s: s})
 	river.AddWorker(workers, &callMergeWorker{s: s})
@@ -135,12 +145,12 @@ func (s *server) startJobs(ctx context.Context, work bool) error {
 	river.AddWorker(workers, &adoptWorker{s: s})
 	river.AddWorker(workers, &upkeepWorker{s: s})
 	cfg := &river.Config{Workers: workers, Logger: quietLogger(), RescueStuckJobsAfter: 30 * time.Minute, JobTimeout: jobTimeout}
-	if work {
-		cfg.Queues = map[string]river.QueueConfig{queueMerge: {MaxWorkers: 1}, queueAssign: {MaxWorkers: 2}, queueUpkeep: {MaxWorkers: 2}, queueOutbox: {MaxWorkers: 4}}
-		if s.scanner == nil {
+	if len(queues) > 0 {
+		cfg.Queues = queues
+		if _, ok := queues[queueOutbox]; ok && s.scanner == nil {
 			log.Printf("WARN CLAMD_ADDR is not set: files on leads wait unopened until a scanner is set up")
 		}
-		cfg.PeriodicJobs = append(s.periodicJobs(cfg.Queues), river.NewPeriodicJob(river.PeriodicInterval(time.Minute),
+		cfg.PeriodicJobs = append(periodicJobs(), river.NewPeriodicJob(river.PeriodicInterval(time.Minute),
 			func() (river.JobArgs, *river.InsertOpts) { return adoptArgs{}, nil }, &river.PeriodicJobOpts{ID: "adopt_work", RunOnStart: true}))
 	}
 	client, err := river.NewClient(riverpgxv5.New(s.st.db), cfg)
@@ -148,7 +158,7 @@ func (s *server) startJobs(ctx context.Context, work bool) error {
 		return err
 	}
 	s.jobs = client
-	if work {
+	if len(queues) > 0 {
 		return client.Start(ctx)
 	}
 	return nil
@@ -275,35 +285,39 @@ type upkeepTask struct {
 	run         func(*server, context.Context) error
 }
 
-// upkeepTasks lists the timed work and who does it. A task whose setting is off (no learning service, no scanner) is left out.
-func (s *server) upkeepTasks() []upkeepTask {
-	tasks := []upkeepTask{
-		{"sweep_rows", queueUpkeep, 6 * time.Hour, true, func(s *server, ctx context.Context) error {
-			n, err := s.sweepRows(ctx)
-			if n > 0 {
-				log.Printf("INFO cleared %d old import rows", n)
-			}
-			return err
-		}},
-		{"address_keys", queueUpkeep, time.Minute, true, func(s *server, ctx context.Context) error {
-			n, err := s.fillAddressKeys(ctx)
-			if n > 0 {
-				log.Printf("INFO filled the address keys of %d properties", n)
-			}
-			return err
-		}},
-		{"send_events", queueOutbox, 30 * time.Second, false, (*server).sendDueEvents},
-		{"email_waits", queueOutbox, time.Minute, false, (*server).checkEmailWaits},
-		{"reports", queueOutbox, 10 * time.Minute, false, (*server).sendDueReports},
-		{"shared_learning", queueOutbox, 24 * time.Hour, true, func(s *server, ctx context.Context) error { s.contributeAll(ctx); return nil }},
-	}
-	if s.cfg.learningURL != "" {
-		tasks = append(tasks, upkeepTask{"learn_pending", queueUpkeep, 10 * time.Minute, true, func(s *server, ctx context.Context) error { s.learnPending(ctx); return nil }})
-	}
-	if s.scanner != nil {
-		tasks = append(tasks, upkeepTask{"scan_files", queueOutbox, 30 * time.Second, false, (*server).scanWaiting})
-	}
-	return tasks
+// upkeepTasks lists the timed work and the queue that does it. It is the same in every container (see startJobs); a task whose setting
+// is off where it runs (no learning service, no scanner) does nothing.
+var upkeepTasks = []upkeepTask{
+	{"sweep_rows", queueUpkeep, 6 * time.Hour, true, func(s *server, ctx context.Context) error {
+		n, err := s.sweepRows(ctx)
+		if n > 0 {
+			log.Printf("INFO cleared %d old import rows", n)
+		}
+		return err
+	}},
+	{"address_keys", queueUpkeep, time.Minute, true, func(s *server, ctx context.Context) error {
+		n, err := s.fillAddressKeys(ctx)
+		if n > 0 {
+			log.Printf("INFO filled the address keys of %d properties", n)
+		}
+		return err
+	}},
+	{"send_events", queueOutbox, 30 * time.Second, false, (*server).sendDueEvents},
+	{"email_waits", queueOutbox, time.Minute, false, (*server).checkEmailWaits},
+	{"reports", queueOutbox, 10 * time.Minute, false, (*server).sendDueReports},
+	{"shared_learning", queueOutbox, 24 * time.Hour, true, func(s *server, ctx context.Context) error { s.contributeAll(ctx); return nil }},
+	{"learn_pending", queueUpkeep, 10 * time.Minute, true, func(s *server, ctx context.Context) error {
+		if s.cfg.learningURL != "" {
+			s.learnPending(ctx)
+		}
+		return nil
+	}},
+	{"scan_files", queueOutbox, 30 * time.Second, false, func(s *server, ctx context.Context) error {
+		if s.scanner == nil {
+			return nil
+		}
+		return s.scanWaiting(ctx)
+	}},
 }
 
 type upkeepWorker struct {
@@ -313,7 +327,7 @@ type upkeepWorker struct {
 
 func (w *upkeepWorker) Timeout(*river.Job[upkeepArgs]) time.Duration { return 25 * time.Minute } // under the 30-minute rescue
 func (w *upkeepWorker) Work(ctx context.Context, job *river.Job[upkeepArgs]) error {
-	for _, task := range w.s.upkeepTasks() {
+	for _, task := range upkeepTasks {
 		if task.name == job.Args.Task {
 			if err := task.run(w.s, ctx); err != nil && ctx.Err() == nil {
 				log.Printf("WARN %s: %v (tried again at its next turn)", task.name, err)
@@ -321,15 +335,12 @@ func (w *upkeepWorker) Work(ctx context.Context, job *river.Job[upkeepArgs]) err
 			return nil
 		}
 	}
-	return nil // a task that is off in this copy's settings
+	return nil
 }
 
-func (s *server) periodicJobs(queues map[string]river.QueueConfig) []*river.PeriodicJob {
+func periodicJobs() []*river.PeriodicJob {
 	var jobs []*river.PeriodicJob
-	for _, task := range s.upkeepTasks() {
-		if _, ok := queues[task.queue]; !ok {
-			continue
-		}
+	for _, task := range upkeepTasks {
 		args, opts := upkeepArgs{Task: task.name}, &river.InsertOpts{Queue: task.queue, MaxAttempts: 1, UniqueOpts: uniqueWhileQueued}
 		jobs = append(jobs, river.NewPeriodicJob(river.PeriodicInterval(task.every),
 			func() (river.JobArgs, *river.InsertOpts) { return args, opts }, &river.PeriodicJobOpts{ID: task.name, RunOnStart: task.atStart}))
