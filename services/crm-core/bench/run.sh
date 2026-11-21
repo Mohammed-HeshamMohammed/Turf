@@ -21,9 +21,9 @@ SQL
 echo "== postgres: $(psql -At -U postgres -h 127.0.0.1 -c 'SHOW server_version') shared_buffers=$(psql -At -U postgres -h 127.0.0.1 -c 'SHOW shared_buffers') work_mem=$(psql -At -U postgres -h 127.0.0.1 -c 'SHOW work_mem')"
 export CRM_TEST_ADMIN_URL="postgres://postgres@127.0.0.1:5432/crm_test?sslmode=disable"
 export CRM_TEST_DATABASE_URL="postgres://crm_app:apppass@127.0.0.1:5432/crm_test?sslmode=disable"
-cd /bench && ./crm-core.test -test.run '^TestMergeAtScale$' -test.v -test.timeout 3h 2>&1 | grep -v '^\[' | grep -E 'merge_scale_test|PASS|FAIL|ok|panic|Error' 
+cd /bench && ./crm-core.test -test.run '^TestMergeAtScale$' -test.v -test.timeout 3h 2>&1 | grep --line-buffered -v '^\[' | grep --line-buffered -E 'merge_scale_test|PASS|FAIL|ok|panic|Error' 
 echo "== slowest statements (total time)"
-psql -U postgres -h 127.0.0.1 -d crm_test -P pager=off -c "SELECT round(total_exec_time/1000, 1) AS total_s, calls, round(mean_exec_time::numeric, 2) AS mean_ms,
+psql -U postgres -h 127.0.0.1 -d crm_test -P pager=off -c "SELECT round((total_exec_time/1000)::numeric, 1) AS total_s, calls, round(mean_exec_time::numeric, 2) AS mean_ms,
   left(regexp_replace(query, '\s+', ' ', 'g'), 160) AS statement FROM pg_stat_statements WHERE query NOT ILIKE '%pg_stat_statements%'
   ORDER BY total_exec_time DESC LIMIT 15"
 echo "== plans of statements slower than ${EXPLAIN_MS} ms"
