@@ -54,11 +54,11 @@ pub struct ServiceBridge {
     pub resources: Mutex<Option<PathBuf>>,
 }
 
-/// The service folder in development: `CALLERWHALE_SERVICE_ROOT`, else `service/` at the repository root.
+/// The service folder in development: `CALLERWHALE_SERVICE_ROOT`, else `engines/skip-engine`.
 fn service_root() -> PathBuf {
     std::env::var_os("CALLERWHALE_SERVICE_ROOT")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../service")))
+        .unwrap_or_else(|| PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../engines/skip-engine")))
 }
 
 fn service_executable(resources: &Path) -> PathBuf {

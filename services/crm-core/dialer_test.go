@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// The dialer's private door: each outcome the dialer sends (services/features/dialer-sms, scenarios.go) does to the lead what
+// The dialer's private door: each outcome the dialer sends (scaffolds/dialer-sms, scenarios.go) does to the lead what
 // the same outcome logged by hand does, once per call however often it is sent.
 func TestTheDialerLogsCarrierCallsAsThePersonWhoMadeThem(t *testing.T) {
 	e := newEnv(t)

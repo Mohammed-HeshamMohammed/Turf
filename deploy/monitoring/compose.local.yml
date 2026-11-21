@@ -1,0 +1,11 @@
+# Local only: builds grafana-proxy and alert-relay from source instead of pulling their images (see compose.yml).
+#   docker compose --env-file deploy/monitoring/.env -f deploy/monitoring/compose.yml -f deploy/monitoring/compose.local.yml up --build
+services:
+  grafana-proxy:
+    build:
+      context: ../..
+      dockerfile: services/grafana-proxy/Dockerfile
+  alert-relay:
+    build:
+      context: ../..
+      dockerfile: services/alert-relay/Dockerfile

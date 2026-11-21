@@ -1,0 +1,9 @@
+# The scaffold crates (D384: never built into a production image), in their own workspace so their Dockerfiles build from this
+# folder (scaffolds/). The desktop app's crates are in the repository's root workspace (step 52).
+[workspace]
+resolver = "2"
+members = [
+  "leads-map",
+  "crm",
+  "backup-restore",
+]

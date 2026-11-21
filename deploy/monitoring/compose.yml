@@ -1,0 +1,254 @@
+# Grafana for Caller Whale's staff, behind the Caller Whale login proxy (docs/plans/grafana-access.md). One Coolify resource of type
+# Docker Compose. Neither service has a public domain or published port.
+# The gateway alone reaches grafana-proxy through the shared Coolify network.
+#
+# Locally (from the repository folder "Caller Whale CRM"), building grafana-proxy and alert-relay from source:
+#   docker compose --env-file deploy/monitoring/.env -f deploy/monitoring/compose.yml -f deploy/monitoring/compose.local.yml up --build
+#
+# grafana-proxy and alert-relay are not built on the server (step 48, D379): they run the images GitHub Actions built, pinned by
+# digest in CW_GRAFANA_PROXY_IMAGE and CW_ALERT_RELAY_IMAGE. The Images workflow's deploy job sets both in Coolify and redeploys.
+#
+# Two locks keep Grafana closed to everyone but the proxy:
+# 1. Grafana has no domain and no published port, so only containers on this resource's networks reach it.
+# 2. Grafana believes the X-WEBAUTH-* headers only from the proxy's fixed address (GF_AUTH_PROXY_WHITELIST). Anything
+#    else that reaches it, Coolify's Traefik included, gets the login page with its login form turned off: nobody in.
+# The proxy calls Grafana by its fixed address on the "grafana" network, so the request always comes from the
+# whitelisted address, whatever other networks Coolify adds. If 172.30.10.0/24 is taken on the server, change the
+# subnet and the three addresses below together.
+name: callerwhale-grafana
+services:
+  grafana-proxy:
+    image: "${CW_GRAFANA_PROXY_IMAGE:?set CW_GRAFANA_PROXY_IMAGE, the cw-grafana-proxy image by digest}"
+    environment:
+      # Private Grafana proxy listen port; compose fixes it at 8120. Match the gateway's private monitoring upstream if changing it.
+      PORT: "8120"
+      # Protected browser subpath; only /staff/monitoring or empty is accepted. Match gateway routing and Grafana's root URL.
+      GRAFANA_BASE_PATH: /staff/monitoring
+      # Private Grafana HTTP origin reached by the proxy. Keep on the private monitoring network; not a browser-facing address.
+      GRAFANA_URL: http://172.30.10.20:3000
+      # Auth service URL used to validate sessions, MFA, and current platform role. The proxy fails closed when Auth is unavailable.
+      CALLERWHALE_AUTH_URL: "${CALLERWHALE_AUTH_URL:?set CALLERWHALE_AUTH_URL, the auth service's address}"
+      # Trusted website origin allowed to frame Grafana and post the session handoff. Must match the website hosting Dashboard admin mode.
+      CALLERWHALE_WEBSITE_URL: "${CALLERWHALE_WEBSITE_URL:?set CALLERWHALE_WEBSITE_URL, the website with the admin dashboard}"
+      # Grafana role for system administrators: Viewer, Editor or Admin; default Editor. Platform owner and cofounder remain Admin. Raising it grants more dashboard permissions.
+      ADMIN_GRAFANA_ROLE: "${ADMIN_GRAFANA_ROLE:-Editor}"
+      # Maximum interval between staff authorization rechecks; default 60s. Shorter intervals increase API traffic; revocation is checked on subsequent requests.
+      RECHECK_EVERY: "${RECHECK_EVERY:-60s}"
+      # Absolute proxy session lifetime; default 1h. Expiry requires a new authorized sign-in even while the user remains active.
+      SESSION_MAX_AGE: "${SESSION_MAX_AGE:-1h}"
+      # Inactivity limit for proxy sessions; default 10m. Idle sessions require fresh entry; this does not keep a disconnected browser authorized indefinitely.
+      IDLE_TIMEOUT: "${IDLE_TIMEOUT:-10m}"
+      # Maximum age of the authentication used to enter monitoring; default 15m. Old sign-ins cannot create a fresh proxy session.
+      AUTH_WITHIN: "${AUTH_WITHIN:-15m}"
+      # Secure session-cookie flag; default true. Keep true with HTTPS in production; false is only for local HTTP testing.
+      COOKIE_SECURE: "${COOKIE_SECURE:-true}"
+    networks:
+      coolify:
+        aliases:
+          - grafana-proxy
+      grafana:
+        ipv4_address: 172.30.10.10
+    healthcheck:
+      test: ["CMD", "/service", "health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - grafana
+    restart: unless-stopped
+
+  grafana:
+    build:
+      context: ./grafana
+    environment:
+      # Browser address, including the protected gateway subpath.
+      # true serves Grafana under its configured root subpath. Must stay aligned with the gateway monitoring path.
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      # Browser-visible Grafana root, derived from GRAFANA_PUBLIC_URL. Keep the protected gateway URL/subpath or asset and redirect links break.
+      GF_SERVER_ROOT_URL: "${GRAFANA_PUBLIC_URL:?set GRAFANA_PUBLIC_URL, the gateway https subpath}"
+      # Grafana's own "admin" account. Nobody can sign in with it (no login form, no basic auth, and the proxy only
+      # ever names people by their Caller Whale id); it is set only so Grafana doesn't keep its default password.
+      # Secret Grafana admin bootstrap password derived from GRAFANA_ADMIN_PASSWORD. Environment changes are not a password-reset mechanism for an initialized Grafana database.
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}"
+      # Grafana HTTPS-only cookies, derived from COOKIE_SECURE. Keep true for production HTTPS.
+      GF_SECURITY_COOKIE_SECURE: "${COOKIE_SECURE:-true}"
+      # Cookie SameSite policy; compose uses lax. Changing it can alter browser cookie behavior during navigation and embedded monitoring.
+      GF_SECURITY_COOKIE_SAMESITE: lax
+      # Shown only in the admin page's frame; the proxy limits who may frame it (frame-ancestors).
+      # true permits rendering inside Dashboard admin mode. The Grafana proxy separately restricts allowed frame origins and staff sessions.
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      # People are who the proxy says they are, and only when the proxy says it.
+      # true enables proxy-header authentication. Keep the proxy whitelist and disabled alternative logins intact to avoid impersonation paths.
+      GF_AUTH_PROXY_ENABLED: "true"
+      # Secret shared by Grafana's alert contact points and the alert relay (step 42), 32+ characters (openssl rand -hex 32). Set once for the resource; both containers read it.
+      RELAY_TOKEN: "${RELAY_TOKEN:?set RELAY_TOKEN}"
+      # Trusted username header, X-WEBAUTH-USER. Must match the proxy's emitted identity header.
+      GF_AUTH_PROXY_HEADER_NAME: X-WEBAUTH-USER
+      # Proxy identity header is treated as username. Changing it changes how Grafana maps incoming identities to stored users.
+      GF_AUTH_PROXY_HEADER_PROPERTY: username
+      # Mapping for Email, Name and Role from X-WEBAUTH headers. Must match the staff proxy; changing Role mapping affects dashboard privileges.
+      GF_AUTH_PROXY_HEADERS: "Email:X-WEBAUTH-EMAIL Name:X-WEBAUTH-NAME Role:X-WEBAUTH-ROLE"
+      # true creates Grafana profiles for identities accepted from the trusted proxy. This is not public Caller Whale account signup.
+      GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
+      # Only this proxy source IP may assert Grafana identity headers. Keep aligned with the proxy's fixed private-network address; widening it increases impersonation risk.
+      GF_AUTH_PROXY_WHITELIST: 172.30.10.10
+      # false avoids persistent Grafana proxy-login tokens. Access remains dependent on the staff proxy's session checks.
+      GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN: "false"
+      # No other way in.
+      # true hides Grafana's local login form. Keep true; staff enter only through authenticated Dashboard admin mode.
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      # false disables direct HTTP Basic authentication. Keep false to preserve the single staff-proxy entry path.
+      GF_AUTH_BASIC_ENABLED: "false"
+      # false prevents anonymous Grafana access. Keep false in production.
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      # false disables Grafana's own public registration. Trusted proxy profile creation is a separate controlled setting.
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # false prevents Grafana users creating organizations. Keep false unless intentionally changing monitoring tenancy/permissions.
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      # Signing out of Grafana signs out of the proxy.
+      # Logout redirect to the protected proxy's /_callerwhale/logout endpoint. Must match its public monitoring subpath to end the proxy session.
+      GF_AUTH_SIGNOUT_REDIRECT_URL: "${GRAFANA_PUBLIC_URL}_callerwhale/logout"
+      # false disables Grafana usage analytics reporting. Changing it enables outbound reporting; unrelated to Caller Whale operational metrics.
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      # false disables Grafana's automatic update checks. Container upgrades are handled through deployment instead.
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      # false disables external snapshot publishing. Keep false to avoid exposing dashboard snapshots externally.
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
+      # false disables Grafana's news feed. Does not affect dashboard data collection.
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      # Plugins are installed here, by name (comma separated), since nobody is a Grafana server admin.
+      # Plugin IDs installed by Grafana, derived from GRAFANA_PLUGINS. Review before adding third-party code to the monitoring container.
+      GF_PLUGINS_PREINSTALL: "${GRAFANA_PLUGINS:-}"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      grafana:
+        ipv4_address: 172.30.10.20
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Passes Grafana's alerts to phones (build step 42): urgent ones to whoever is on call this week, the rest to everyone. It needs
+  # the coolify network only to reach the push service on the internet; nothing reaches it from outside this resource.
+  alert-relay:
+    image: "${CW_ALERT_RELAY_IMAGE:?set CW_ALERT_RELAY_IMAGE, the cw-alert-relay image by digest}"
+    environment:
+      # Secret shared by Grafana's alert contact points and the alert relay (step 42), 32+ characters (openssl rand -hex 32). Set once for the resource; both containers read it.
+      RELAY_TOKEN: "${RELAY_TOKEN:?set RELAY_TOKEN}"
+      # Secret: each on-call person's ntfy topic address, like owner=https://ntfy.sh/<long random topic>,cofounder=https://ntfy.sh/<topic>. Each person subscribes to their topic in the ntfy app.
+      PUSH_TARGETS: "${PUSH_TARGETS:?set PUSH_TARGETS}"
+      # Whose on-call week comes first, then the next, from PUSH_TARGETS' names; default owner,cofounder. Only urgent alerts wake the person on call.
+      ONCALL_ORDER: "${ONCALL_ORDER:-owner,cofounder}"
+      # The Monday the first person's on-call week starts, like 2026-11-23; the order then repeats a week at a time.
+      ONCALL_FROM: "${ONCALL_FROM:-2026-11-23}"
+      # The link each alert push opens: Grafana's alert list behind the staff login; default https://gate.callerwhale.com/staff/monitoring/alerting/list.
+      ALERTS_URL: "${ALERTS_URL:-https://gate.callerwhale.com/staff/monitoring/alerting/list}"
+    networks:
+      - grafana
+      - coolify
+    healthcheck:
+      test: ["CMD", "/service", "health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ---- What Grafana watches (nothing below has a public address; they live on this resource's private network) ----
+  prometheus:
+    build:
+      context: ./prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+    volumes:
+      - prometheus-data:/prometheus
+    networks:
+      - grafana
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # The server itself: CPU, memory, disk, network, load, uptime.
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    command:
+      - --path.rootfs=/host
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+)($$|/)
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - grafana
+    restart: unless-stopped
+
+  # Every container on the server: what each one uses.
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=15s
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - grafana
+    restart: unless-stopped
+
+  # Asks each Caller Whale service whether it answers (it also sits on the shared Coolify network to reach them).
+  blackbox:
+    build:
+      context: ./blackbox
+    networks:
+      - grafana
+      - coolify
+    restart: unless-stopped
+
+  # The containers' logs: Alloy reads them from Docker (read-only) and Loki keeps them 14 days for Grafana.
+  loki:
+    build:
+      context: ./loki
+    volumes:
+      - loki-data:/loki
+    networks:
+      - grafana
+    restart: unless-stopped
+
+  alloy:
+    build:
+      context: ./alloy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+    networks:
+      - grafana
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+networks:
+  coolify:
+    external: true
+    name: "${COOLIFY_NETWORK:-coolify}"
+  grafana:
+    ipam:
+      config:
+        - subnet: 172.30.10.0/24
+
+volumes:
+  grafana-data:
+  prometheus-data:
+  loki-data:
+  alloy-data:

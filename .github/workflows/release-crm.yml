@@ -1,6 +1,6 @@
 name: Release the desktop app
 
-# Builds the Full CRM desktop app (Caller Whale CRM/desktop) into a Windows installer and publishes it as a GitHub
+# Builds the Full CRM desktop app (apps/crm, apps/crm-desktop) into a Windows installer and publishes it as a GitHub
 # release. Caller Whale's server offers the newest release whose tag starts with "crm-v" to invited people only, on their
 # dashboard (CALLERWHALE_RELEASE_REPO, CALLERWHALE_RELEASE_TAG_PREFIX).
 #
@@ -83,14 +83,14 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: service/requirements.txt
+          cache-dependency-path: engines/skip-engine/requirements.txt
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: .
 
       # The Skip Tracing engine, as one executable inside the installer, so the app needs no Python.
-      - run: pip install -r service/requirements.txt pyinstaller
-      - run: python service/tools/build_service.py
+      - run: pip install -r engines/skip-engine/requirements.txt pyinstaller
+      - run: python engines/skip-engine/tools/build_service.py
 
       # npm workspaces (D383): install once at the repository root.
       - run: npm ci

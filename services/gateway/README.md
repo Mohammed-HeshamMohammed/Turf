@@ -1,6 +1,6 @@
 # Gateway
 
-The one public entry point for Caller Whale's servers. It routes by host name to the service behind it, and checks every request first. The services behind it check again for themselves: the gateway narrows what reaches them, it doesn't replace their checks. Plan and decisions: [docs/plans/gateway.md](../../Caller%20Whale%20CRM/docs/plans/gateway.md).
+The one public entry point for Caller Whale's servers. It routes by host name to the service behind it, and checks every request first. The services behind it check again for themselves: the gateway narrows what reaches them, it doesn't replace their checks. Plan and decisions: [docs/plans/gateway.md](../../docs/plans/gateway.md).
 
 | | |
 | --- | --- |
@@ -8,7 +8,7 @@ The one public entry point for Caller Whale's servers. It routes by host name to
 | Language | Go (standard library only) |
 | Default port | 8100 |
 | Owns data | No |
-| Settings | [env/gateway.env.example](../../Caller%20Whale%20CRM/env/gateway.env.example) |
+| Settings | [env/gateway.env.example](../../env/gateway.env.example) |
 
 ## What it does
 

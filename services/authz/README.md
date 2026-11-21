@@ -1,7 +1,7 @@
 # Authorization service (authz)
 
 Decides what each person may do in each workspace, and which database rights each request runs under. Auth proves who someone
-is; this service decides what they may do. Plan: [docs/plans/authorization-service.md](../../Caller%20Whale%20CRM/docs/plans/authorization-service.md).
+is; this service decides what they may do. Plan: [docs/plans/authorization-service.md](../../docs/plans/authorization-service.md).
 
 | | |
 | --- | --- |

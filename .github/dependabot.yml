@@ -1,6 +1,6 @@
 # Keeps every container's dependencies and base images current. One monthly pull request per ecosystem and folder group (minor and
 # patch updates together, each major update on its own), reviewed in the monthly update review (D307,
-# Caller Whale CRM/docs/plans/security-upkeep.md). Security updates are opened straight away by GitHub whatever this schedule
+# docs/plans/security-upkeep.md). Security updates are opened straight away by GitHub whatever this schedule
 # says, and serious ones are fixed within a week. The checks in .github/workflows/audit.yml tell which of them matter.
 version: 2
 
@@ -8,11 +8,11 @@ updates:
   # --- JavaScript: the websites, the desktop app's web part, and the tools -------------------------------------------------
   - package-ecosystem: npm
     directories:
-      - "/Caller Whale App"
+      - "/apps/lists-desktop"
       # The npm workspace (D383): the CRM app, the website and packages/ share the root lock file.
       - "/"
-      - "/Caller Whale CRM/tools/firebase"
-      - "/Caller Whale CRM/services/features/ai-campaigns"
+      - "/tools/firebase"
+      - "/scaffolds/ai-campaigns"
     schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
     groups:
@@ -47,7 +47,7 @@ updates:
     directories:
       - "/services/billing"
       - "/services/importing-lists"
-      - "/service"
+      - "/engines/skip-engine"
     schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
     groups:
@@ -59,8 +59,8 @@ updates:
   - package-ecosystem: cargo
     directories:
       - "/"
-      - "/Caller Whale App/src-tauri"
-      - "/Caller Whale CRM"
+      - "/apps/lists-desktop/src-tauri"
+      - "/scaffolds"
     schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
     groups:
@@ -77,9 +77,9 @@ updates:
       - "/services/billing"
       - "/services/notifications"
       - "/services/grafana-proxy"
-      - "/Caller Whale CRM/services/features/ai-campaigns"
-      - "/Caller Whale CRM/services/features/backup-restore"
-      - "/Caller Whale CRM/services/features/crm"
+      - "/scaffolds/ai-campaigns"
+      - "/scaffolds/backup-restore"
+      - "/scaffolds/crm"
       - "/services/dialer-sms"
       - "/services/crm-core"
       - "/services/messaging"
@@ -87,10 +87,10 @@ updates:
       - "/services/learning"
       - "/services/mcp"
       - "/services/alert-relay"
-      - "/Caller Whale CRM/services/features/exports"
+      - "/scaffolds/exports"
       - "/services/importing-lists"
-      - "/Caller Whale CRM/services/features/leads-map"
-      - "/Caller Whale CRM/services/features/skip-tracing"
+      - "/scaffolds/leads-map"
+      - "/scaffolds/skip-tracing"
     schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
     groups:

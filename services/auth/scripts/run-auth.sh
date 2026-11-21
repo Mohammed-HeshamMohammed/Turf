@@ -3,6 +3,6 @@
 # (DATABASE_URL) and AUTH_FIREBASE_API_KEY.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
-. "$here/../../../Caller Whale CRM/tools/load-env.sh" "$here/../../../Caller Whale CRM/env/auth.env"
+. "$here/../../../tools/load-env.sh" "$here/../../../env/auth.env"
 cd "$here/.."
 exec go run .
