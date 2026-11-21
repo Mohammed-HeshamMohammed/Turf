@@ -3,7 +3,6 @@ package crm
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -48,25 +47,4 @@ func (s *server) fillAddressKeys(ctx context.Context) (int64, error) {
 		filled += tag.RowsAffected()
 	}
 	return filled, nil
-}
-
-// fillAddressKeysPeriodically fills the stored address keys at start and every ten minutes until none is missing, then checks hourly.
-func (s *server) fillAddressKeysPeriodically(ctx context.Context) {
-	for {
-		n, err := s.fillAddressKeys(ctx)
-		if err != nil && ctx.Err() == nil {
-			log.Printf("WARN filling property address keys (tried again later): %v", err)
-		} else if n > 0 {
-			log.Printf("INFO filled the address keys of %d properties", n)
-		}
-		wait := time.Hour
-		if n > 0 || err != nil {
-			wait = 10 * time.Second
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(wait):
-		}
-	}
 }

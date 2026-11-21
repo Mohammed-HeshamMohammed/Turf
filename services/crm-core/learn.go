@@ -170,22 +170,6 @@ func (s *server) sendLearning(ctx context.Context, path string, body any) error 
 	return nil
 }
 
-// learnPendingPeriodically copies finished imports that were not copied yet (the service stopped, or the store was away), then blanks the
-// personal details of rows copied more than a week ago.
-func (s *server) learnPendingPeriodically(ctx context.Context) {
-	if s.cfg.learningURL == "" {
-		return
-	}
-	for {
-		s.learnPending(ctx)
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(10 * time.Minute):
-		}
-	}
-}
-
 func (s *server) learnPending(ctx context.Context) {
 	rows, err := s.st.db.Query(ctx, `SELECT id::text FROM importing.jobs WHERE status = 'done' AND kind = 'lead_list' AND learned_at IS NULL ORDER BY created_at LIMIT 20`)
 	if err != nil {

@@ -729,22 +729,6 @@ func (s *server) sweepRows(ctx context.Context) (int64, error) {
 	return tag.RowsAffected(), err
 }
 
-// sweepRowsPeriodically removes old failed holding rows. The worker owns the upload files.
-func (s *server) sweepRowsPeriodically(ctx context.Context) {
-	for {
-		if n, err := s.sweepRows(ctx); err != nil {
-			log.Printf("WARN clearing old import rows: %v", err)
-		} else if n > 0 {
-			log.Printf("INFO cleared %d old import rows", n)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(6 * time.Hour):
-		}
-	}
-}
-
 // pickFields are the fields a repeat group can be merged by, one row's value each.
 var pickFields = []string{"name", "phone", "email", "address", "city", "zip"}
 

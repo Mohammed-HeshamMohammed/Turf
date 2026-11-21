@@ -830,17 +830,3 @@ func (s *server) tellAboutEmail(ctx context.Context, org, email string) error {
 	return tx.Commit(ctx)
 }
 
-func (s *server) checkEmailWaitsPeriodically(ctx context.Context) {
-	t := time.NewTicker(time.Minute)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			if err := s.checkEmailWaits(ctx); err != nil {
-				log.Printf("WARN emails waiting: %v", err)
-			}
-		}
-	}
-}
