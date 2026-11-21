@@ -409,7 +409,7 @@
       }
     },
     "messaging": {
-      "description": "Team chats, groups and announcements (step 16): keeps chats in its own database and tells the live server; the gateway routes chat.callerwhale.com to it. Network alias messaging, port 8108, no domain.",
+      "description": "Team chats, groups and announcements (step 16): keeps chats in its own database and queues its live updates, which the live server reads; the gateway routes chat.callerwhale.com to it. Network alias messaging, port 8108, no domain.",
       "sources": [
         "services/messaging/main.go"
       ],
@@ -420,23 +420,26 @@
         "AUTHZ_URL": "The authorization service's private address.",
         "AUTHZ_TOKEN": "Secret: the value after messaging= in authz's AUTHZ_TOKENS, 32+ characters.",
         "CORS_ORIGINS": "Pages that may call this service from a browser. Keep it the same as the gateway's CORS_ORIGINS.",
-        "LIVE_API_URL": "The live server's (Centrifugo's) private API address.",
-        "LIVE_API_KEY": "Secret: the same value as Centrifugo's CENTRIFUGO_HTTP_API_KEY, 32+ characters.",
         "LIVE_TOKEN_SECRET": "Secret: the same value as Centrifugo's CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY, 32+ characters.",
-        "LIVE_PUBLIC_URL": "Where the apps open their socket: the live server's public address through the gateway."
+        "LIVE_PUBLIC_URL": "Where the apps open their socket: the live server's public address through the gateway.",
+        "LIVE_DB_PASSWORD": "Secret: 64 random hex characters. The password of messaging_live, the login (outbox rows only) the live server reads with; also in its CENTRIFUGO_CONSUMERS_MESSAGING_POSTGRESQL_DSN.",
+        "LIVE_API_URL": "Switch-over only: the live server's (Centrifugo's) private API address. Set, this service also sends live updates itself (the old way). Remove it, with LIVE_API_KEY, once the live server reads the outbox.",
+        "LIVE_API_KEY": "Switch-over only, secret: the same value as Centrifugo's CENTRIFUGO_HTTP_API_KEY, 32+ characters. Remove it with LIVE_API_URL."
       }
     },
     "live": {
-      "description": "The live server (Centrifugo, built from services/live): holds the apps' sockets and delivers what messaging tells it; the gateway routes live.callerwhale.com to it. Network alias centrifugo, port 8000, no domain.",
+      "description": "The live server (Centrifugo, built from services/live): holds the apps' sockets and reads messaging's outbox and delivers it; the gateway routes live.callerwhale.com to it. Network alias centrifugo, port 8000, no domain.",
       "sources": [
         "services/live/config.json"
       ],
       "variables": {
-        "CENTRIFUGO_HTTP_API_KEY": "Secret: 64 random hex characters. Only the messaging service calls the API, with this key (its LIVE_API_KEY).",
+        "CENTRIFUGO_HTTP_API_KEY": "Secret: 64 random hex characters. Only the messaging service called the API, with this key (its LIVE_API_KEY), and only until the live server reads the outbox.",
         "CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY": "Secret: 64 random hex characters, different from the key above. Connection tokens are signed with it (messaging's LIVE_TOKEN_SECRET).",
         "CENTRIFUGO_CLIENT_ALLOWED_ORIGINS": "Pages that may open a socket.",
         "CENTRIFUGO_ENGINE_TYPE": "redis: deliveries go through the live server's own Redis (Caller Whale Messaging Redis, private, no persistence). Set together with the address below.",
-        "CENTRIFUGO_ENGINE_REDIS_ADDRESS": "Secret: the Messaging Redis internal URL from its own page, redis://default:password@host:6379. Messages are never kept there."
+        "CENTRIFUGO_ENGINE_REDIS_ADDRESS": "Secret: the Messaging Redis internal URL from its own page, redis://default:password@host:6379. Messages are never kept there.",
+        "CENTRIFUGO_CONSUMERS_MESSAGING_ENABLED": "true: the live server reads the messaging outbox itself and delivers it (services/live/config.json, consumer messaging). Set together with the address below.",
+        "CENTRIFUGO_CONSUMERS_MESSAGING_POSTGRESQL_DSN": "Secret: the messaging database as the read-only login messaging's service makes, postgres://messaging_live:<messaging's LIVE_DB_PASSWORD>@<messaging database internal host>:5432/postgres?sslmode=require."
       }
     }
   }

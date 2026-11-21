@@ -13,11 +13,13 @@ AUTHZ_URL=http://authz:8104
 AUTHZ_TOKEN=<the messaging token from authz's AUTHZ_TOKENS>
 # Pages that may call this service from a browser. Keep it the same as the gateway's CORS_ORIGINS.
 CORS_ORIGINS=https://app.callerwhale.com
-# The live server's (Centrifugo's) private API address.
-LIVE_API_URL=http://centrifugo:8000/api
-# Secret: the same value as Centrifugo's CENTRIFUGO_HTTP_API_KEY, 32+ characters.
-LIVE_API_KEY=<the live server's API key>
 # Secret: the same value as Centrifugo's CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY, 32+ characters.
 LIVE_TOKEN_SECRET=<the live server's token secret>
 # Where the apps open their socket: the live server's public address through the gateway.
 LIVE_PUBLIC_URL=wss://live.callerwhale.com/connection/websocket
+# Secret: 64 random hex characters. The password of messaging_live, the login (outbox rows only) the live server reads with; also in its CENTRIFUGO_CONSUMERS_MESSAGING_POSTGRESQL_DSN.
+LIVE_DB_PASSWORD=<64 random hex characters>
+# Switch-over only: the live server's (Centrifugo's) private API address. Set, this service also sends live updates itself (the old way). Remove it, with LIVE_API_KEY, once the live server reads the outbox.
+LIVE_API_URL=http://centrifugo:8000/api
+# Switch-over only, secret: the same value as Centrifugo's CENTRIFUGO_HTTP_API_KEY, 32+ characters. Remove it with LIVE_API_URL.
+LIVE_API_KEY=<the live server's API key>

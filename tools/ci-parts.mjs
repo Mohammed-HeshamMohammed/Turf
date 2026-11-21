@@ -15,7 +15,8 @@ const NPM = ["packages/", "package.json", "package-lock.json", ".npmrc"];
 export const PARTS = {
   "go-packages": [GO],
   "crm-core": [S + "crm-core/", GO],
-  messaging: [S + "messaging/", GO],
+  // Its tests run the live server as services/live sets it up, reading the outbox.
+  messaging: [S + "messaging/", S + "live/", GO],
   "dialer-sms": [S + "dialer-sms/", GO],
   auth: [S + "auth/", GO],
   authz: [S + "authz/", GO],

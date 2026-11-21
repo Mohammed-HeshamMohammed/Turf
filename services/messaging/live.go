@@ -17,26 +17,36 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Live delivery goes through Centrifugo, a ready-made real-time server: it holds the sockets, this service tells it what to send.
-// Each person listens on one channel of their own ("chat:user#<their id>"; Centrifugo lets only that person subscribe to it), whatever
+// Live delivery goes through Centrifugo, a ready-made real-time server: it holds the sockets and reads what to send from this
+// service's outbox table itself (its PostgreSQL consumer, set up in services/live/config.json). This service only writes the rows,
+// in the same transaction as each change, and signs the apps' connection tokens. Each person listens on one channel of their own ("chat:user#<their id>"; Centrifugo lets only that person subscribe to it), whatever
 // workspace or conversation the update is about. The update is only a prompt: the database is the truth, and an app that missed
 // one asks for the messages after the last number it has.
 
 const (
 	channelPrefix = "chat:user#"
 	liveTokenTTL  = 10 * time.Minute
+
+	// outboxPartitions is how many partitions the outbox is split into. It must equal num_partitions of the "messaging" consumer
+	// in services/live/config.json (a test checks): Centrifugo reads each one in order, and the partitions side by side.
+	outboxPartitions = 4
+	// staleUpdate is how long an update may wait before it is thrown away. A live update is only a prompt (apps catch up from the
+	// database when they reconnect), so one this old is worth nothing, and without a live server reading the table it would grow.
+	staleUpdate = time.Hour
 )
 
+// outboxPartitionOf is the SQL for the partition of the conversation in the parameter: always the same one for one conversation.
+func outboxPartitionOf(param string) string {
+	return fmt.Sprintf("((hashtext(%s::text) %% %d) + %d) %% %d", param, outboxPartitions, outboxPartitions, outboxPartitions)
+}
+
 type live struct {
-	api, key, secret, public string
-	http                     *http.Client
+	secret, public string
 }
 
-func newLive(c config) *live {
-	return &live{api: c.liveAPI, key: c.liveAPIKey, secret: c.liveSecret, public: c.livePublic, http: &http.Client{Timeout: 5 * time.Second}}
-}
+func newLive(c config) *live { return &live{secret: c.liveSecret, public: c.livePublic} }
 
-func (l *live) enabled() bool { return l.api != "" }
+func (l *live) enabled() bool { return l.secret != "" }
 
 // token is a Centrifugo connection token (HS256): it says who is connecting and for how long. The app asks for a new one when it
 // runs out, with its sign-in token, so a signed-out person stops receiving within minutes.
@@ -62,12 +72,53 @@ func (s *server) liveToken(q *req) error {
 
 func lowerID(id string) string { return string(bytes.ToLower([]byte(id))) }
 
-// send hands one queued update to Centrifugo. The outbox row's number goes along as the idempotency key, so an update sent
-// twice (the reply was lost, the row was not yet deleted) is delivered once.
-func (l *live) send(ctx context.Context, id int64, method string, payload []byte) error {
-	if !l.enabled() {
+// sweep throws away updates that have waited longer than staleUpdate, every ten minutes for the life of the service. A healthy live
+// server leaves nothing that old; when it finds some, it says so once an hour at most. Two copies sweeping together do no harm.
+func (s *server) sweep(ctx context.Context) {
+	tick := time.NewTicker(10 * time.Minute)
+	defer tick.Stop()
+	var lastWarn time.Time
+	for {
+		n, err := s.sweepOnce(ctx)
+		switch {
+		case err != nil && ctx.Err() == nil:
+			log.Printf("WARN clearing old live updates: %v", err)
+		case n > 0 && time.Since(lastWarn) >= time.Hour:
+			log.Printf("WARN %d live updates waited over %s and were thrown away: is the live server reading the outbox? (messages are saved; apps catch up when they reconnect)", n, staleUpdate)
+			lastWarn = time.Now()
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
+	}
+}
+
+func (s *server) sweepOnce(ctx context.Context) (int64, error) {
+	tag, err := s.st.db.Exec(ctx, `DELETE FROM outbox WHERE created_at < now() - make_interval(secs => $1)`, staleUpdate.Seconds())
+	return tag.RowsAffected(), err
+}
+
+// The old way, kept only for the switch-over: while LIVE_API_URL is set this service also sends the outbox to Centrifugo's API itself,
+// so live updates keep flowing until the live server reads the outbox (CENTRIFUGO_CONSUMERS_MESSAGING_ENABLED). Both may send the same
+// row for a while; it carries one idempotency key, so Centrifugo delivers it once. Remove LIVE_API_URL and LIVE_API_KEY afterwards,
+// and then this code.
+type legacySender struct {
+	api, key string
+	http     *http.Client
+}
+
+func newLegacySender(c config) *legacySender {
+	if c.liveAPI == "" {
 		return nil
 	}
+	return &legacySender{api: c.liveAPI, key: c.liveAPIKey, http: &http.Client{Timeout: 5 * time.Second}}
+}
+
+// send hands one queued update to Centrifugo's API. The outbox row's number goes along as the idempotency key, so an update sent
+// twice (the reply was lost, the row was not yet deleted) is delivered once.
+func (l *legacySender) send(ctx context.Context, id int64, method string, payload []byte) error {
 	var body map[string]any
 	if err := json.Unmarshal(payload, &body); err != nil {
 		return nil // a row that is not JSON can never be sent: drop it
@@ -105,7 +156,7 @@ func (l *live) send(ctx context.Context, id int64, method string, payload []byte
 	return nil
 }
 
-// flush sends what is waiting, oldest first, and deletes what was delivered. It stops at the first failure so updates never
+// flush sends what is waiting (the old way), oldest first, and deletes what was delivered. It stops at the first failure so updates never
 // overtake each other. Rows are locked while they are sent, so two copies of the service do not send the same one.
 func (s *server) flush(ctx context.Context) (sent int, err error) {
 	tx, err := s.st.db.Begin(ctx)
@@ -138,7 +189,7 @@ func (s *server) flush(ctx context.Context) (sent int, err error) {
 	var done []int64
 	var failure error
 	for _, r := range batch {
-		if failure = s.live.send(ctx, r.id, r.method, r.payload); failure != nil {
+		if failure = s.legacy.send(ctx, r.id, r.method, r.payload); failure != nil {
 			break
 		}
 		done = append(done, r.id)
@@ -154,7 +205,7 @@ func (s *server) flush(ctx context.Context) (sent int, err error) {
 	return len(done), failure
 }
 
-// deliver runs for the life of the service: it sends the outbox whenever a change says there is something new, and every two
+// deliver runs for the life of the service while LIVE_API_URL is set: it sends the outbox whenever a change says there is something new, and every two
 // seconds regardless, so nothing waits on a missed signal.
 func (s *server) deliver(ctx context.Context) {
 	wake := make(chan struct{}, 1)

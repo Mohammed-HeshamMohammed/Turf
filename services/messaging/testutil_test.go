@@ -72,7 +72,7 @@ func (f *fakeRules) join(org string, users ...string) {
 	}
 }
 
-// fakeLive stands in for Centrifugo: it keeps what it was told to broadcast, and can be switched off.
+// fakeLive stands in for Centrifugo's API (the switch-over sender): it keeps what it was told to broadcast, and can be switched off.
 type fakeLive struct {
 	mu   sync.Mutex
 	got  []map[string]any
@@ -107,8 +107,9 @@ func (f *fakeLive) seen() []map[string]any {
 }
 
 const (
-	testLiveKey    = "test-live-api-key-0123456789abcdef"
-	testLiveSecret = "test-live-token-secret-0123456789ab"
+	testLiveKey      = "test-live-api-key-0123456789abcdef"
+	testLiveSecret   = "test-live-token-secret-0123456789ab"
+	testLivePassword = "test-live-login-password-0123456789"
 )
 
 type env struct {
@@ -117,7 +118,6 @@ type env struct {
 	ts    *httptest.Server
 	fx    authverifytest.Fixture
 	rules *fakeRules
-	live  *fakeLive
 	admin *pgx.Conn
 }
 
@@ -133,6 +133,13 @@ func newEnvWith(t *testing.T, asSuperuser bool) *env {
 	if asSuperuser {
 		appURL = adminURL
 	}
+	return newEnvAt(t, appURL, adminURL)
+}
+
+// newEnvAt runs the service on the database at appURL (the superuser at adminURL resets its schema). A superuser login also makes
+// the live server's read-only login, with testLivePassword.
+func newEnvAt(t *testing.T, appURL, adminURL string) *env {
+	t.Helper()
 	ctx := context.Background()
 	admin, err := pgx.Connect(ctx, adminURL)
 	if err != nil {
@@ -142,7 +149,7 @@ func newEnvWith(t *testing.T, asSuperuser bool) *env {
 	if _, err = admin.Exec(ctx, `DROP SCHEMA IF EXISTS messaging CASCADE`); err != nil {
 		t.Fatal(err)
 	}
-	st, err := openStore(ctx, appURL)
+	st, err := openStore(ctx, appURL, testLivePassword)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,12 +158,11 @@ func newEnvWith(t *testing.T, asSuperuser bool) *env {
 	fx := authverifytest.NewFixture(t)
 	jwks := fx.JWKS("k1")
 	rules := &fakeRules{grants: map[string]grantReply{}, people: map[string][]member{}, teams: map[string][]team{}}
-	fl := newFakeLive(t, testLiveKey)
-	cfg := config{databaseURL: appURL, liveAPI: fl.ts.URL + "/api", liveAPIKey: testLiveKey, liveSecret: testLiveSecret, livePublic: "wss://live.example/connection/websocket"}
+	cfg := config{databaseURL: appURL, liveSecret: testLiveSecret, livePublic: "wss://live.example/connection/websocket"}
 	s := &server{cfg: cfg, keys: authverifytest.ServeKeys(t, &jwks, nil), rules: rules, st: st, live: newLive(cfg), now: time.Now}
 	ts := httptest.NewServer(s.handler())
 	t.Cleanup(ts.Close)
-	return &env{t: t, s: s, ts: ts, fx: fx, rules: rules, live: fl, admin: admin}
+	return &env{t: t, s: s, ts: ts, fx: fx, rules: rules, admin: admin}
 }
 
 func (e *env) token(user string) string {
@@ -214,6 +220,32 @@ func (e *env) conversation(user, org, id string) map[string]any {
 		}
 	}
 	return nil
+}
+
+type outboxRow struct {
+	id        int64
+	method    string
+	partition int
+	payload   map[string]any
+}
+
+// outbox is what waits for the live server, oldest first.
+func (e *env) outbox() []outboxRow {
+	e.t.Helper()
+	rows, err := e.admin.Query(context.Background(), `SELECT id, method, partition, payload FROM messaging.outbox ORDER BY id`)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	defer rows.Close()
+	var out []outboxRow
+	for rows.Next() {
+		var r outboxRow
+		if err = rows.Scan(&r.id, &r.method, &r.partition, &r.payload); err != nil {
+			e.t.Fatal(err)
+		}
+		out = append(out, r)
+	}
+	return out
 }
 
 func newID() string {

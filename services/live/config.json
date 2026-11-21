@@ -1,15 +1,45 @@
 {
-  "log": { "level": "info" },
-  "health": { "enabled": true },
-  "prometheus": { "enabled": true },
-  "engine": { "redis": { "tls": { "enabled": true, "insecure_skip_verify": true } } },
+  "log": {
+    "level": "info"
+  },
+  "health": {
+    "enabled": true
+  },
+  "prometheus": {
+    "enabled": true
+  },
+  "engine": {
+    "redis": {
+      "tls": {
+        "enabled": true,
+        "insecure_skip_verify": true
+      }
+    }
+  },
   "client": {
     "user_connection_limit": 5,
     "connection_limit": 1000
   },
   "channel": {
     "namespaces": [
-      { "name": "chat", "allow_user_limited_channels": true }
+      {
+        "name": "chat",
+        "allow_user_limited_channels": true
+      }
     ]
-  }
+  },
+  "consumers": [
+    {
+      "name": "messaging",
+      "enabled": false,
+      "type": "postgresql",
+      "postgresql": {
+        "outbox_table_name": "messaging.outbox",
+        "num_partitions": 4,
+        "partition_select_limit": 100,
+        "partition_poll_interval": "2s",
+        "partition_notification_channel": "messaging_outbox"
+      }
+    }
+  ]
 }
