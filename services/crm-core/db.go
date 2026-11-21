@@ -46,6 +46,9 @@ func openStore(ctx context.Context, url string) (*store, error) {
 	if err = db.Ping(ctx); err == nil {
 		err = s.migrate(ctx)
 	}
+	if err == nil {
+		err = migrateJobs(ctx, s)
+	}
 	if err != nil {
 		db.Close()
 		return nil, fmt.Errorf("CRM database: %w", err)

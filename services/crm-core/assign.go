@@ -20,6 +20,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -218,10 +219,12 @@ func (s *server) startAssignment(q *req) error {
 		VALUES (cw_org(), $1, $2, $3, $4::uuid[], $5::uuid[], $6) RETURNING id::text`, q.sc.userID, actor, selection, body.To, teams, limit).Scan(&id); err != nil {
 		return err
 	}
+	if _, err := s.jobs.InsertTx(ctx, tx, assignArgs{Org: q.sc.orgID, Run: id}, nil); err != nil {
+		return err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	go s.runAssignment(context.Background(), q.sc.orgID, id)
 	return s.assignmentReply(q, id)
 }
 
@@ -258,6 +261,13 @@ func (s *server) getAssignment(q *req) error {
 // runAssignment moves the selected leads to their new people, a batch at a time, each batch in its own transaction, until the
 // selection or the limit runs out. A restart continues from the last batch (resumeAssignments).
 func (s *server) runAssignment(ctx context.Context, org, id string) {
+	for s.assignSlice(ctx, org, id, 0) {
+	}
+}
+
+// assignSlice is runAssignment for the job queue: after budget (0: no limit) it stops between batches and says more is left.
+func (s *server) assignSlice(ctx context.Context, org, id string, budget time.Duration) (more bool) {
+	started := time.Now()
 	// assignment_runs forces row security: every read and update of the run happens in a transaction set to its workspace.
 	inOrg := func(sql string, args ...any) error {
 		tx, err := s.st.begin(ctx, scope{orgID: org})
@@ -271,6 +281,9 @@ func (s *server) runAssignment(ctx context.Context, org, id string) {
 		return tx.Commit(ctx)
 	}
 	fail := func(err error) {
+		if ctx.Err() != nil {
+			return // the process is stopping, not failing: the work stays going and is queued again (adoptWork)
+		}
 		log.Printf("ERROR assignment %s: %v", id, err)
 		if err := inOrg(`UPDATE assignment_runs SET status = 'failed', error = 'The leads could not all be given. Those already given stay given; try again.', finished_at = now() WHERE id = $1`, id); err != nil {
 			log.Printf("ERROR marking assignment %s failed: %v", id, err)
@@ -284,7 +297,7 @@ func (s *server) runAssignment(ctx context.Context, org, id string) {
 	tx, err := s.st.begin(ctx, scope{orgID: org})
 	if err != nil {
 		fail(err)
-		return
+		return false
 	}
 	err = tx.QueryRow(ctx, `SELECT actor_scope, selection, targets::text[], target_teams::text[], limit_n, assigned, cursor_id::text
 		FROM assignment_runs WHERE id = $1 AND org_id = $2 AND status = 'running'`, id, org).Scan(&actorRaw, &selRaw, &targets, &teams, &limit, &assigned, &cursor)
@@ -293,7 +306,7 @@ func (s *server) runAssignment(ctx context.Context, org, id string) {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			fail(err)
 		}
-		return
+		return false
 	}
 	var actor assignScope
 	var sel assignSelection
@@ -315,19 +328,23 @@ func (s *server) runAssignment(ctx context.Context, org, id string) {
 		done, last, err := s.assignBatch(ctx, sc, id, sel, targets, teams, assigned, after, n)
 		if err != nil {
 			fail(err)
-			return
+			return false
 		}
 		if done == 0 {
 			break
 		}
 		assigned += done
 		after = last
+		if budget > 0 && time.Since(started) > budget {
+			return true
+		}
 	}
 	if err := inOrg(`UPDATE assignment_runs SET status = 'done', finished_at = now() WHERE id = $1 AND status = 'running'`, id); err != nil {
 		fail(err)
-		return
+		return false
 	}
-	s.hub.publish(org, []byte(`{"kind":"assignment.done","entity":"lead","seq":0}`))
+	s.notify(ctx, org, "assignment.done", "lead")
+	return false
 }
 
 // assignBatch gives up to n leads after the cursor, sharing them between the targets in turn (counting from `given`, so the
@@ -423,35 +440,3 @@ func (s *server) assignBatch(ctx context.Context, sc scope, id string, sel assig
 	return int64(len(ids)), ids[len(ids)-1], tx.Commit(ctx)
 }
 
-// resumeAssignments continues runs that were going when the service last stopped.
-func (s *server) resumeAssignments(ctx context.Context) {
-	// Row security hides every workspace's runs from a plain connection; cw.resume lets this one read lift it (0023).
-	tx, err := s.st.db.Begin(ctx)
-	if err != nil {
-		log.Printf("WARN looking for assignments to continue: %v", err)
-		return
-	}
-	defer tx.Rollback(ctx)
-	if _, err = tx.Exec(ctx, `SELECT set_config('cw.resume', 'on', true)`); err != nil {
-		log.Printf("WARN looking for assignments to continue: %v", err)
-		return
-	}
-	rows, err := tx.Query(ctx, `SELECT id::text, org_id::text FROM assignment_runs WHERE status = 'running'`)
-	if err != nil {
-		log.Printf("WARN looking for assignments to continue: %v", err)
-		return
-	}
-	type pending struct{ id, org string }
-	var runs []pending
-	for rows.Next() {
-		var p pending
-		if rows.Scan(&p.id, &p.org) == nil {
-			runs = append(runs, p)
-		}
-	}
-	rows.Close()
-	tx.Rollback(ctx)
-	for _, p := range runs {
-		s.runAssignment(ctx, p.org, p.id)
-	}
-}
