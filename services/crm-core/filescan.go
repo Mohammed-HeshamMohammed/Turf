@@ -133,21 +133,3 @@ func (s *server) scanWaiting(ctx context.Context) error {
 	return nil
 }
 
-func (s *server) scanWaitingPeriodically(ctx context.Context) {
-	if s.scanner == nil {
-		log.Printf("WARN CLAMD_ADDR is not set: files on leads wait unopened until a scanner is set up")
-		return
-	}
-	t := time.NewTicker(30 * time.Second)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			if err := s.scanWaiting(ctx); err != nil {
-				log.Printf("WARN files waiting for the scanner: %v", err)
-			}
-		}
-	}
-}

@@ -170,15 +170,7 @@ func Main() {
 		log.Fatal(err)
 	}
 	defer s.stopJobs()
-	go s.sweepRowsPeriodically(ctx)
-	go s.learnPendingPeriodically(ctx)
-	go s.checkEmailWaitsPeriodically(ctx)
-	go s.sendReportsPeriodically(ctx)
-	go s.sendEventsPeriodically(ctx)
-	go s.scanWaitingPeriodically(ctx)
-	go s.contributePeriodically(ctx)
 	go st.keepBuildingLateIndexes(ctx, 5*time.Minute)
-	go s.fillAddressKeysPeriodically(ctx)
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 5 * time.Minute, WriteTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute}
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)

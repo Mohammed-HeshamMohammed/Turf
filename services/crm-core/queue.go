@@ -18,7 +18,7 @@ import (
 // and queues a job in the same transaction, so the job cannot be lost between the two; whichever container works the queue (today the
 // API itself, later crm-merge) picks it up. Long jobs run in slices of sliceBudget and go back in line between slices: a huge list
 // cannot hold a worker for an hour, other workspaces' imports take turns with it, and a container that stops mid-merge loses at most a
-// slice (River gives a job whose container died to another after RescueStuckJobsAfter; the merges themselves resume from their last
+// slice (River gives a job whose container died to another after RescueStuckJobsAfter, 30 minutes; the merges themselves resume from their last
 // batch).
 
 const (
@@ -133,11 +133,15 @@ func (s *server) startJobs(ctx context.Context, work bool) error {
 	river.AddWorker(workers, &callMergeWorker{s: s})
 	river.AddWorker(workers, &assignWorker{s: s})
 	river.AddWorker(workers, &adoptWorker{s: s})
-	cfg := &river.Config{Workers: workers, Logger: quietLogger(), RescueStuckJobsAfter: 15 * time.Minute, JobTimeout: jobTimeout}
+	river.AddWorker(workers, &upkeepWorker{s: s})
+	cfg := &river.Config{Workers: workers, Logger: quietLogger(), RescueStuckJobsAfter: 30 * time.Minute, JobTimeout: jobTimeout}
 	if work {
-		cfg.Queues = map[string]river.QueueConfig{queueMerge: {MaxWorkers: 1}, queueAssign: {MaxWorkers: 2}}
-		cfg.PeriodicJobs = []*river.PeriodicJob{river.NewPeriodicJob(river.PeriodicInterval(time.Minute),
-			func() (river.JobArgs, *river.InsertOpts) { return adoptArgs{}, nil }, &river.PeriodicJobOpts{ID: "adopt_work", RunOnStart: true})}
+		cfg.Queues = map[string]river.QueueConfig{queueMerge: {MaxWorkers: 1}, queueAssign: {MaxWorkers: 2}, queueUpkeep: {MaxWorkers: 2}, queueOutbox: {MaxWorkers: 4}}
+		if s.scanner == nil {
+			log.Printf("WARN CLAMD_ADDR is not set: files on leads wait unopened until a scanner is set up")
+		}
+		cfg.PeriodicJobs = append(s.periodicJobs(cfg.Queues), river.NewPeriodicJob(river.PeriodicInterval(time.Minute),
+			func() (river.JobArgs, *river.InsertOpts) { return adoptArgs{}, nil }, &river.PeriodicJobOpts{ID: "adopt_work", RunOnStart: true}))
 	}
 	client, err := river.NewClient(riverpgxv5.New(s.st.db), cfg)
 	if err != nil {
@@ -248,4 +252,87 @@ func (s *server) notify(ctx context.Context, org, kind, entity string) {
 		org, kind, entity); err != nil {
 		log.Printf("WARN could not announce %s for workspace %s: %v", kind, org, err)
 	}
+}
+
+// The timed work. Each task is a River periodic job: the queue runs it on one elected copy only, so two containers never send the same
+// webhook, email or report twice, and a run still going is never doubled by the next one (uniqueWhileQueued). A failed run is logged
+// and waits for its next turn, as the loops it replaces did.
+const (
+	queueUpkeep = "upkeep" // database upkeep beside the merges (crm-merge)
+	queueOutbox = "outbox" // everything that waits on another service (crm-outbox)
+)
+
+type upkeepArgs struct {
+	Task string `json:"task"`
+}
+
+func (upkeepArgs) Kind() string { return "upkeep" }
+
+type upkeepTask struct {
+	name, queue string
+	every       time.Duration
+	atStart     bool
+	run         func(*server, context.Context) error
+}
+
+// upkeepTasks lists the timed work and who does it. A task whose setting is off (no learning service, no scanner) is left out.
+func (s *server) upkeepTasks() []upkeepTask {
+	tasks := []upkeepTask{
+		{"sweep_rows", queueUpkeep, 6 * time.Hour, true, func(s *server, ctx context.Context) error {
+			n, err := s.sweepRows(ctx)
+			if n > 0 {
+				log.Printf("INFO cleared %d old import rows", n)
+			}
+			return err
+		}},
+		{"address_keys", queueUpkeep, time.Minute, true, func(s *server, ctx context.Context) error {
+			n, err := s.fillAddressKeys(ctx)
+			if n > 0 {
+				log.Printf("INFO filled the address keys of %d properties", n)
+			}
+			return err
+		}},
+		{"send_events", queueOutbox, 30 * time.Second, false, (*server).sendDueEvents},
+		{"email_waits", queueOutbox, time.Minute, false, (*server).checkEmailWaits},
+		{"reports", queueOutbox, 10 * time.Minute, false, (*server).sendDueReports},
+		{"shared_learning", queueOutbox, 24 * time.Hour, true, func(s *server, ctx context.Context) error { s.contributeAll(ctx); return nil }},
+	}
+	if s.cfg.learningURL != "" {
+		tasks = append(tasks, upkeepTask{"learn_pending", queueUpkeep, 10 * time.Minute, true, func(s *server, ctx context.Context) error { s.learnPending(ctx); return nil }})
+	}
+	if s.scanner != nil {
+		tasks = append(tasks, upkeepTask{"scan_files", queueOutbox, 30 * time.Second, false, (*server).scanWaiting})
+	}
+	return tasks
+}
+
+type upkeepWorker struct {
+	river.WorkerDefaults[upkeepArgs]
+	s *server
+}
+
+func (w *upkeepWorker) Timeout(*river.Job[upkeepArgs]) time.Duration { return 25 * time.Minute } // under the 30-minute rescue
+func (w *upkeepWorker) Work(ctx context.Context, job *river.Job[upkeepArgs]) error {
+	for _, task := range w.s.upkeepTasks() {
+		if task.name == job.Args.Task {
+			if err := task.run(w.s, ctx); err != nil && ctx.Err() == nil {
+				log.Printf("WARN %s: %v (tried again at its next turn)", task.name, err)
+			}
+			return nil
+		}
+	}
+	return nil // a task that is off in this copy's settings
+}
+
+func (s *server) periodicJobs(queues map[string]river.QueueConfig) []*river.PeriodicJob {
+	var jobs []*river.PeriodicJob
+	for _, task := range s.upkeepTasks() {
+		if _, ok := queues[task.queue]; !ok {
+			continue
+		}
+		args, opts := upkeepArgs{Task: task.name}, &river.InsertOpts{Queue: task.queue, MaxAttempts: 1, UniqueOpts: uniqueWhileQueued}
+		jobs = append(jobs, river.NewPeriodicJob(river.PeriodicInterval(task.every),
+			func() (river.JobArgs, *river.InsertOpts) { return args, opts }, &river.PeriodicJobOpts{ID: task.name, RunOnStart: task.atStart}))
+	}
+	return jobs
 }

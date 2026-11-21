@@ -417,17 +417,3 @@ func (s *server) sendReport(ctx context.Context, org, id string) error {
 	return tx.Commit(ctx)
 }
 
-func (s *server) sendReportsPeriodically(ctx context.Context) {
-	t := time.NewTicker(10 * time.Minute)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			if err := s.sendDueReports(ctx); err != nil {
-				log.Printf("WARN reports: %v", err)
-			}
-		}
-	}
-}

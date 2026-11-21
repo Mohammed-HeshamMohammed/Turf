@@ -303,19 +303,6 @@ func (s *server) contributeAll(ctx context.Context) {
 	}
 }
 
-func (s *server) contributePeriodically(ctx context.Context) {
-	t := time.NewTicker(24 * time.Hour)
-	defer t.Stop()
-	for {
-		s.contributeAll(ctx)
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-		}
-	}
-}
-
 // sharedPatterns is GET /api/v1/learning/shared-patterns: what agencies' calls show together, only where at least three agencies
 // make up a figure.
 func (s *server) sharedPatterns(q *req) error {
