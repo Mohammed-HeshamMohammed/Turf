@@ -150,6 +150,10 @@ var earlierChecksum = map[string]string{
 // building them takes longer than a deploy may wait for the service to answer. Until one is ready its queries are only slower.
 var lateIndexes = []struct{ name, create string }{
 	{"properties_addr_key", `CREATE INDEX CONCURRENTLY IF NOT EXISTS properties_addr_key ON crm.properties (org_id, importing.addr_key(address, postal_code))`},
+	// A call history's rows are matched to leads by name (importing.merge_call_batch); without this each row read every lead of the agency.
+	// The stored address keys (0050): finding the other leads at an address, and finding the properties whose key is not filled in yet.
+	{"properties_by_addr_key", `CREATE INDEX CONCURRENTLY IF NOT EXISTS properties_by_addr_key ON crm.properties (org_id, addr_key) WHERE addr_key <> ''`},
+	{"properties_addr_key_missing", `CREATE INDEX CONCURRENTLY IF NOT EXISTS properties_addr_key_missing ON crm.properties (org_id) WHERE addr_key IS NULL`},
 }
 
 // buildLateIndexes builds the late indexes that are missing; one left unfinished by a stopped build is dropped and built again. Only
