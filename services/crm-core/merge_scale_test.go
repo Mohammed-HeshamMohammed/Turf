@@ -56,9 +56,9 @@ func TestMergeAtScale(t *testing.T) {
 		INSERT INTO importing.rows (job_id, row_no, fp, cells, name, phone, email, address, city, region, zip, country, state, match_lead)
 		SELECT $1, g, sha256(('row' || g)::bytea), ARRAY['row ' || g], 'Seller ' || g, (7370000000 + g)::text, 'seller' || g || '@example.com',
 			g || ' Oak Ave', 'Dallas', 'TX', lpad((75000 + g % 900)::text, 5, '0'), 'US',
-			CASE WHEN g % 10 < 7 THEN 'clean' ELSE 'merge' END,
-			CASE WHEN g % 10 >= 7 THEN (SELECT id FROM crm.leads WHERE org_id = $2 AND name = 'Owner ' || (1 + g % $3)) END
-		FROM generate_series(1, $4) g`, job, orgA, existing, rows)
+			CASE WHEN g % 10 < 7 THEN 'clean' ELSE 'merge' END, l.id
+		FROM generate_series(1, $4) g
+		LEFT JOIN crm.leads l ON g % 10 >= 7 AND l.org_id = $2 AND l.deleted_at IS NULL AND l.name = 'Owner ' || (1 + g % $3)`, job, orgA, existing, rows)
 	run("analyze", `ANALYZE importing.rows`)
 	started := time.Now()
 	e.s.runMerge(ctx, job)
