@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Team monitoring: what each person did over a range of days (calls, connects, qualified leads, callbacks, bad numbers, tasks,
 // notes) and what they hold now, plus their recent activity. Who sees whom follows the team tree: the agency owner (and anyone

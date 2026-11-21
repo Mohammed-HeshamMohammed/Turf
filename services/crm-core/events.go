@@ -1,4 +1,4 @@
-package main
+package crm
 
 // /events: a WebSocket that tells a device something changed, so it pulls at once instead of waiting. It carries no records,
 // only the kind of change, so what a person may see is still decided by the pull. Changes reach it through PostgreSQL's

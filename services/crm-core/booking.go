@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 28, part A (migrations/0035_pipeline_booking_credit.sql): the agency's and a client's deal stages (D154), closers' hours
 // and the range their managers allow (D156), free slots and booking by the team's callers (D155), and who is credited with a won deal

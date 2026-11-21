@@ -1,4 +1,4 @@
-package main
+package crm
 
 // List imports, the crm-core half (docs/plans/crm-core-and-imports.md). The import worker receives and parses files into SQL rows;
 // the person confirms mapping and duplicates; this service merges those rows into leads in batches.

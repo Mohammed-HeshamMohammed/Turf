@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Handing on a person's work (build step 12). Someone who left, was removed or is suspended keeps their name on their leads: the
 // leads stay with their teams, where the team's leads hold them and can work them (D20, D26, D182; D365 for a seat lost with a smaller

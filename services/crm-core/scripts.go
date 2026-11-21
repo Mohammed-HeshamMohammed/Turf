@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 26, part A (migrations/0033_scripts_reviews_ai.sql): calling scripts per client with a team's own version (D142), call
 // review against the agency's checklist (D143), and the switches for the AI's call suggestions and captions (D148).

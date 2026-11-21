@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 37 (migrations/0043_referrals.sql): sending a lead to another agency (D248-D254, D373).
 

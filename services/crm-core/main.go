@@ -1,7 +1,7 @@
 // crm-core: the CRM's backend. The web CRM (app.callerwhale.com) and the desktop app sync their leads, tasks, notes, calls, deals and
 // handoffs here. The import worker receives lists and writes SQL source rows for Core to merge. Who someone is comes from the auth service's signed tokens (checked locally); what they
 // may do comes from the authorization service. Plan: docs/plans/crm-core-and-imports.md.
-package main
+package crm
 
 import (
 	"callerwhale/authverify"
@@ -109,7 +109,8 @@ func loadConfig(getenv func(string) string) (config, error) {
 	return c, nil
 }
 
-func main() {
+// Main runs crm-core: the API, and until the split's job containers take them over, every background job (cmd/crm-core starts it).
+func Main() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8107"

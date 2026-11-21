@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 39 (migrations/0045_carrier_standing.sql): the dialer reports each agency's carrier registration and texting standing
 // here. The CRM tells the agency's owner when the standing changes, holds imports until the carriers verify the agency when

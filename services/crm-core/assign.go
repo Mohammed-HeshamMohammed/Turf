@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Giving leads to people, following the team tree (docs/plans/database-and-backend.pdf, chapter 17):
 //

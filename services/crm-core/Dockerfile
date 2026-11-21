@@ -10,9 +10,10 @@ COPY packages/go /repo/packages/go
 COPY services/crm-core/go.mod services/crm-core/go.sum ./
 RUN go mod download
 COPY services/crm-core/*.go ./
+COPY services/crm-core/cmd ./cmd
 COPY services/crm-core/migrations ./migrations
 # The database tests need a PostgreSQL and are skipped here; run them with `go test` where one is available.
-RUN go vet ./... && go test ./... && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/service .
+RUN go vet ./... && go test ./... && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/service ./cmd/crm-core
 
 FROM gcr.io/distroless/static-debian12
 COPY --from=runtime-log-build /runtime-log /usr/local/bin/callerwhale-log

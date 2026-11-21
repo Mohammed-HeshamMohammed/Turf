@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 33 (migrations/0041_keys_hooks.sql): keys for outside tools (D233) and outgoing events (D234).
 //

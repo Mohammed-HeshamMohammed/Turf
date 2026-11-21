@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 29: email to leads (migrations/0037_lead_email.sql, D161, D316-D319).
 //

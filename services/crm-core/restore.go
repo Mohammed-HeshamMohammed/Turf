@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 41 (migrations/0046_agency_restores.sql): restoring one agency from a backup without touching any other (D297, D370).
 //

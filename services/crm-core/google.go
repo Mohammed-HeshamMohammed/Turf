@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 28, part B: Google Calendar per person (migrations/0036_google_calendar.sql, D158-D160).
 //

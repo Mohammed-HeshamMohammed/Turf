@@ -1,4 +1,4 @@
-package main
+package crm
 
 // /sync/snapshot, /sync/pull and /sync/push. Push applies each operation on its own and answers each one (applied, duplicate,
 // rejected, conflict) in the order given. Pull returns committed changes after a cursor, already filtered by the person's

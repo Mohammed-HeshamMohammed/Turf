@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 36 (migrations/0042_web_forms.sql): website forms per client (D247).
 //
