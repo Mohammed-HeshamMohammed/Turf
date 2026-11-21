@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 32 (migrations/0040_overviews_reports.sql): the owner's overview opens with what needs them today (D225), a team lead's with
 // their team right now (D226), the owner's view of members' activity (D267), and weekly or monthly report emails with totals only
@@ -417,17 +417,3 @@ func (s *server) sendReport(ctx context.Context, org, id string) error {
 	return tx.Commit(ctx)
 }
 
-func (s *server) sendReportsPeriodically(ctx context.Context) {
-	t := time.NewTicker(10 * time.Minute)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			if err := s.sendDueReports(ctx); err != nil {
-				log.Printf("WARN reports: %v", err)
-			}
-		}
-	}
-}

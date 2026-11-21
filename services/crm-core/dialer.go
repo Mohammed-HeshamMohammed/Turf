@@ -1,4 +1,4 @@
-package main
+package crm
 
 // The dialer service's private door into the CRM (scaffolds/dialer-sms). The carrier (Telnyx, or its simulator) tells the
 // dialer what happened on a call; the dialer asks here whether a lead may be called and records each finished call as the same

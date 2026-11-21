@@ -1,4 +1,4 @@
-package main
+package crm
 
 // The learning copy of a finished import (docs/plans/learning-store-compliance.md). When a list has been added to the leads, its rows go
 // to the separate learning service, which keeps keyed hashes and shapes of them and never the values. crm-core sends the rows once, over
@@ -168,22 +168,6 @@ func (s *server) sendLearning(ctx context.Context, path string, body any) error 
 		return fmt.Errorf("the learning store answered %d", res.StatusCode)
 	}
 	return nil
-}
-
-// learnPendingPeriodically copies finished imports that were not copied yet (the service stopped, or the store was away), then blanks the
-// personal details of rows copied more than a week ago.
-func (s *server) learnPendingPeriodically(ctx context.Context) {
-	if s.cfg.learningURL == "" {
-		return
-	}
-	for {
-		s.learnPending(ctx)
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(10 * time.Minute):
-		}
-	}
 }
 
 func (s *server) learnPending(ctx context.Context) {

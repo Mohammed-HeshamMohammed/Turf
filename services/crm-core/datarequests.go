@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 44 (migrations/0047_data_requests.sql): a lead's request about their data (D310, D367, D370). The owner or an admin
 // enters it with the person's number and email; every record of the agency about them is found; it is exported, or deleted by the

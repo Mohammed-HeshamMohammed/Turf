@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Leads and teams (build step 20, part one): each team's settings, its unassigned leads, and claiming them.
 //

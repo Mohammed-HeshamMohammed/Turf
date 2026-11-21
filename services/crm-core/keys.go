@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 33 (migrations/0041_keys_hooks.sql): keys for outside tools (D233) and outgoing events (D234).
 //
@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -485,11 +486,19 @@ func (s *server) sendDueEvents(ctx context.Context) error {
 		list = append(list, d)
 	}
 	rows.Close()
+	// Up to eight at a time, so one customer's slow server (10 seconds at most each) does not hold up everyone else's.
+	slots := make(chan struct{}, 8)
+	var wg sync.WaitGroup
 	for _, d := range list {
-		if err := s.deliverEvent(ctx, d.org, d.id); err != nil {
-			log.Printf("WARN event %s: %v", d.id, err)
-		}
+		slots <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-slots }()
+			if err := s.deliverEvent(ctx, d.org, d.id); err != nil {
+				log.Printf("WARN event %s: %v", d.id, err)
+			}
+		})
 	}
+	wg.Wait()
 	return nil
 }
 
@@ -553,17 +562,3 @@ func (s *server) deliverEvent(ctx context.Context, org, id string) error {
 	return tx.Commit(ctx)
 }
 
-func (s *server) sendEventsPeriodically(ctx context.Context) {
-	t := time.NewTicker(30 * time.Second)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			if err := s.sendDueEvents(ctx); err != nil {
-				log.Printf("WARN events: %v", err)
-			}
-		}
-	}
-}

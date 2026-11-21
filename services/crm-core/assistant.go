@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 26, part C: the in-app assistant for the agency's people (D320-D323, D372).
 //

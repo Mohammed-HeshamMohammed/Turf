@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Looking at an import before it is added (preview) and after (what was folded into existing leads, and undoing one).
 

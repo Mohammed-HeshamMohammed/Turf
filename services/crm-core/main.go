@@ -1,7 +1,7 @@
 // crm-core: the CRM's backend. The web CRM (app.callerwhale.com) and the desktop app sync their leads, tasks, notes, calls, deals and
 // handoffs here. The import worker receives lists and writes SQL source rows for Core to merge. Who someone is comes from the auth service's signed tokens (checked locally); what they
 // may do comes from the authorization service. Plan: docs/plans/crm-core-and-imports.md.
-package main
+package crm
 
 import (
 	"callerwhale/authverify"
@@ -46,9 +46,14 @@ type config struct {
 	restoreCopyURL                 string // step 41: the database a backup was restored into, to restore one agency from
 	carrierCheck                   bool   // step 39: imports wait for the carriers to verify the agency (CARRIER_CHECK=on)
 	clamdAddr                      string // ClamAV's daemon, like clamav:3310 (step 38)
+	runJobs                        bool   // CRM_RUN_JOBS (default on): this process also works the job queue (split 2)
 }
 
-func loadConfig(getenv func(string) string) (config, error) {
+func loadConfig(getenv func(string) string) (config, error) { return loadConfigFor("api", getenv) }
+
+// loadConfigFor reads the settings of one program: "api" (crm-core), "merge" (crm-merge) or "outbox" (crm-outbox). The job containers
+// read the same names; each needs only some of them (env/crm-merge.production.example, env/crm-outbox.production.example).
+func loadConfigFor(role string, getenv func(string) string) (config, error) {
 	trim := func(v string) string { return strings.TrimRight(strings.TrimSpace(v), "/") }
 	c := config{
 		port:          strings.TrimSpace(getenv("PORT")),
@@ -72,18 +77,24 @@ func loadConfig(getenv func(string) string) (config, error) {
 		clamdAddr: strings.TrimSpace(getenv("CLAMD_ADDR")), carrierCheck: strings.EqualFold(strings.TrimSpace(getenv("CARRIER_CHECK")), "on"),
 		restoreCopyURL: strings.TrimSpace(getenv("RESTORE_COPY_URL")),
 		sharedLearning: strings.EqualFold(strings.TrimSpace(getenv("SHARED_LEARNING")), "on"),
+		runJobs:        !strings.EqualFold(strings.TrimSpace(getenv("CRM_RUN_JOBS")), "false"),
 	}
 	if c.port == "" {
-		c.port = "8107"
+		c.port = map[string]string{"api": "8107", "merge": "8120", "outbox": "8121"}[role]
 	}
 	var err error
 	if c.origins, err = parseOrigins(getenv("CORS_ORIGINS")); err != nil {
 		return c, err
 	}
-	if c.databaseURL == "" || c.jwksURL == "" || c.authzURL == "" {
+	switch {
+	case c.databaseURL == "":
+		return c, errors.New("set DATABASE_URL")
+	case role == "api" && (c.jwksURL == "" || c.authzURL == ""):
 		return c, errors.New("set DATABASE_URL, AUTH_JWKS_URL and AUTHZ_URL")
+	case role == "outbox" && c.authzURL == "": // emails and reports look up teams and members
+		return c, errors.New("set AUTHZ_URL and AUTHZ_TOKEN: crm-outbox looks up teams and members for emails and reports")
 	}
-	if len(c.authzToken) < 32 {
+	if c.authzURL != "" && len(c.authzToken) < 32 {
 		return c, errors.New("AUTHZ_TOKEN must be at least 32 characters: crm-core's token in authz's AUTHZ_TOKENS (core-api=...)")
 	}
 	if c.learningURL != "" && len(c.learningToken) < 32 {
@@ -109,25 +120,13 @@ func loadConfig(getenv func(string) string) (config, error) {
 	return c, nil
 }
 
-func main() {
+// Main runs crm-core: the API, and until the split's job containers take them over, every background job (cmd/crm-core starts it).
+func Main() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8107"
 	}
-	// "service health" is the container's health check: the image has no shell or curl.
-	if len(os.Args) > 1 && os.Args[1] == "health" {
-		res, err := (&http.Client{Timeout: 3 * time.Second}).Get("http://127.0.0.1:" + port + "/healthz")
-		if err != nil {
-			log.Printf("health probe: %v", err)
-			os.Exit(1)
-		}
-		defer res.Body.Close()
-		if res.StatusCode != http.StatusOK {
-			log.Printf("health probe: HTTP %d", res.StatusCode)
-			os.Exit(1)
-		}
-		os.Exit(0)
-	}
+	healthProbe(port)
 	cfg, err := loadConfig(os.Getenv)
 	if err != nil {
 		log.Fatal(err)
@@ -161,15 +160,16 @@ func main() {
 		s.mail = ses
 	}
 	go s.hub.listen(ctx, cfg.databaseURL)
-	go s.resumeMerges(ctx)
-	go s.resumeAssignments(ctx)
-	go s.sweepRowsPeriodically(ctx)
-	go s.learnPendingPeriodically(ctx)
-	go s.checkEmailWaitsPeriodically(ctx)
-	go s.sendReportsPeriodically(ctx)
-	go s.sendEventsPeriodically(ctx)
-	go s.scanWaitingPeriodically(ctx)
-	go s.contributePeriodically(ctx)
+	// The merges and assignments run through the job queue. CRM_RUN_JOBS=false leaves them to the crm-merge container (split 2):
+	// until that container is running, keep the default, so there is never a time when nobody does them.
+	queues := allQueues
+	if !cfg.runJobs {
+		queues = nil
+	}
+	if err = s.startJobs(ctx, queues); err != nil {
+		log.Fatal(err)
+	}
+	defer s.stopJobs()
 	go st.keepBuildingLateIndexes(ctx, 5*time.Minute)
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 5 * time.Minute, WriteTimeout: 5 * time.Minute, IdleTimeout: 2 * time.Minute}
 	stop := make(chan os.Signal, 1)

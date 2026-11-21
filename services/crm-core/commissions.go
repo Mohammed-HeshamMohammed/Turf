@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 27: commission tracking, optional per agency (migrations/0034_commissions.sql, D144, D149). Only the owner switches it on,
 // sets the rules and overrides a figure; the owner and admins see everyone's earnings, each person their own. Nothing is paid here.

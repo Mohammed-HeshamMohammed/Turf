@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 45 (migrations/0048_shared_learning.sql): shared learning by agreement (D324-D327, D146, D349).
 //
@@ -299,19 +299,6 @@ func (s *server) contributeAll(ctx context.Context) {
 	for _, org := range orgs {
 		if err := s.contribute(ctx, org); err != nil {
 			log.Printf("WARN shared learning of %s: %v", org, err)
-		}
-	}
-}
-
-func (s *server) contributePeriodically(ctx context.Context) {
-	t := time.NewTicker(24 * time.Hour)
-	defer t.Stop()
-	for {
-		s.contributeAll(ctx)
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
 		}
 	}
 }

@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 25: "do not call" by number (migrations/0032_do_not_call.sql).
 //
