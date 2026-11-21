@@ -70,7 +70,7 @@ jobs:
       - uses: actions/checkout@v7
       # The newest Go, because the images build with golang:1 (the newest too). An older Go carries its own known problems in the
       # standard library (net/http, TLS), and those ship inside every service built with it.
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version: stable
           check-latest: true
