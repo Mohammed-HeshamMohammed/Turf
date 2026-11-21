@@ -4,7 +4,8 @@
   "description": "npm workspaces (D383): the shared packages and the web apps that use them. Run npm ci here, not in an app.",
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/crm",
+    "apps/website"
   ],
   "scripts": {
     "test:packages": "npm test --workspaces --if-present --workspace=packages/*"
