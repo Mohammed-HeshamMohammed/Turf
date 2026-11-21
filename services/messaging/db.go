@@ -26,13 +26,19 @@ var migrationFiles embed.FS
 // its own (appRole: no login, no superuser, no bypass) and every request runs as it; when the login is ordinary, requests run as the
 // login itself. A login that bypasses row security without being a superuser cannot be made safe, and the service does not start.
 type store struct {
-	db    *pgxpool.Pool
-	runAs string // the role requests run as; empty: the login itself
+	db       *pgxpool.Pool
+	runAs    string // the role requests run as; empty: the login itself
+	livePass string // the password for liveRole; empty: leave it as it is
 }
 
 const appRole = "messaging_app"
 
-func openStore(ctx context.Context, url string) (*store, error) {
+// liveRole is the login the live server (Centrifugo) reads the outbox with: it may read and delete outbox rows and nothing else, so
+// the live server never sees a conversation. With a superuser login and LIVE_DB_PASSWORD set, the service makes it at every start
+// (and sets its password); otherwise whoever runs the database makes it (README, "Live updates").
+const liveRole = "messaging_live"
+
+func openStore(ctx context.Context, url, livePass string) (*store, error) {
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf("DATABASE_URL: %w", err)
@@ -42,7 +48,7 @@ func openStore(ctx context.Context, url string) (*store, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &store{db: db}
+	s := &store{db: db, livePass: livePass}
 	if err = db.Ping(ctx); err == nil {
 		err = s.migrate(ctx)
 	}
@@ -123,6 +129,9 @@ func (s *store) restrict(ctx context.Context, tx pgx.Tx) error {
 	switch {
 	case !super && !bypass:
 		s.runAs = ""
+		if s.livePass != "" {
+			log.Printf("WARN LIVE_DB_PASSWORD is set but the database login is not a superuser, so it cannot make the %s login: make it by hand (README)", liveRole)
+		}
 		return nil
 	case !super:
 		return fmt.Errorf("the database login bypasses row security and is not a superuser, so it cannot be made safe: use an ordinary login")
@@ -138,8 +147,33 @@ func (s *store) restrict(ctx context.Context, tx pgx.Tx) error {
 			return fmt.Errorf("making the restricted role: %w", err)
 		}
 	}
+	if s.livePass != "" {
+		if err := s.makeLiveRole(ctx, tx); err != nil {
+			return fmt.Errorf("making the live server's login: %w", err)
+		}
+	}
 	s.runAs = appRole
 	log.Printf("INFO the database login is a superuser: requests run as the restricted role %s so row security applies", appRole)
+	return nil
+}
+
+// makeLiveRole makes (or keeps) liveRole with the password it was given, allowed to read and delete outbox rows only.
+func (s *store) makeLiveRole(ctx context.Context, tx pgx.Tx) error {
+	var setPassword string
+	if err := tx.QueryRow(ctx, `SELECT format('ALTER ROLE %I WITH LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE PASSWORD %L', $1::text, $2::text)`, liveRole, s.livePass).Scan(&setPassword); err != nil {
+		return err
+	}
+	for _, stmt := range []string{
+		`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '` + liveRole + `') THEN CREATE ROLE ` + liveRole + ` NOLOGIN; END IF; END $$`,
+		setPassword,
+		`GRANT USAGE ON SCHEMA messaging TO ` + liveRole,
+		`GRANT SELECT, DELETE ON messaging.outbox TO ` + liveRole,
+	} {
+		if _, err := tx.Exec(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	log.Printf("INFO the live server reads the outbox as %s (read and delete outbox rows only)", liveRole)
 	return nil
 }
 

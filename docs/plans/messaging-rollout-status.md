@@ -34,12 +34,13 @@ Evidence of health (2026-11-14): Messaging's runtime log shows `applied migratio
 
 ## Secrets (never in git)
 
-Three random values of 64 hex characters, made once and kept in the password manager. Each is entered in two places, and the two must be identical:
+Random values of 64 hex characters, made once and kept in the password manager. Each is entered in two places, and the two must be identical:
 
 | Value | Messaging variable | Other app |
 | --- | --- | --- |
 | A | `AUTHZ_TOKEN` | Authorization: `,messaging=<A>` appended to `AUTHZ_TOKENS` |
-| B | `LIVE_API_KEY` | Live Server: `CENTRIFUGO_HTTP_API_KEY` |
+| B | `LIVE_API_KEY` | Live Server: `CENTRIFUGO_HTTP_API_KEY` (only until the switch below is done) |
+| E | `LIVE_DB_PASSWORD` | Live Server: inside `CENTRIFUGO_CONSUMERS_MESSAGING_POSTGRESQL_DSN` (see "Switching live delivery to the live server") |
 | C | `LIVE_TOKEN_SECRET` | Live Server: `CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY` |
 
 Messaging's `DATABASE_URL` is the internal URL copied from the database's own page (it holds the database password Coolify generated).
@@ -117,3 +118,24 @@ Sign in at `https://app.callerwhale.com` as two people of one workspace (two bro
 **Cutover done 2026-11-16:** the first deploy failed on Redis ("x509: certificate signed by unknown authority"); `engine.redis.tls` (`enabled`, `insecure_skip_verify`, names read from Centrifugo v6.10.3's source) was added to `config.json`, and the next deploy started on `engine: redis` and passed its health check. The old app was stopped, the new one got the alias `centrifugo` and was redeployed, and renamed "Caller Whale Live Server". **Left for the owner:** delete the stopped old app (Danger Zone; Coolify asks for the account password). Never start it again: two apps with the alias would split connections between two engines.
 Note: Coolify's own health-check line says "curl: not found" (the image has no curl) but reports healthy through the image's built-in `wget` check; harmless.
 3. Paste the Redis URL (see `env/centrifugo.production.example`) and redeploy. The first build is the first time this container is built anywhere: read its build log and the Runtime Logs table.
+
+## Switching live delivery to the live server
+
+**Built 2026-11-22, waiting for the owner in Coolify.** The live server now reads Messaging's outbox itself (Centrifugo's PostgreSQL
+consumer; `services/messaging/README.md`, "Live updates: how the outbox is read"). Until the steps below are done, Messaging keeps
+sending the outbox itself because `LIVE_API_URL` is still set, so nothing stops. Both sending for a while is safe: each row has one
+idempotency key and Centrifugo delivers it once.
+
+1. Make a new secret E (64 hex characters, the `New-Secret` function above) and keep it in the password manager.
+2. **Caller Whale Messaging:** add `LIVE_DB_PASSWORD=<E>` and redeploy. Its log then shows "the live server reads the outbox as
+   messaging_live" (the service makes that login, which may read and delete outbox rows only).
+3. **Caller Whale Live Server:** add `CENTRIFUGO_CONSUMERS_MESSAGING_ENABLED=true` and
+   `CENTRIFUGO_CONSUMERS_MESSAGING_POSTGRESQL_DSN=postgres://messaging_live:<E>@<the messaging database's internal host>:5432/postgres?sslmode=require`
+   (the same host and database name as Messaging's `DATABASE_URL`), then redeploy. Do step 2 first: with the reader on, the live server exits at start when it cannot log in, and Coolify keeps restarting it. Its log must not show "error initializing consumers" or "error processing postgresql outbox".
+4. Check: a team chat message arrives without reloading.
+5. **Caller Whale Messaging:** delete `LIVE_API_URL` and `LIVE_API_KEY`, redeploy, and check step 4 again. The log line "LIVE_API_URL
+   is set" is gone. `CENTRIFUGO_HTTP_API_KEY` can stay on the Live Server (nothing calls the API then).
+6. Tell Claude, which then removes the old sender (`legacySender` in `services/messaging/live.go`).
+
+To undo before step 5: delete the two `CENTRIFUGO_CONSUMERS_MESSAGING_*` settings and redeploy the Live Server; Messaging is still
+sending. After step 5: put `LIVE_API_URL` and `LIVE_API_KEY` back on Messaging.

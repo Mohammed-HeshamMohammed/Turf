@@ -1,8 +1,8 @@
 # The live server on Coolify (application "centrifugo", built from branch live-backend-production = services/live, port 8000, network alias centrifugo, NO domain of its own).
 # The settings that are not secret (log level, chat channel rules, health, metrics, connection limits) are in services/live/config.json, not here.
-# It holds the apps' sockets and delivers what the messaging service tells it; the gateway routes live.callerwhale.com to it. Setup: docs/plans/coolify-setup-messaging.md.
+# It holds the apps' sockets and reads the messaging service's outbox and delivers it; the gateway routes live.callerwhale.com to it. Setup: docs/plans/coolify-setup-messaging.md.
 # Paste into Environment Variables -> Developer View. Fill every <...>. Secrets stay in Coolify; never commit a filled copy.
-# Secret: 64 random hex characters. Only the messaging service calls the API, with this key (its LIVE_API_KEY).
+# Secret: 64 random hex characters. Only the messaging service called the API, with this key (its LIVE_API_KEY), and only until the live server reads the outbox.
 CENTRIFUGO_HTTP_API_KEY=<the live server's API key>
 # Secret: 64 random hex characters, different from the key above. Connection tokens are signed with it (messaging's LIVE_TOKEN_SECRET).
 CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY=<the live server's token secret>
@@ -15,4 +15,8 @@ CENTRIFUGO_CLIENT_ALLOWED_ORIGINS=https://app.callerwhale.com
 CENTRIFUGO_ENGINE_TYPE=redis
 # Secret: the Messaging Redis internal URL from its own page, redis://default:password@host:6379. Messages are never kept there.
 CENTRIFUGO_ENGINE_REDIS_ADDRESS=<the Messaging Redis internal URL, redis://default:password@host:6379>
+# true: the live server reads the messaging outbox itself and delivers it (services/live/config.json, consumer messaging). Set together with the address below.
+CENTRIFUGO_CONSUMERS_MESSAGING_ENABLED=true
+# Secret: the messaging database as the read-only login messaging's service makes, postgres://messaging_live:<messaging's LIVE_DB_PASSWORD>@<messaging database internal host>:5432/postgres?sslmode=require.
+CENTRIFUGO_CONSUMERS_MESSAGING_POSTGRESQL_DSN=<postgres://messaging_live:<messaging's LIVE_DB_PASSWORD>@<messaging database internal host>:5432/postgres?sslmode=require>
 # (/health is turned on in config.json; Coolify's Healthcheck tab: GET http://localhost:8000/health, expect 200.)

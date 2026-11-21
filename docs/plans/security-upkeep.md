@@ -66,7 +66,8 @@ is `env/container-notes.json` (`node tools/env-notes.mjs render <container>`).
 3. On the receiver remove the old one; redeploy it.
 
 **Single tokens on both sides** (`DIALER_TOKEN` on crm-core with `CRM_TOKEN` on the dialer; `RELAY_TOKEN` on the monitoring
-resource; `LIVE_API_KEY`/`CENTRIFUGO_HTTP_API_KEY`; `LIVE_TOKEN_SECRET`/`CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY`): set both at
+resource; `LIVE_API_KEY`/`CENTRIFUGO_HTTP_API_KEY`; `LIVE_TOKEN_SECRET`/`CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY`;
+`LIVE_DB_PASSWORD`/the password inside `CENTRIFUGO_CONSUMERS_MESSAGING_POSTGRESQL_DSN`): set both at
 a quiet hour and redeploy both together; calls between them fail for the minute in between. Changing the live server's token
 secret makes every open chat reconnect.
 

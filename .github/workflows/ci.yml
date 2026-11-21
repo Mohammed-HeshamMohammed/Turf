@@ -77,12 +77,32 @@ jobs:
         psql -h localhost -U postgres -c "CREATE ROLE messaging_ci LOGIN PASSWORD 'apppass' NOSUPERUSER NOBYPASSRLS"
         psql -h localhost -U postgres -c "CREATE DATABASE messaging_test"
         psql -h localhost -U postgres -d messaging_test -c "GRANT ALL ON DATABASE messaging_test TO messaging_ci; GRANT ALL ON SCHEMA public TO messaging_ci"
+        # A real live server (the Centrifugo version services/live pins, with its config.json) reading the outbox of a database of its
+        # own as the read-only login the service makes, so it never takes the other tests' queues.
+        psql -h localhost -U postgres -c "CREATE DATABASE messaging_live_test"
+        # Centrifugo stops at start when it cannot log in, so the login exists first (the service then keeps its password and grants).
+        psql -h localhost -U postgres -c "CREATE ROLE messaging_live LOGIN PASSWORD 'test-live-login-password-0123456789'"
+        image=$(sed -n 's#^FROM \(centrifugo/centrifugo:v[0-9.]*\).*#\1#p' ../live/Dockerfile)
+        docker run -d --name live --network host -v "$PWD/../live/config.json:/centrifugo/config.json:ro" \
+          -e CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY=test-live-e2e-token-secret-0123456789 \
+          -e CENTRIFUGO_HTTP_API_KEY=test-live-e2e-api-key-0123456789abcdef \
+          -e CENTRIFUGO_UNI_SSE_ENABLED=true \
+          -e CENTRIFUGO_CONSUMERS_MESSAGING_ENABLED=true \
+          -e CENTRIFUGO_CONSUMERS_MESSAGING_POSTGRESQL_DSN="postgres://messaging_live:test-live-login-password-0123456789@localhost:5432/messaging_live_test?sslmode=disable" \
+          "$image" centrifugo --config=/centrifugo/config.json
+        for i in $(seq 1 30); do curl -fs http://localhost:8000/health >/dev/null && break; sleep 1; done
+        curl -fs http://localhost:8000/health >/dev/null || { docker logs live; exit 1; }
       env: |
         MESSAGING_TEST_ADMIN_URL=postgres://postgres:testpass@localhost:5432/messaging_test?sslmode=disable
         MESSAGING_TEST_DATABASE_URL=postgres://messaging_ci:apppass@localhost:5432/messaging_test?sslmode=disable
+        LIVE_E2E_URL=http://localhost:8000
+        LIVE_E2E_ADMIN_URL=postgres://postgres:testpass@localhost:5432/messaging_live_test?sslmode=disable
+        LIVE_E2E_SECRET=test-live-e2e-token-secret-0123456789
       must_pass: |
         --- PASS: TestTwoPeopleChat
         --- PASS: TestRowSecurityHidesOtherPeoplesMessages
+        --- PASS: TestUpdatesAreQueuedForTheLiveServerInOrder
+        --- PASS: TestARealLiveServerDeliversTheOutbox
 
   dialer-sms:
     needs: changes

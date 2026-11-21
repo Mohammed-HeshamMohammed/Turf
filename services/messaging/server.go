@@ -62,12 +62,13 @@ func readJSON(w http.ResponseWriter, r *http.Request, into any) error {
 }
 
 type server struct {
-	cfg   config
-	keys  *authverify.Keyset
-	rules rules
-	st    *store
-	live  *live
-	now   func() time.Time
+	cfg    config
+	keys   *authverify.Keyset
+	rules  rules
+	st     *store
+	live   *live
+	legacy *legacySender // the switch-over only (LIVE_API_URL); nil: the live server reads the outbox itself
+	now    func() time.Time
 
 	synced sync.Map // workspace id → syncedAt: when its team chats were last brought in step, and with what roster
 }

@@ -26,10 +26,11 @@ type config struct {
 	authzToken  string          // this service's token there (AUTHZ_TOKENS "messaging=...")
 	origins     map[string]bool // pages that may call from a browser (CORS_ORIGINS)
 	grantTTL    time.Duration
-	liveAPI     string // Centrifugo's server API, private (http://centrifugo:8000/api); empty: nothing is delivered live
-	liveAPIKey  string // Centrifugo's http_api.key
-	liveSecret  string // Centrifugo's client.token.hmac_secret_key: connection tokens are signed with it
+	liveSecret  string // Centrifugo's client.token.hmac_secret_key: connection tokens are signed with it; empty: no live updates
 	livePublic  string // where apps open the socket (wss://live.callerwhale.com/connection/websocket)
+	livePass    string // the password of messaging_live, the login Centrifugo reads the outbox with (made when the login is a superuser)
+	liveAPI     string // the switch-over only: Centrifugo's server API (http://centrifugo:8000/api); set, this service sends the outbox too
+	liveAPIKey  string // the switch-over only: Centrifugo's http_api.key
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -41,10 +42,11 @@ func loadConfig(getenv func(string) string) (config, error) {
 		authzURL:    trim(getenv("AUTHZ_URL")),
 		authzToken:  strings.TrimSpace(getenv("AUTHZ_TOKEN")),
 		grantTTL:    5 * time.Second,
-		liveAPI:     trim(getenv("LIVE_API_URL")),
-		liveAPIKey:  strings.TrimSpace(getenv("LIVE_API_KEY")),
 		liveSecret:  strings.TrimSpace(getenv("LIVE_TOKEN_SECRET")),
 		livePublic:  strings.TrimSpace(getenv("LIVE_PUBLIC_URL")),
+		livePass:    strings.TrimSpace(getenv("LIVE_DB_PASSWORD")),
+		liveAPI:     trim(getenv("LIVE_API_URL")),
+		liveAPIKey:  strings.TrimSpace(getenv("LIVE_API_KEY")),
 	}
 	if c.port == "" {
 		c.port = "8108"
@@ -59,8 +61,14 @@ func loadConfig(getenv func(string) string) (config, error) {
 	if len(c.authzToken) < 32 {
 		return c, errors.New("AUTHZ_TOKEN must be at least 32 characters: this service's token in authz's AUTHZ_TOKENS (messaging=...)")
 	}
-	if c.liveAPI != "" && (len(c.liveAPIKey) < 32 || len(c.liveSecret) < 32 || c.livePublic == "") {
-		return c, errors.New("with LIVE_API_URL set, LIVE_API_KEY and LIVE_TOKEN_SECRET need at least 32 characters each and LIVE_PUBLIC_URL must be set")
+	if c.liveSecret != "" && (len(c.liveSecret) < 32 || c.livePublic == "") {
+		return c, errors.New("with LIVE_TOKEN_SECRET set, it needs at least 32 characters and LIVE_PUBLIC_URL must be set")
+	}
+	if c.liveAPI != "" && len(c.liveAPIKey) < 32 {
+		return c, errors.New("with LIVE_API_URL set, LIVE_API_KEY needs at least 32 characters")
+	}
+	if c.livePass != "" && (len(c.livePass) < 32 || strings.ContainsAny(c.livePass, "'\\")) {
+		return c, errors.New("LIVE_DB_PASSWORD needs at least 32 characters and no quote or backslash")
 	}
 	return c, nil
 }
@@ -91,16 +99,22 @@ func main() {
 	ctx, stopAll := context.WithCancel(context.Background())
 	defer stopAll()
 	log.Print("INFO opening the messaging database and applying migrations")
-	st, err := openStore(ctx, cfg.databaseURL)
+	st, err := openStore(ctx, cfg.databaseURL, cfg.livePass)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer st.close()
-	if cfg.liveAPI == "" {
-		log.Print("WARN LIVE_API_URL is not set: messages are saved, but nobody is told about them live")
+	if cfg.liveSecret == "" {
+		log.Print("WARN LIVE_TOKEN_SECRET is not set: messages are saved, but apps cannot listen for live updates")
 	}
-	s := &server{cfg: cfg, keys: authverify.NewKeyset(cfg.jwksURL), rules: newAuthz(cfg.authzURL, cfg.authzToken, cfg.grantTTL), st: st, live: newLive(cfg), now: time.Now}
-	go s.deliver(ctx)
+	if cfg.liveAPI != "" {
+		log.Print("INFO LIVE_API_URL is set: this service also sends live updates itself (the old way). Once the live server reads the outbox, remove LIVE_API_URL and LIVE_API_KEY")
+	}
+	s := &server{cfg: cfg, keys: authverify.NewKeyset(cfg.jwksURL), rules: newAuthz(cfg.authzURL, cfg.authzToken, cfg.grantTTL), st: st, live: newLive(cfg), legacy: newLegacySender(cfg), now: time.Now}
+	go s.sweep(ctx)
+	if s.legacy != nil {
+		go s.deliver(ctx)
+	}
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: time.Minute, WriteTimeout: time.Minute, IdleTimeout: 2 * time.Minute}
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)

@@ -1,7 +1,7 @@
 // Run: node --test services/live
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
@@ -43,4 +43,20 @@ test("the container uses the shared log table and pins the Centrifugo version", 
   assert.match(docker, /FROM centrifugo\/centrifugo:v6\.\d+\.\d+/);
   assert.match(docker, /ENTRYPOINT \["\/usr\/local\/bin\/callerwhale-log","centrifugo"/);
   assert.match(docker, /--config=\/centrifugo\/config\.json/);
+});
+
+test("the live server reads the messaging outbox in the shape the messaging service writes it", () => {
+  const consumer = config.consumers.find((c) => c.name === "messaging");
+  assert.equal(consumer.type, "postgresql");
+  // Off in the file: Coolify turns it on with the read-only login's address (CENTRIFUGO_CONSUMERS_MESSAGING_ENABLED and _POSTGRESQL_DSN).
+  assert.equal(consumer.enabled, false);
+  assert.ok(!consumer.postgresql.dsn, "the address and its password stay in Coolify");
+  assert.equal(consumer.postgresql.outbox_table_name, "messaging.outbox");
+  assert.equal(consumer.postgresql.partition_notification_channel, "messaging_outbox");
+  // The messaging service spreads conversations over the same number of partitions (outboxPartitions in its live.go).
+  // (Checked where the whole repository is; the live server's production branch has only this folder.)
+  const messaging = resolve(here, "../messaging/live.go");
+  if (!existsSync(messaging)) return;
+  const live = readFileSync(messaging, "utf8");
+  assert.equal(Number(live.match(/outboxPartitions = (\d+)/)[1]), consumer.postgresql.num_partitions);
 });

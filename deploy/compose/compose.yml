@@ -118,8 +118,7 @@ services:
       AUTH_JWKS_URL: "http://auth:8101/.well-known/jwks.json"
       AUTHZ_URL: "http://authz:8104"
       AUTHZ_TOKEN: "${AUTHZ_MESSAGING_TOKEN:?set AUTHZ_MESSAGING_TOKEN in env/compose.env (and messaging=... in authz's AUTHZ_TOKENS)}"
-      LIVE_API_URL: "http://centrifugo:8000/api"
-      LIVE_API_KEY: "${LIVE_API_KEY:?set LIVE_API_KEY in env/compose.env}"
+      LIVE_DB_PASSWORD: "${LIVE_DB_PASSWORD:?set LIVE_DB_PASSWORD in env/compose.env (32+ characters, no quotes)}"
       LIVE_TOKEN_SECRET: "${LIVE_TOKEN_SECRET:?set LIVE_TOKEN_SECRET in env/compose.env}"
       LIVE_PUBLIC_URL: "${LIVE_PUBLIC_URL:-ws://localhost:8000/connection/websocket}"
     depends_on:
@@ -127,7 +126,7 @@ services:
       - authz
       - centrifugo
     restart: unless-stopped
-  # The live server: holds the apps' sockets and delivers what the messaging service tells it. Only messaging calls its API.
+  # The live server: holds the apps' sockets and reads the messaging outbox itself, as the read-only login messaging makes.
   centrifugo:
     build:
       context: ../..
@@ -136,6 +135,8 @@ services:
       CENTRIFUGO_HTTP_API_KEY: "${LIVE_API_KEY:?set LIVE_API_KEY in env/compose.env}"
       CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY: "${LIVE_TOKEN_SECRET:?set LIVE_TOKEN_SECRET in env/compose.env}"
       CENTRIFUGO_CLIENT_ALLOWED_ORIGINS: "${LIVE_ALLOWED_ORIGINS:-http://localhost:5190}"
+      CENTRIFUGO_CONSUMERS_MESSAGING_ENABLED: "true"
+      CENTRIFUGO_CONSUMERS_MESSAGING_POSTGRESQL_DSN: "postgres://messaging_live:${LIVE_DB_PASSWORD}@postgres:5432/callerwhale_messaging?sslmode=disable"
     ports:
       - "8000:8000"
     restart: unless-stopped

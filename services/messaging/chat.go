@@ -40,13 +40,11 @@ func queue(ctx context.Context, tx pgx.Tx, sc scope, conversation, kind string, 
 	if err != nil {
 		return err
 	}
-	n := strconv.Itoa(len(args) + 1)
-	if _, err = tx.Exec(ctx, `INSERT INTO outbox (method, payload)
-		SELECT 'broadcast', jsonb_build_object('channels', coalesce(jsonb_agg('`+channelPrefix+`' || u), '[]'::jsonb), 'data', $`+n+`::jsonb)
-		FROM (`+who+`) AS people(u)`, append(args, string(body))...); err != nil {
-		return err
-	}
-	_, err = tx.Exec(ctx, `SELECT pg_notify('messaging_outbox', '')`)
+	n, c := strconv.Itoa(len(args)+1), strconv.Itoa(len(args)+2)
+	// One row for everyone it reaches, in the conversation's partition (see outboxPartitions). Nobody to tell: no row.
+	_, err = tx.Exec(ctx, `INSERT INTO outbox (method, payload, partition)
+		SELECT 'broadcast', jsonb_build_object('channels', jsonb_agg('`+channelPrefix+`' || u), 'data', $`+n+`::jsonb), `+outboxPartitionOf("$"+c)+`
+		FROM (`+who+`) AS people(u) HAVING count(u) > 0`, append(args, string(body), conversation)...)
 	return err
 }
 

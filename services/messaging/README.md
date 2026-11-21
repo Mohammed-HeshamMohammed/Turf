@@ -23,9 +23,35 @@ a container, against the real authorization service, or against a real Centrifug
   order never depends on clocks and a gap is visible.
 - **Sending twice:** the app makes a message's id before sending. The same id again answers with the message as first saved.
 - **Unread:** one number per person per conversation (the last message number they have read).
-- **Live updates:** each change writes a row to `outbox` in the same transaction. A sender reads it in order and hands it to
-  Centrifugo, which holds the apps' sockets. Each person listens on one channel of their own, `chat:user#<their id>`. A live
-  update is only a prompt; the database is the truth.
+- **Live updates:** each change writes a row to `outbox` in the same transaction. The live server (Centrifugo) reads that table
+  itself with its PostgreSQL consumer (`services/live/config.json`) and hands each row to the apps' sockets. Each person listens on
+  one channel of their own, `chat:user#<their id>`. A live update is only a prompt; the database is the truth.
+
+## Live updates: how the outbox is read
+
+- **Order without one sender.** Each row goes in one of 4 partitions, chosen from its conversation id (`outboxPartitions` in
+  `live.go`, which must equal `num_partitions` in the live server's config; a test checks). Centrifugo takes one partition at a time
+  under an advisory lock, oldest row first, and deletes what it delivered in the same transaction. So updates about one conversation
+  never overtake each other, whatever number of live servers run, and different conversations go out side by side.
+- **Woken at once.** A trigger signals `messaging_outbox` with the row's partition when it commits; Centrifugo also checks every 2 s.
+- **Sent twice, delivered once.** Every row carries `idempotency_key: outbox-<id>`.
+- **Errors.** Centrifugo retries what can pass later (internal error, too many requests) with a backoff of up to 5 s, and logs and
+  drops what never can, so one bad row cannot stop the rest.
+- **Nobody reading.** An update older than an hour is worth nothing (apps catch up from the database when they reconnect), so the
+  service clears those every ten minutes and logs a warning when it does: the live server is not reading.
+- **Its own login.** Centrifugo reads as `messaging_live`, which may read and delete outbox rows and nothing else. With a superuser
+  `DATABASE_URL` and `LIVE_DB_PASSWORD` set, the service makes it (and sets its password) at every start. With an ordinary login,
+  make it by hand:
+
+  ```sql
+  CREATE ROLE messaging_live LOGIN PASSWORD '<LIVE_DB_PASSWORD>' NOSUPERUSER NOBYPASSRLS;
+  GRANT USAGE ON SCHEMA messaging TO messaging_live;
+  GRANT SELECT, DELETE ON messaging.outbox TO messaging_live;
+  ```
+
+- **The switch-over.** Before this, the service sent the outbox to Centrifugo's API itself. While `LIVE_API_URL` is set it still
+  does, so live updates keep flowing until the live server reads the outbox; both may send a row for a while and Centrifugo
+  delivers it once (same key). Then remove `LIVE_API_URL` and `LIVE_API_KEY`, and that code (`legacySender` in `live.go`).
 
 ## API
 
@@ -66,8 +92,9 @@ Live updates carry `type` (`conversation`, `message`, `message_changed`, `read`)
 | `AUTH_JWKS_URL` | The auth service's public keys |
 | `AUTHZ_URL`, `AUTHZ_TOKEN` | The authorization service and this service's token there (`messaging=...` in its `AUTHZ_TOKENS`) |
 | `CORS_ORIGINS` | Pages that may call from a browser |
-| `LIVE_API_URL`, `LIVE_API_KEY` | Centrifugo's server API and its key. Without them messages are saved and nothing is delivered live |
-| `LIVE_TOKEN_SECRET` | Centrifugo's client token secret; connection tokens are signed with it |
+| `LIVE_TOKEN_SECRET` | Centrifugo's client token secret; connection tokens are signed with it. Without it apps are told live updates are off |
+| `LIVE_DB_PASSWORD` | The password of `messaging_live`, the login the live server reads the outbox with (also in its `CENTRIFUGO_CONSUMERS_MESSAGING_POSTGRESQL_DSN`). 32+ characters, no quotes |
+| `LIVE_API_URL`, `LIVE_API_KEY` | The switch-over only: Centrifugo's server API and its key. Set, the service also sends the outbox itself. Remove once the live server reads it |
 | `LIVE_PUBLIC_URL` | Where apps open the socket |
 
 ## Tests
@@ -76,7 +103,8 @@ Live updates carry `type` (`conversation`, `message`, `message_changed`, `read`)
 go test ./...
 ```
 
-The database tests need `MESSAGING_TEST_ADMIN_URL` (a superuser, to reset the schema) and `MESSAGING_TEST_DATABASE_URL` (an
+`TestARealLiveServerDeliversTheOutbox` runs against a real Centrifugo (CI starts the pinned version with `services/live/config.json`)
+and needs `LIVE_E2E_URL`, `LIVE_E2E_ADMIN_URL` and `LIVE_E2E_SECRET`. The database tests need `MESSAGING_TEST_ADMIN_URL` (a superuser, to reset the schema) and `MESSAGING_TEST_DATABASE_URL` (an
 ordinary login) and are skipped without them. GitHub runs them in `.github/workflows/ci.yml`.
 
 ## Not done yet

@@ -8,9 +8,12 @@ import (
 	"encoding/json"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func TestConfigNeedsItsSettings(t *testing.T) {
@@ -20,9 +23,31 @@ func TestConfigNeedsItsSettings(t *testing.T) {
 	if err != nil || c.port != "8108" {
 		t.Fatalf("a complete configuration was refused: %v (port %q)", err, c.port)
 	}
+	env["LIVE_TOKEN_SECRET"] = "short"
+	if _, err = loadConfig(get); err == nil {
+		t.Fatal("a short live token secret was accepted")
+	}
+	env["LIVE_TOKEN_SECRET"] = testLiveSecret
+	if _, err = loadConfig(get); err == nil {
+		t.Fatal("live updates without the address apps listen on were accepted")
+	}
+	env["LIVE_PUBLIC_URL"] = "wss://live.example/connection/websocket"
+	env["LIVE_DB_PASSWORD"] = "short"
+	if _, err = loadConfig(get); err == nil {
+		t.Fatal("a short password for the live server's login was accepted")
+	}
+	env["LIVE_DB_PASSWORD"] = testLivePassword
+	if _, err = loadConfig(get); err != nil {
+		t.Fatalf("a complete live configuration was refused: %v", err)
+	}
+	// The switch-over: the old way of sending needs its key.
 	env["LIVE_API_URL"] = "http://centrifugo:8000/api"
 	if _, err = loadConfig(get); err == nil {
-		t.Fatal("a live server without its key and secret was accepted")
+		t.Fatal("the old sender without its key was accepted")
+	}
+	env["LIVE_API_KEY"] = testLiveKey
+	if c, err = loadConfig(get); err != nil || c.liveAPI == "" {
+		t.Fatalf("the old sender with its key was refused: %v", err)
 	}
 	env["AUTHZ_TOKEN"] = "short"
 	if _, err = loadConfig(get); err == nil {
@@ -31,7 +56,7 @@ func TestConfigNeedsItsSettings(t *testing.T) {
 }
 
 func TestLiveTokenIsSignedForOnePerson(t *testing.T) {
-	l := newLive(config{liveAPI: "http://x/api", liveSecret: testLiveSecret})
+	l := newLive(config{liveSecret: testLiveSecret})
 	now := time.Unix(1_800_000_000, 0)
 	parts := strings.Split(l.token("11111111-1111-4111-8111-111111111111", now), ".")
 	if len(parts) != 3 {
@@ -324,45 +349,52 @@ func TestOnlyTheTeamUsesConversations(t *testing.T) {
 	}
 }
 
-func TestUpdatesReachTheLiveServerOnceAndInOrder(t *testing.T) {
+func TestUpdatesAreQueuedForTheLiveServerInOrder(t *testing.T) {
 	e := newEnv(t)
 	org := newID()
 	alice, bob, carol := newID(), newID(), newID()
 	e.rules.join(org, alice, bob, carol)
 	ctx := context.Background()
 
-	// While the live server is down, everything is saved and waits its turn.
-	e.live.setDown(true)
+	// Each queued row wakes the live server with its partition number (what Centrifugo listens for), once committed.
+	if _, err := e.admin.Exec(ctx, `LISTEN messaging_outbox`); err != nil {
+		t.Fatal(err)
+	}
 	id := e.must(201, alice, org, "POST", "/conversations", map[string]any{"kind": "direct", "member_ids": []string{bob}})["id"].(string)
 	e.send(alice, org, id, "first")
 	e.send(bob, org, id, "second")
-	if sent, err := e.s.flush(ctx); sent != 0 || err == nil {
-		t.Fatalf("flush with the live server down: sent %d, err %v", sent, err)
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	n, err := e.admin.WaitForNotification(waitCtx)
+	cancel()
+	if err != nil {
+		t.Fatalf("no signal for the live server: %v", err)
 	}
-	// Four: everyone joining the agency's announcements channel on first use, the new chat, and the two messages.
-	var waiting int
-	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM messaging.outbox`).Scan(&waiting); err != nil || waiting != 4 {
-		t.Fatalf("%d updates waiting (%v), want 4", waiting, err)
+	if p, err := strconv.Atoi(n.Payload); err != nil || p < 0 || p >= outboxPartitions {
+		t.Fatalf("the signal names partition %q", n.Payload)
 	}
 
-	e.live.setDown(false)
-	if sent, err := e.s.flush(ctx); sent != 4 || err != nil {
-		t.Fatalf("flush: sent %d, err %v", sent, err)
-	}
-	got := e.live.seen()
+	// Four: everyone joining the agency's announcements channel on first use, the new chat, and the two messages.
+	got := e.outbox()
 	if len(got) != 4 {
-		t.Fatalf("the live server heard %d updates", len(got))
+		t.Fatalf("%d updates waiting, want 4", len(got))
 	}
 	// The first tells the three of them they are in the announcements channel; the rest are about the chat.
-	if first := got[0]["data"].(map[string]any); first["type"] != "conversation" || first["conversation_id"] == id || len(got[0]["channels"].([]any)) != 3 {
-		t.Fatalf("the announcements channel update: %v", got[0])
+	if first := got[0].payload["data"].(map[string]any); first["type"] != "conversation" || first["conversation_id"] == id || len(got[0].payload["channels"].([]any)) != 3 {
+		t.Fatalf("the announcements channel update: %v", got[0].payload)
 	}
 	got = got[1:]
-	kinds, keys := []string{}, map[string]bool{}
-	for _, update := range got {
+	kinds := []string{}
+	for _, row := range got {
+		update := row.payload
 		data := update["data"].(map[string]any)
 		kinds = append(kinds, data["type"].(string))
-		keys[update["idempotency_key"].(string)] = true
+		if row.method != "broadcast" || update["idempotency_key"] != "outbox-"+strconv.FormatInt(row.id, 10) {
+			t.Fatalf("not a broadcast with its own key: %s %v", row.method, update)
+		}
+		// One conversation, one partition: its updates are read in order whatever else is going on.
+		if row.partition != got[0].partition || row.partition < 0 || row.partition >= outboxPartitions {
+			t.Fatalf("partition %d (first %d)", row.partition, got[0].partition)
+		}
 		if data["org_id"] != org || data["conversation_id"] != id {
 			t.Fatalf("update about the wrong conversation: %v", data)
 		}
@@ -377,20 +409,54 @@ func TestUpdatesReachTheLiveServerOnceAndInOrder(t *testing.T) {
 			}
 		}
 	}
-	if strings.Join(kinds, ",") != "conversation,message,message" || len(keys) != 3 {
-		t.Fatalf("order %v, %d distinct keys", kinds, len(keys))
+	if strings.Join(kinds, ",") != "conversation,message,message" {
+		t.Fatalf("order %v", kinds)
 	}
-	if got[2]["data"].(map[string]any)["message"].(map[string]any)["body"] != "second" {
-		t.Fatalf("the last update is not the last message: %v", got[2])
+	if got[2].payload["data"].(map[string]any)["message"].(map[string]any)["body"] != "second" {
+		t.Fatalf("the last update is not the last message: %v", got[2].payload)
 	}
-	if err := e.admin.QueryRow(ctx, `SELECT count(*) FROM messaging.outbox`).Scan(&waiting); err != nil || waiting != 0 {
-		t.Fatalf("%d updates still waiting after delivery", waiting)
+
+	// An update nobody read for over an hour is thrown away; a fresh one stays.
+	if _, err := e.admin.Exec(ctx, `UPDATE messaging.outbox SET created_at = now() - interval '2 hours' WHERE id = $1`, got[0].id); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := e.s.sweepOnce(ctx); err != nil || n != 1 {
+		t.Fatalf("sweep removed %d (%v), want 1", n, err)
+	}
+	if left := len(e.outbox()); left != 3 {
+		t.Fatalf("%d updates left after the sweep, want 3", left)
 	}
 
 	// The app is told where to listen: its own channel, with a token for itself.
 	status, where := e.call(alice, "", "GET", "/live", nil)
 	if status != 200 || where["enabled"] != true || where["channel"] != channelPrefix+alice || where["url"] == "" || len(strings.Split(where["token"].(string), ".")) != 3 {
 		t.Fatalf("live: %d %v", status, where)
+	}
+}
+
+// The switch-over: until the live server reads the outbox, the service still sends it to Centrifugo's API itself.
+func TestTheOldSenderStillDeliversDuringTheSwitchOver(t *testing.T) {
+	e := newEnv(t)
+	fl := newFakeLive(t, testLiveKey)
+	e.s.legacy = newLegacySender(config{liveAPI: fl.ts.URL + "/api", liveAPIKey: testLiveKey})
+	org := newID()
+	alice, bob := newID(), newID()
+	e.rules.join(org, alice, bob)
+	id := e.must(201, alice, org, "POST", "/conversations", map[string]any{"kind": "direct", "member_ids": []string{bob}})["id"].(string)
+	e.send(alice, org, id, "hello")
+	ctx := context.Background()
+	fl.setDown(true)
+	if sent, err := e.s.flush(ctx); sent != 0 || err == nil {
+		t.Fatalf("flush with the live server down: sent %d, err %v", sent, err)
+	}
+	fl.setDown(false)
+	// The announcements channel, the chat, the message: each with the key the live server's own reader would use.
+	if sent, err := e.s.flush(ctx); sent != 3 || err != nil {
+		t.Fatalf("flush: sent %d, err %v", sent, err)
+	}
+	got := fl.seen()
+	if len(got) != 3 || !strings.HasPrefix(got[2]["idempotency_key"].(string), "outbox-") || len(e.outbox()) != 0 {
+		t.Fatalf("heard %d, last %v, %d left", len(got), got[len(got)-1], len(e.outbox()))
 	}
 }
 
@@ -427,9 +493,33 @@ func TestASuperuserLoginStillGetsRowSecurity(t *testing.T) {
 			t.Fatalf("%s sees %d messages, want %d", user[:4], n, want)
 		}
 	}
-	// And the live updates still go out, which the login (not the restricted role) sends: the announcements channel, the chat, the message.
-	if sent, err := e.s.flush(ctx); err != nil || sent != 3 {
-		t.Fatalf("flush: sent %d, err %v", sent, err)
+	// And the live updates are still queued: the announcements channel, the chat, the message.
+	if n := len(e.outbox()); n != 3 {
+		t.Fatalf("%d updates queued, want 3", n)
+	}
+
+	// The live server's own login reads and deletes the queue and sees nothing else.
+	u, _ := url.Parse(os.Getenv("MESSAGING_TEST_ADMIN_URL"))
+	u.User = url.UserPassword(liveRole, testLivePassword)
+	reader, err := pgx.Connect(ctx, u.String())
+	if err != nil {
+		t.Fatalf("the live server's login cannot connect: %v", err)
+	}
+	defer reader.Close(ctx)
+	var queued int
+	if err = reader.QueryRow(ctx, `SELECT count(*) FROM messaging.outbox WHERE partition >= 0`).Scan(&queued); err != nil || queued != 3 {
+		t.Fatalf("the live server's login reads %d queued updates (%v)", queued, err)
+	}
+	for _, table := range []string{"messages", "conversations", "members"} {
+		if _, err = reader.Exec(ctx, `SELECT 1 FROM messaging.`+table+` LIMIT 1`); err == nil {
+			t.Fatalf("the live server's login reads %s", table)
+		}
+	}
+	if _, err = reader.Exec(ctx, `INSERT INTO messaging.outbox (method, payload) VALUES ('broadcast', '{}')`); err == nil {
+		t.Fatal("the live server's login writes updates of its own")
+	}
+	if tag, err := reader.Exec(ctx, `DELETE FROM messaging.outbox`); err != nil || tag.RowsAffected() != 3 {
+		t.Fatalf("the live server's login deletes what it delivered: %v", err)
 	}
 }
 
@@ -453,7 +543,7 @@ func TestALoginThatBypassesRowSecurityWithoutBeingASuperuserIsRefused(t *testing
 	if _, err = e.admin.Exec(ctx, `GRANT ALL ON DATABASE messaging_test TO messaging_bypass_test; GRANT ALL ON SCHEMA public TO messaging_bypass_test`); err != nil {
 		t.Fatal(err)
 	}
-	if st, err := openStore(ctx, u.String()); err == nil {
+	if st, err := openStore(ctx, u.String(), ""); err == nil {
 		st.close()
 		t.Fatal("the service started with a login that bypasses row security")
 	}
