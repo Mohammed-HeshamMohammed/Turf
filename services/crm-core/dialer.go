@@ -1,6 +1,6 @@
 package main
 
-// The dialer service's private door into the CRM (services/features/dialer-sms). The carrier (Telnyx, or its simulator) tells the
+// The dialer service's private door into the CRM (scaffolds/dialer-sms). The carrier (Telnyx, or its simulator) tells the
 // dialer what happened on a call; the dialer asks here whether a lead may be called and records each finished call as the same
 // `call.record` operation a person's device sends, run as the person who made the call. So permissions, do-not-call, stages,
 // callback tasks, the audit trail, live updates and the team's numbers are exactly those of a call logged by hand.
