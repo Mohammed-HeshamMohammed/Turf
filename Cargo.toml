@@ -1,6 +1,6 @@
 # The Rust workspace (D383, step 52): the desktop app's window (Tauri, apps/crm-desktop) and its feature crates
 # (crates/desktop-features). One lock file and one `cargo test --workspace`. The scaffold crates (D384) keep their own small
-# workspace in Caller Whale CRM/ until step 54 moves them to scaffolds/.
+# workspace in scaffolds/.
 [workspace]
 resolver = "2"
 members = [
@@ -15,7 +15,7 @@ members = [
   "crates/desktop-features/backup-restore",
 ]
 # Rust projects under this folder that have their own workspace or none: without this, cargo takes them for members.
-exclude = ["Caller Whale App/src-tauri"]
+exclude = ["apps/lists-desktop/src-tauri"]
 
 # A workspace sets profiles at its root. Dependencies are compiled once and rarely change, so keep them fast while the crates'
 # own code builds quickly (was in the window's Cargo.toml).

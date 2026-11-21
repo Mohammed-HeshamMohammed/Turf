@@ -3,7 +3,7 @@
 Every part of Caller Whale reads its settings, secrets included, from one file here. The real files are never committed (git ignores everything in this folder except this README and the `*.example` files), and no script or source file holds a secret of its own.
 
 ```bash
-node tools/env-init.mjs     # from Caller Whale CRM/: creates each missing file from its example, with new random secrets
+node tools/env-init.mjs     # from the repository root: creates each missing file from its example, with new random secrets
 ```
 
 It never overwrites a file. Run it again after an example gains a setting, and it lists what each file is missing.
@@ -31,7 +31,7 @@ It contains explanations, never stored environment values or credentials.
 `container-variable-inventory.json` records only the names observed in Coolify and
 the observation date; it is a point-in-time inventory, not a live configuration dump.
 
-From `Caller Whale CRM/`, run:
+From the repository root, run:
 
 ```sh
 node tools/env-notes.mjs check

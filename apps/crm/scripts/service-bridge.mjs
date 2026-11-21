@@ -44,7 +44,7 @@ export function serviceBridge() {
     name: "callerwhale-crm-service-bridge",
     apply: "serve",
     configureServer(server) {
-      const root = resolve(process.env.CALLERWHALE_SERVICE_ROOT ?? "../../service");
+      const root = resolve(process.env.CALLERWHALE_SERVICE_ROOT ?? "../../engines/skip-engine");
       let child = null;
       let answers = null;
       let nextId = 0;
@@ -75,7 +75,7 @@ export function serviceBridge() {
         const id = ++nextId;
         child.stdin.write(`${JSON.stringify({ id, schema_version: 1, command, payload: payload ?? {} })}\n`);
         const line = await answers.next();
-        if (line.done) throw new Error("The Skip Tracing engine stopped. Is Python 3.11+ installed with service/requirements.txt, or CALLERWHALE_PYTHON set?");
+        if (line.done) throw new Error("The Skip Tracing engine stopped. Is Python 3.11+ installed with engines/skip-engine/requirements.txt, or CALLERWHALE_PYTHON set?");
         if (JSON.parse(line.value).id !== id) throw new Error("Service response did not match the request");
         return line.value;
       }
