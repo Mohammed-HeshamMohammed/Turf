@@ -1,4 +1,4 @@
-package main
+package crm
 
 // CRM changes as operations. Online requests and offline queues both come here, so deduplication, permission checks,
 // conflict rules and the audit trail are the same for every path.

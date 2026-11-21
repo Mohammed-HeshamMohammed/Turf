@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 32 (migrations/0040_overviews_reports.sql): the owner's overview opens with what needs them today (D225), a team lead's with
 // their team right now (D226), the owner's view of members' activity (D267), and weekly or monthly report emails with totals only

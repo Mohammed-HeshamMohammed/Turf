@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 23: clients. Every list and lead belongs to a client (D126): one the agency works for, or its own business (stored as no
 // client). The owner and admins keep the clients, link a client's people to it and say which teams work for it (D128, D134). The agency

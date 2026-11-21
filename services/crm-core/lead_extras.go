@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Step 20, part C: tags (D230), merging two copies of one person with undo (D231), and how long unworked leads are kept (D224).
 

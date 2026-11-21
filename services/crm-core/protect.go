@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 30: protecting an agency's leads (migrations/0038_protect_leads.sql, D162-D165, D264).
 

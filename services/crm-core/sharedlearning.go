@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 45 (migrations/0048_shared_learning.sql): shared learning by agreement (D324-D327, D146, D349).
 //

@@ -1,4 +1,4 @@
-package main
+package crm
 
 // Build step 38: every file on a lead is scanned before anyone can open it (D257), by ClamAV's clamd over its INSTREAM command.
 

@@ -1,4 +1,4 @@
-package main
+package crm
 
 // ReadyMode's upload is parsed by the import worker. Core only links the staged
 // events to CRM leads after the user confirms the prepared history.
