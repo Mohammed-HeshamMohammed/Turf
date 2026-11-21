@@ -1,0 +1,9 @@
+# The build context is the repository root (step 50+51): send only this service and the shared Go modules.
+*
+!packages/go
+!services/crm-core
+**/node_modules
+**/__pycache__
+**/.env
+**/.env.*
+**/*.exe

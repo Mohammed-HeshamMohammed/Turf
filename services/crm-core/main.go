@@ -49,7 +49,11 @@ type config struct {
 	runJobs                        bool   // CRM_RUN_JOBS (default on): this process also works the job queue (split 2)
 }
 
-func loadConfig(getenv func(string) string) (config, error) {
+func loadConfig(getenv func(string) string) (config, error) { return loadConfigFor("api", getenv) }
+
+// loadConfigFor reads the settings of one program: "api" (crm-core), "merge" (crm-merge) or "outbox" (crm-outbox). The job containers
+// read the same names; each needs only some of them (env/crm-merge.production.example, env/crm-outbox.production.example).
+func loadConfigFor(role string, getenv func(string) string) (config, error) {
 	trim := func(v string) string { return strings.TrimRight(strings.TrimSpace(v), "/") }
 	c := config{
 		port:          strings.TrimSpace(getenv("PORT")),
@@ -76,16 +80,21 @@ func loadConfig(getenv func(string) string) (config, error) {
 		runJobs:        !strings.EqualFold(strings.TrimSpace(getenv("CRM_RUN_JOBS")), "false"),
 	}
 	if c.port == "" {
-		c.port = "8107"
+		c.port = map[string]string{"api": "8107", "merge": "8120", "outbox": "8121"}[role]
 	}
 	var err error
 	if c.origins, err = parseOrigins(getenv("CORS_ORIGINS")); err != nil {
 		return c, err
 	}
-	if c.databaseURL == "" || c.jwksURL == "" || c.authzURL == "" {
+	switch {
+	case c.databaseURL == "":
+		return c, errors.New("set DATABASE_URL")
+	case role == "api" && (c.jwksURL == "" || c.authzURL == ""):
 		return c, errors.New("set DATABASE_URL, AUTH_JWKS_URL and AUTHZ_URL")
+	case role == "outbox" && c.authzURL == "": // emails and reports look up teams and members
+		return c, errors.New("set AUTHZ_URL and AUTHZ_TOKEN: crm-outbox looks up teams and members for emails and reports")
 	}
-	if len(c.authzToken) < 32 {
+	if c.authzURL != "" && len(c.authzToken) < 32 {
 		return c, errors.New("AUTHZ_TOKEN must be at least 32 characters: crm-core's token in authz's AUTHZ_TOKENS (core-api=...)")
 	}
 	if c.learningURL != "" && len(c.learningToken) < 32 {
@@ -117,20 +126,7 @@ func Main() {
 	if port == "" {
 		port = "8107"
 	}
-	// "service health" is the container's health check: the image has no shell or curl.
-	if len(os.Args) > 1 && os.Args[1] == "health" {
-		res, err := (&http.Client{Timeout: 3 * time.Second}).Get("http://127.0.0.1:" + port + "/healthz")
-		if err != nil {
-			log.Printf("health probe: %v", err)
-			os.Exit(1)
-		}
-		defer res.Body.Close()
-		if res.StatusCode != http.StatusOK {
-			log.Printf("health probe: HTTP %d", res.StatusCode)
-			os.Exit(1)
-		}
-		os.Exit(0)
-	}
+	healthProbe(port)
 	cfg, err := loadConfig(os.Getenv)
 	if err != nil {
 		log.Fatal(err)
@@ -166,7 +162,11 @@ func Main() {
 	go s.hub.listen(ctx, cfg.databaseURL)
 	// The merges and assignments run through the job queue. CRM_RUN_JOBS=false leaves them to the crm-merge container (split 2):
 	// until that container is running, keep the default, so there is never a time when nobody does them.
-	if err = s.startJobs(ctx, cfg.runJobs); err != nil {
+	queues := allQueues
+	if !cfg.runJobs {
+		queues = nil
+	}
+	if err = s.startJobs(ctx, queues); err != nil {
 		log.Fatal(err)
 	}
 	defer s.stopJobs()

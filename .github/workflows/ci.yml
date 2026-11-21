@@ -63,6 +63,8 @@ jobs:
         --- PASS: TestFilesOnALeadAreKeptAndOnlyForThoseWhoSeeIt
         --- PASS: TestLeadsAreGivenDownTheTeamTree
         --- PASS: TestRestoreOneAgencyFromACopy
+        --- PASS: TestWorkWithoutAJobIsAdoptedOnce
+        --- PASS: TestAJobContainerAnswersItsHealthAndQueues
 
   messaging:
     needs: changes

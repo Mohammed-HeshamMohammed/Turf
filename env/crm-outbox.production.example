@@ -1,0 +1,37 @@
+# crm-outbox on Coolify (application "CRM Outbox", image cw-crm-outbox, port 8121, network alias crm-outbox, NO domain). Split 2.
+# It runs crm-core's work that waits on other services: webhooks, email waits, scheduled reports, shared learning and file scans.
+# It uses crm-core's database and code, and waits at start until crm-core has applied the database update. A small memory limit is
+# enough. Copy each value from crm-core's settings; once it and crm-merge are healthy, set CRM_RUN_JOBS=false on crm-core.
+# Paste into Environment Variables -> Developer View. Fill every <...>. Secrets stay in Coolify; never commit a filled copy.
+# HTTP port for /healthz, /version and /status; default 8121. Nothing else listens; no domain.
+PORT=8121
+# Secret PostgreSQL URI of the CRM database: the same login as crm-core's DATABASE_URL. crm-outbox never changes the structure; it waits for crm-core's update.
+DATABASE_URL=<the same value as crm-core's DATABASE_URL>
+# The authorization service's private address, like http://authz:8104.
+AUTHZ_URL=http://authz:8104
+# Secret: the same value as crm-core's AUTHZ_TOKEN (core-api= in authz's AUTHZ_TOKENS). Emails and reports look up teams and members.
+AUTHZ_TOKEN=<the same value as crm-core's AUTHZ_TOKEN>
+# The learning store's private address, like http://learning:8112. Empty turns the learning copy off: no list leaves crm-core.
+LEARNING_URL=
+# The learning store's LEARNING_TOKEN (at least 32 characters). Needed when LEARNING_URL is set.
+LEARNING_TOKEN=
+# Step 45: on lets agencies' agreed patterns be used (shared learning). Leave off until the lawyer approved the agreement's text and the notice check (checks-by-hand W-9); off: nothing is used, agencies can still agree.
+SHARED_LEARNING=
+# The CRM web app's public address (https, no trailing slash): links in calendar events and report emails, and where people return from Google.
+APP_URL=https://app.callerwhale.com
+# Amazon SES region for email to leads (step 29), like us-east-1. Empty turns email to leads off.
+EMAIL_SES_REGION=us-east-1
+# Secret: the access key of an IAM user allowed ses:SendRawEmail, ses:SendEmail, ses:CreateEmailIdentity and ses:GetEmailIdentity.
+AWS_ACCESS_KEY_ID=
+# Secret: that IAM user's secret access key.
+AWS_SECRET_ACCESS_KEY=
+# This service's public address at the gateway (https, no trailing slash), like https://gate.callerwhale.com: email links, unsubscribe, SES's SNS subscription, website forms' addresses and shared-file links use it.
+EMAIL_PUBLIC_URL=https://gate.callerwhale.com
+# A domain whose mail SES receives (its MX at SES receiving), like reply.callerwhale.com; replies to leads' emails go to reply+<token>@ it.
+EMAIL_REPLY_DOMAIN=reply.callerwhale.com
+# The notification service's private address, like http://notifications:8102, for scheduled report emails (step 32). Empty: reports are not sent.
+NOTIFY_MAIL_URL=http://notifications:8102
+# Secret: the value after crm-core= in notifications' NOTIFY_TOKENS, 24+ characters.
+NOTIFY_MAIL_TOKEN=<the same value as crm-core's NOTIFY_MAIL_TOKEN>
+# ClamAV's daemon on the private network, like clamav:3310, which scans files on leads (step 38). Its StreamMaxLength must be above 25 MB. Empty: files wait unopened.
+CLAMD_ADDR=clamav:3310

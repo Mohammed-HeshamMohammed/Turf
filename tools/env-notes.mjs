@@ -15,6 +15,8 @@ const examples = {
   'billing.production.example': 'billing',
   'mcp.production.example': 'mcp',
   'crm-core.production.example': 'crm-core',
+  'crm-merge.production.example': 'crm-merge',
+  'crm-outbox.production.example': 'crm-outbox',
   'assistant.production.example': 'assistant',
   'learning.production.example': 'learning',
   'importing-lists.production.example': 'importing-lists',

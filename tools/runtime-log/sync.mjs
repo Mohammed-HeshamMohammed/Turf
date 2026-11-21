@@ -11,7 +11,7 @@ export const images = [
  ["services/gateway", "Gateway"], ["services/mcp", "MCP"], ["services/crm-core", "CRM core"], ["services/assistant", "Assistant"],
  ["services/grafana-proxy", "Grafana proxy"], ["services/alert-relay", "Alert relay"], ["services/notifications", "Notifications"],
  ["services/live", "Live server"], ["services/dialer-sms", "Dialer SMS"], ["services/importing-lists", "Importing lists"],
- ["services/importing-worker", "Importing worker"],
+ ["services/importing-worker", "Importing worker"], ["services/crm-core", "CRM merge", "Dockerfile.merge"], ["services/crm-core", "CRM outbox", "Dockerfile.outbox"],
  ["services/messaging", "Messaging"], ["services/learning", "Learning"],
 ];
 export const containers = [
@@ -21,10 +21,10 @@ export const containers = [
 ];
 const source = readFileSync(resolve(root, "packages/go/runtimelog/cmd/callerwhale-log/main.go"), "utf8");
 const check = process.argv.includes("--check");
-for (const [folder, service] of images) {
- const docker = readFileSync(resolve(root, folder, "Dockerfile"), "utf8");
+for (const [folder, service, file = "Dockerfile"] of images) {
+ const docker = readFileSync(resolve(root, folder, file), "utf8");
  if (!docker.includes("COPY packages/go/runtimelog /src") || !docker.includes("./cmd/callerwhale-log") || !docker.includes('callerwhale-log"') || !docker.includes(`CALLERWHALE_LOG_SERVICE="${service}"`))
-  throw new Error(`${folder}/Dockerfile must build the log wrapper from packages/go/runtimelog and start through it as "${service}"`);
+  throw new Error(`${folder}/${file} must build the log wrapper from packages/go/runtimelog and start through it as "${service}"`);
 }
 for (const [folder, service, rootContext] of containers) {
  const base = resolve(root, folder), target = resolve(base, "runtime-log/main.go");
