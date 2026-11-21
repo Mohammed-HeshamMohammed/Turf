@@ -1,0 +1,10 @@
+defusedxml==0.7.1
+et_xmlfile==2.0.0
+openpyxl==3.1.5
+phonenumbers==9.0.43
+polars-runtime-32==2.1.0
+polars==2.1.0
+psycopg-binary==3.3.8
+psycopg==3.3.8
+tzdata==2026.6
+xlrd==2.0.2
