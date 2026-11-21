@@ -1,0 +1,50 @@
+openapi: 3.0.3
+info:
+  title: Caller Whale Importing worker
+  version: 0.1.0
+  description: Feature 1, the import worker. Fetches each upload from importing-lists and reads, cleans and loads it. No public address.
+paths:
+  /healthz:
+    get:
+      summary: Is the service running, with every worker loop alive
+      responses:
+        "200":
+          description: Running
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, service]
+                properties:
+                  ok: { type: boolean }
+                  service: { type: string, example: importing-worker }
+        "503": { description: A worker loop has stopped }
+  /version:
+    get:
+      summary: The running version
+      responses:
+        "200":
+          description: Version
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service, version]
+                properties:
+                  service: { type: string }
+                  version: { type: string, example: 0.1.0 }
+  /status:
+    get:
+      summary: How many lists it works on at once, and which ones it is on now
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service, workers, working_on]
+                properties:
+                  service: { type: string }
+                  workers: { type: integer, example: 3 }
+                  working_on: { type: array, items: { type: string, format: uuid } }

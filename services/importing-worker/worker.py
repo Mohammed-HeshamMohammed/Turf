@@ -7,6 +7,7 @@ database login this runs under can write only the holding tables and read only t
 Heavy steps run inside polars (parsing, building rows) or PostgreSQL (fingerprints, cleaning, joins); Python only moves batches.
 Every batch is committed together with the count of rows consumed, so a restart carries on from the last batch."""
 import difflib
+import hashlib
 import json
 import os
 import queue
@@ -14,8 +15,11 @@ import re
 import socket
 import threading
 import shutil
+import tempfile
 import time
 import traceback
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import phonenumbers
@@ -38,6 +42,11 @@ MAX_RECLAIMS = 2
 CLEAN_RANGE = int(os.environ.get("IMPORT_CLEAN_ROWS", "5000"))  # rows tidied between two reports of progress
 # Days the uploaded file is kept after it arrives (so a list can be read again with other columns), then deleted. The person is told the date.
 KEEP_FILE_DAYS = int(os.environ.get("IMPORT_KEEP_FILE_DAYS", "30"))
+# The upload service (importing-lists) keeps what people send in its own volume; the worker fetches each finished upload from it over
+# the private network, with the token both services share. Without the token both share one folder (local runs and the tests).
+API_URL = os.environ.get("IMPORT_API_URL", "http://importing-lists:8111").rstrip("/")
+FILE_TOKEN = os.environ.get("IMPORT_FILE_TOKEN", "")
+FETCH_TIMEOUT = 30
 # The country a phone number written without a country code belongs to (ISO code). Numbers of that country's length are checked against
 # its numbering plan, as Google's libphonenumber knows it.
 PHONE_REGION = os.environ.get("IMPORT_PHONE_REGION", "US").upper()
@@ -145,6 +154,96 @@ def duplicate_examples(cur: psycopg.Cursor, job_id: str, limit: int) -> list[dic
     return [{"row": a, "same_as": b} for a, b in cur.fetchall()]
 
 
+# ------------------------------------------------------------------------------------------------- fetching the upload
+
+def _api(method: str, path: str):
+    """One call to the upload service's internal routes. Every call has a timeout (D389)."""
+    request = urllib.request.Request(API_URL + path, method=method, headers={"x-import-token": FILE_TOKEN})
+    return urllib.request.urlopen(request, timeout=FETCH_TIMEOUT)
+
+
+def _retrying(what: str, call):
+    """Runs call() up to three times. A file the upload service no longer has is FileNotFoundError, so the person is told plainly."""
+    last: Exception | None = None
+    for attempt in range(3):
+        try:
+            return call()
+        except urllib.error.HTTPError as error:
+            if error.code == 404:
+                raise FileNotFoundError(f"the upload service no longer has {what}")
+            last = error
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+            last = error
+        time.sleep(2 * (attempt + 1))
+    raise RuntimeError(f"could not fetch {what} from the upload service: {last}")
+
+
+def _download(path: str, target: Path, size: int, sha256: str | None = None) -> None:
+    """Saves one file from the upload service as target, checked against its size (and SHA-256 for a piece) before it is kept."""
+    def once() -> None:
+        temp = None
+        try:
+            with _api("GET", path) as response, tempfile.NamedTemporaryFile(prefix="fetching-", dir=target.parent, delete=False) as out:
+                temp = Path(out.name)
+                digest, got = hashlib.sha256(), 0
+                while block := response.read(1 << 20):
+                    out.write(block)
+                    digest.update(block)
+                    got += len(block)
+                out.flush()
+                os.fsync(out.fileno())
+            if got != size or (sha256 is not None and digest.hexdigest() != sha256):
+                raise ConnectionError(f"{target.name} arrived damaged")
+            os.replace(temp, target)
+            temp = None
+        finally:
+            if temp is not None:
+                temp.unlink(missing_ok=True)
+    _retrying(target.name, once)
+
+
+def fetch_upload(conn: psycopg.Connection, job: dict, folder: Path, extension: str) -> None:
+    """Brings the uploaded file over from the upload service (importing-lists), which keeps what people send in its own volume.
+    Pieces already here are not fetched again, so a restart carries on. Without IMPORT_FILE_TOKEN both share one folder (local runs and
+    the tests) and nothing is fetched."""
+    if not FILE_TOKEN or (folder / f"source.utf8{extension}").exists() or (folder / f"source{extension}").exists():
+        return
+    folder.mkdir(parents=True, exist_ok=True)
+    job_id = job["id"]
+    def listing() -> dict[str, int]:
+        with _api("GET", f"/internal/jobs/{job_id}/files") as response:
+            return json.load(response)["files"]
+    remote = _retrying("the list of files", listing)
+    # A list that was already joined there (before the upload service and the worker were two containers) comes over whole.
+    for name in (f"source.utf8{extension}", f"source{extension}"):
+        if name in remote:
+            _download(f"/internal/jobs/{job_id}/files/{name}", folder / name, remote[name])
+            return
+    with conn.cursor() as cur:
+        cur.execute("SELECT n, size, sha256 FROM importing.chunks WHERE job_id = %s ORDER BY n", (job_id,))
+        pieces = cur.fetchall()
+    conn.commit()
+    progress = folder / "assembled.progress"
+    joined = int(progress.read_text()) if progress.exists() and (folder / "assembled.part").exists() else 0
+    for count, (n, size, sha256) in enumerate(pieces):
+        piece = folder / f"{n}.part"
+        if n < joined or (piece.is_file() and piece.stat().st_size == size):
+            continue
+        _download(f"/internal/jobs/{job_id}/files/{n}.part", piece, size, sha256)
+        if count % 200 == 199:
+            check_cancel(conn, job_id)
+
+
+def release_upload(job_id: str) -> None:
+    """Tells the upload service its copy is no longer needed. If it does not hear, its own cleanup removes the copy later."""
+    if not FILE_TOKEN:
+        return
+    try:
+        _api("DELETE", f"/internal/jobs/{job_id}/files").close()
+    except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+        log("WARN", "the upload service could not be told to let the file go", job=job_id, error=str(error))
+
+
 def source_file(conn: psycopg.Connection, job: dict) -> Path:
     """The uploaded file, joined from its pieces (once; it is kept, see KEEP_FILE_DAYS)."""
     with conn.cursor() as cur:
@@ -153,7 +252,11 @@ def source_file(conn: psycopg.Connection, job: dict) -> Path:
     conn.commit()
     if len(sizes) != job["total_chunks"]:
         raise RuntimeError("the upload is incomplete")
-    return readers.prepare(IMPORT_DIR / job["id"], sizes, Path(job["filename"]).suffix.lower())
+    folder, extension = IMPORT_DIR / job["id"], Path(job["filename"]).suffix.lower()
+    fetch_upload(conn, job, folder, extension)
+    source = readers.prepare(folder, sizes, extension)
+    release_upload(job["id"])
+    return source
 
 
 def load(conn: psycopg.Connection, job: dict) -> None:
@@ -199,7 +302,9 @@ def load_calls(conn: psycopg.Connection, job: dict) -> None:
     conn.commit()
     if len(sizes) != job["total_chunks"]:
         raise RuntimeError("the upload is incomplete")
+    fetch_upload(conn, job, folder, ".csv")
     source = readers.prepare(folder, sizes, ".csv")
+    release_upload(job_id)
     zone = ZoneInfo(job["source_timezone"])
     consumed = job["loaded_rows"]
     report = dict(job["report"] or {})

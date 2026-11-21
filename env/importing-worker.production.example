@@ -1,0 +1,24 @@
+# The import worker on Coolify (application "Importing Worker", image cw-importing-worker, port 8119, network alias importing-worker, NO domain).
+# It fetches each upload from importing-lists, loads it into the CRM database, matches columns, cleans phones, emails and addresses and
+# finds repeats. It is idle until a list is queued.
+# Do NOT set a memory or CPU limit on this application: a large list may use what the server has.
+# Paste into Environment Variables -> Developer View. Fill every <...>. Secrets stay in Coolify; never commit a filled copy.
+# HTTP port for /healthz, /version and /status; default 8119.
+PORT=8119
+# Secret PostgreSQL URI with the importer's own login: the importing schema and a view of a few lead fields, nothing else.
+DATABASE_URL=<postgres://importer:password@crm-postgres:5432/crm?sslmode=require>
+# Where the worker keeps the uploads it has fetched; default /data/imports. This application's own persistent volume, not shared.
+IMPORT_DIR=/data/imports
+# The upload service's private address; default http://importing-lists:8111.
+IMPORT_API_URL=http://importing-lists:8111
+# Secret, 32+ characters: the same value as importing-lists' IMPORT_FILE_TOKEN.
+IMPORT_FILE_TOKEN=<the same 32+ character secret as importing-lists>
+# How many lists are worked on at the same time; default 3, at most 8.
+# IMPORT_WORKERS=3
+# Memory one sort or hash in the repeat-finding steps may use before spilling to disk; default 256MB. Raise it on a big server for faster very large lists.
+# IMPORT_WORK_MEM=256MB
+# Days the uploaded file is kept after it arrives, then deleted; default 30. The person is shown the date. Plan the volume for it.
+# IMPORT_KEEP_FILE_DAYS=30
+# The country a phone number written without a country code belongs to (ISO code); default US. Ten-digit North American numbers are
+# checked against the area codes that exist.
+# IMPORT_PHONE_REGION=US

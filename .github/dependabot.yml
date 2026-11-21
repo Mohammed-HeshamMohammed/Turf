@@ -47,6 +47,7 @@ updates:
     directories:
       - "/services/billing"
       - "/services/importing-lists"
+      - "/services/importing-worker"
       - "/engines/skip-engine"
     schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
@@ -89,6 +90,7 @@ updates:
       - "/services/alert-relay"
       - "/scaffolds/exports"
       - "/services/importing-lists"
+      - "/services/importing-worker"
       - "/scaffolds/leads-map"
       - "/scaffolds/skip-tracing"
     schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }

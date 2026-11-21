@@ -203,13 +203,13 @@
     {
       "name": "importing-lists-backend-production",
       "envExample": "env/importing-lists.production.example",
-      "title": "Import worker",
+      "title": "Import uploads",
       "base": "",
       "paths": [
         "services/importing-lists",
         "packages/go"
       ],
-      "build": "python -m unittest discover -s tests; docker build . Coolify: base directory /, Dockerfile /Dockerfile, no domain, no memory cap; its own persistent volume at /data/imports",
+      "build": "python -m unittest discover -s tests; docker build . Coolify: base directory /, Dockerfile /Dockerfile, no domain; its own persistent volume at /data/imports (the uploads as they arrive)",
       "note": false,
       "images": [
         {
@@ -217,6 +217,25 @@
           "context": ".",
           "dockerfile": "services/importing-lists/Dockerfile",
           "deploy": { "coolify": "ovzio8h7fqwhhms0dmq3oitd" }
+        }
+      ]
+    },
+    {
+      "name": "importing-worker-backend-production",
+      "envExample": "env/importing-worker.production.example",
+      "title": "Import worker",
+      "base": "",
+      "paths": [
+        "services/importing-worker",
+        "packages/go"
+      ],
+      "build": "python -m unittest discover -s tests; docker build . Coolify: base directory /, Dockerfile /Dockerfile, no domain, no memory cap; its own persistent volume at /data/imports (the uploads it has fetched)",
+      "note": false,
+      "images": [
+        {
+          "name": "cw-importing-worker",
+          "context": ".",
+          "dockerfile": "services/importing-worker/Dockerfile"
         }
       ]
     },

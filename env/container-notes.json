@@ -237,16 +237,31 @@
       }
     },
     "importing-lists": {
-      "description": "The import worker: loads uploaded lists into the CRM database, drops identical rows, matches columns, cleans data and finds repeats. Idle until a list is queued. No domain; no memory or CPU limit.",
+      "description": "The upload service: takes list uploads in, in checked pieces, and keeps them in its own volume until the importing worker fetches them. No domain; the gateway sends it the upload routes.",
       "sources": [
         "services/importing-lists/server.py"
       ],
       "variables": {
-        "PORT": "HTTP port for the health check; default 8111.",
-        "DATABASE_URL": "Secret PostgreSQL URI with the worker's own login (importer): the importing schema and a view of a few lead fields, nothing else.",
-        "IMPORT_DIR": "The folder shared with crm-core where upload pieces wait; default /data/imports. The same persistent volume at the same path in both applications.",
+        "PORT": "HTTP port; default 8111. Match Coolify's container port; the gateway sends uploads to http://importing-lists:8111.",
+        "DATABASE_URL": "Secret PostgreSQL URI with the importer's own login: the importing schema and a view of a few lead fields, nothing else.",
+        "IMPORT_DIR": "Where uploads wait until the worker fetches them; default /data/imports. This application's own persistent volume, not shared.",
+        "IMPORT_FILE_TOKEN": "Secret, 32+ characters: the same value as importing-worker's. The worker fetches uploads with it. Empty turns the worker's fetching off.",
         "CORE_URL": "Internal CRM Core origin for validating the bearer token, workspace and import permission, and creating a source list.",
         "MAX_IMPORT_MB": "Maximum accepted list size in MiB; default 20480."
+      }
+    },
+    "importing-worker": {
+      "description": "The import worker: fetches each upload from importing-lists, loads it into the CRM database, matches columns, cleans data and finds repeats. Idle until a list is queued. No domain; no memory or CPU limit.",
+      "sources": [
+        "services/importing-worker/server.py",
+        "services/importing-worker/worker.py"
+      ],
+      "variables": {
+        "PORT": "HTTP port for /healthz, /version and /status; default 8119.",
+        "DATABASE_URL": "Secret PostgreSQL URI with the importer's own login: the importing schema and a view of a few lead fields, nothing else.",
+        "IMPORT_DIR": "Where the worker keeps the uploads it has fetched; default /data/imports. This application's own persistent volume, not shared.",
+        "IMPORT_API_URL": "The upload service's private address; default http://importing-lists:8111.",
+        "IMPORT_FILE_TOKEN": "Secret, 32+ characters: the same value as importing-lists' IMPORT_FILE_TOKEN."
       }
     },
     "assistant": {
