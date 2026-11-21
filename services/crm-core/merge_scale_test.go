@@ -44,6 +44,11 @@ func TestMergeAtScale(t *testing.T) {
 		INSERT INTO crm.leads (org_id, project_id, property_id, name, phone, email, source)
 		SELECT $1, $3, id, 'Owner ' || g, (5120000000 + g)::text, CASE WHEN g % 3 = 0 THEN 'owner' || g || '@example.com' ELSE '' END, 'Seed'
 		FROM numbered`, orgA, existing, project)
+	started := time.Now()
+	if done, err := e.s.st.buildLateIndexes(ctx); err != nil || !done { // as in production, where crm-core builds them after it starts
+		t.Fatalf("late indexes: %v %v", done, err)
+	}
+	t.Logf("%-46s %7.1fs", "late indexes", time.Since(started).Seconds())
 	run("analyze", `ANALYZE crm.leads; ANALYZE crm.properties`)
 
 	// A list: 70% new people, 30% rows that matched an existing lead and only fill what it is missing.
@@ -60,7 +65,7 @@ func TestMergeAtScale(t *testing.T) {
 		FROM generate_series(1, $4) g
 		LEFT JOIN crm.leads l ON g % 10 >= 7 AND l.org_id = $2 AND l.deleted_at IS NULL AND l.name = 'Owner ' || (1 + g % $3)`, job, orgA, existing, rows)
 	run("analyze", `ANALYZE importing.rows`)
-	started := time.Now()
+	started = time.Now()
 	e.s.runMerge(ctx, job)
 	var status string
 	var merged int64
