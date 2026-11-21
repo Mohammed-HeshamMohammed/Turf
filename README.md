@@ -13,7 +13,7 @@ behind them. Everything lives in this one repository; the plan for its layout is
 | `apps/crm-web` | How the CRM is packaged for app.callerwhale.com (its image). |
 | `apps/website` | callerwhale.com. |
 | `apps/lists-desktop` | The older desktop app for lists and areas; it has its own [README](apps/lists-desktop/README.md). |
-| `services/` | The server side, one folder per service, each its own container: gateway, auth, authz, notifications, crm-core, messaging, live, dialer-sms, importing-lists, billing, assistant, learning, mcp, alert-relay, grafana-proxy. Auth, authz and notifications always stay one whole container each (D390). |
+| `services/` | The server side, one folder per service, each its own container: gateway, auth, authz, notifications, crm-core, messaging, live, dialer-sms, importing-lists, importing-worker, billing, assistant, learning, mcp, alert-relay, grafana-proxy. Auth, authz and notifications always stay one whole container each (D390). |
 | `packages/` | Shared code with one original: `calendar`, `auth-client` and `error-report` (npm, `@callerwhale/*`), and `go/authverify` and `go/runtimelog` (Go). |
 | `engines/skip-engine` | The Skip Tracing engine (Python), shipped inside the desktop app. |
 | `crates/desktop-features` | The desktop app's feature crates (Rust). |

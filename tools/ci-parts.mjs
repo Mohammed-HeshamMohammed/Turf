@@ -27,8 +27,9 @@ export const PARTS = {
   gateway: [S + "gateway/", S + "auth/", GO],
   grafana: ["deploy/monitoring/", S + "grafana-proxy/", S + "alert-relay/", GO],
   billing: [S + "billing/"],
-  // The end-to-end test builds crm-core's tables from its scripts.
+  // Their database tests build crm-core's tables from its scripts.
   "importing-lists": [S + "importing-lists/", S + "crm-core/migrations/"],
+  "importing-worker": [S + "importing-worker/", S + "crm-core/migrations/"],
   // Also every place a shared file is copied to (the token check, the request-log adapters and runner): the tools job checks that
   // each copy matches its source. It also runs the tests of packages/.
   tools: ["tools/", "deploy/", "env/", S, "packages/", "scaffolds/"],

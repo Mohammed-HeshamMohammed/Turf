@@ -213,6 +213,18 @@ jobs:
     with:
       dir: services/importing-lists
       language: python
+      # The queue test builds crm-core's tables from its numbered scripts.
+      env: CRM_TEST_ADMIN_URL=postgres://postgres:testpass@localhost:5432/postgres?sslmode=disable
+      must_pass: "^test_.* \\(test_queue\\.QueueTest.* \\.\\.\\. ok$"
+
+  # The importing worker, its own container since split 1: it fetches each upload from importing-lists.
+  importing-worker:
+    needs: changes
+    if: contains(fromJSON(needs.changes.outputs.parts), 'importing-worker')
+    uses: ./.github/workflows/service-check.yml
+    with:
+      dir: services/importing-worker
+      language: python
       # The end-to-end test builds crm-core's tables from its numbered scripts.
       env: CRM_TEST_ADMIN_URL=postgres://postgres:testpass@localhost:5432/postgres?sslmode=disable
       must_pass: "^test_.* \\(test_worker\\.EndToEndTest.* \\.\\.\\. ok$"
@@ -301,7 +313,7 @@ jobs:
     # The check `main` requires. Passing means every part that had to run passed.
     name: CI summary
     if: always()
-    needs: [changes, authverify, runtimelog, crm-core, messaging, dialer-sms, auth, authz, learning, notifications, mcp, assistant, gateway, grafana-proxy, alert-relay, billing, importing-lists, tools, crm-app, website]
+    needs: [changes, authverify, runtimelog, crm-core, messaging, dialer-sms, auth, authz, learning, notifications, mcp, assistant, gateway, grafana-proxy, alert-relay, billing, importing-lists, importing-worker, tools, crm-app, website]
     runs-on: ubuntu-latest
     steps:
       - name: Every part that ran passed

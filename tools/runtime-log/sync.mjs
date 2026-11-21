@@ -11,6 +11,7 @@ export const images = [
  ["services/gateway", "Gateway"], ["services/mcp", "MCP"], ["services/crm-core", "CRM core"], ["services/assistant", "Assistant"],
  ["services/grafana-proxy", "Grafana proxy"], ["services/alert-relay", "Alert relay"], ["services/notifications", "Notifications"],
  ["services/live", "Live server"], ["services/dialer-sms", "Dialer SMS"], ["services/importing-lists", "Importing lists"],
+ ["services/importing-worker", "Importing worker"],
  ["services/messaging", "Messaging"], ["services/learning", "Learning"],
 ];
 export const containers = [

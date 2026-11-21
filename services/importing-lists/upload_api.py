@@ -1,11 +1,14 @@
-"""The import worker owns upload admission, pieces, and temporary storage."""
+"""The upload service owns upload admission, pieces and their storage. The importing worker (services/importing-worker) fetches each
+finished upload from here over the private network (the internal routes below) and does the reading and loading."""
 import errno
 import hashlib
+import hmac
 import json
 import os
 import re
 import shutil
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -102,7 +105,7 @@ def reply(conn, me, job_id):
     job = get_job(conn, me, job_id)
     if job["status"] == "uploading":
         folder = Path(os.environ.get("IMPORT_DIR", "/data/imports")) / job_id
-        # A database record alone is not proof the worker still has the piece.
+        # A database record alone is not proof the piece is still kept here.
         job["received"] = [r["n"] for r in conn.execute("SELECT n, size FROM importing.chunks WHERE job_id = %s ORDER BY n", (job_id,))
                            if (folder / f'{r["n"]}.part').is_file() and (folder / f'{r["n"]}.part').stat().st_size == r["size"]]
     if job["status"] == "queued":
@@ -278,6 +281,68 @@ def complete(me, job_id):
         if len(pieces) != job["total_chunks"] or sum(p["size"] for p in pieces) != job["size"] or any(
                 p["n"] != i or not (folder / f"{i}.part").is_file() or (folder / f"{i}.part").stat().st_size != p["size"]
                 for i, p in enumerate(pieces)):
-            raise APIError(400, "Some pieces are missing from the import worker; send them first.")
+            raise APIError(400, "Some pieces are missing; send them first.")
         conn.execute("UPDATE importing.jobs SET status = 'queued', progress = '{\"phase\":\"queued\",\"done\":0}', updated_at = now() WHERE id = %s AND status = 'uploading'", (job_id,))
         return reply(conn, me, job_id)
+
+
+# ------------------------------------------------------------------------------------------------ for the importing worker
+
+FILE_NAME = re.compile(r"^(?:\d+\.part|source(?:\.utf8)?\.(?:csv|txt|xlsx|xls))$")
+# Days an upload's files may stay here at most; the same setting as the worker's, so a list can still be read again until then.
+KEEP_FILE_DAYS = int(os.environ.get("IMPORT_KEEP_FILE_DAYS", "30"))
+
+
+def internal(handler) -> None:
+    """Only the importing worker, with the token both share (IMPORT_FILE_TOKEN), may use the internal routes. Without the token they are
+    off. The gateway never sends them here either: it forwards only the four upload routes."""
+    token = os.environ.get("IMPORT_FILE_TOKEN", "")
+    given = handler.headers.get("x-import-token", "")
+    if not token or not hmac.compare_digest(token.encode(), given.encode()):
+        raise APIError(403, "Not allowed.", "forbidden")
+
+
+def job_folder(job_id: str) -> Path:
+    if not ID.fullmatch(job_id):
+        raise APIError(404, "That import does not exist.", "not_found")
+    return import_dir() / job_id.lower()
+
+
+def list_files(job_id: str) -> dict:
+    """The pieces (and, for a list joined before the split, the joined file) kept for an upload, with their sizes."""
+    folder = job_folder(job_id)
+    if not folder.is_dir():
+        raise APIError(404, "No files are kept for that import.", "not_found")
+    return {"files": {f.name: f.stat().st_size for f in folder.iterdir() if f.is_file() and FILE_NAME.fullmatch(f.name)}}
+
+
+def file_path(job_id: str, name: str) -> Path:
+    path = job_folder(job_id) / name
+    if not FILE_NAME.fullmatch(name) or not path.is_file():
+        raise APIError(404, "That file is not kept.", "not_found")
+    return path
+
+
+def delete_files(job_id: str) -> dict:
+    """The worker has the upload now, so the copy here goes."""
+    shutil.rmtree(job_folder(job_id), ignore_errors=True)
+    return {"deleted": True}
+
+
+def sweep_files(conn) -> int:
+    """Removes the files of uploads that are cancelled, failed or gone, and every file older than KEEP_FILE_DAYS. A folder changed in the
+    last hour is left alone: a new upload's folder is made a moment before its record is saved."""
+    removed = 0
+    folder_root = import_dir()
+    if not folder_root.exists():
+        return 0
+    for folder in folder_root.iterdir():
+        if not folder.is_dir() or time.time() - folder.stat().st_mtime < 3600:
+            continue
+        row = conn.execute("SELECT status, created_at < now() - make_interval(days => %s) AS old FROM importing.jobs WHERE id::text = %s",
+                           (KEEP_FILE_DAYS, folder.name)).fetchone()
+        conn.commit()
+        if row is None or row["status"] in {"cancelled", "failed"} or row["old"]:
+            shutil.rmtree(folder, ignore_errors=True)
+            removed += 1
+    return removed

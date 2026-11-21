@@ -7,6 +7,7 @@
 | notifications | 8102 | go | notifications |
 | billing | 8103 | ts | billing |
 | importing-lists | 8111 | python | importing_lists |
+| importing-worker | 8119 | python | none (works on importing_lists) |
 | skip-tracing | 8112 | python | skip_tracing |
 | dialer-sms | 8113 | go | dialer_sms |
 | leads-map | 8114 | rust | leads_map |

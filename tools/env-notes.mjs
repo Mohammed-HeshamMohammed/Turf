@@ -18,6 +18,7 @@ const examples = {
   'assistant.production.example': 'assistant',
   'learning.production.example': 'learning',
   'importing-lists.production.example': 'importing-lists',
+  'importing-worker.production.example': 'importing-worker',
   'dialer-sms.production.example': 'dialer-sms',
   'messaging.production.example': 'messaging',
   'centrifugo.production.example': 'live',

@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: Caller Whale Importing lists (server)
-  version: 0.1.0
-  description: Feature 1: server-side list imports, column mapping and repeat merging for lists kept on the server.
+  title: Caller Whale Importing lists (uploads)
+  version: 0.3.0
+  description: Feature 1, the upload service. Takes list uploads in and keeps them until the importing worker fetches them.
 paths:
   /healthz:
     get:
@@ -32,3 +32,40 @@ paths:
                 properties:
                   service: { type: string }
                   version: { type: string, example: 0.1.0 }
+  /internal/jobs/{id}/files:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: x-import-token, in: header, required: true, schema: { type: string }, description: "IMPORT_FILE_TOKEN; only the importing worker has it" }
+    get:
+      summary: The files kept for an upload, with their sizes (for the importing worker)
+      responses:
+        "200":
+          description: Files
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [files]
+                properties:
+                  files: { type: object, additionalProperties: { type: integer }, example: { "0.part": 1048576 } }
+        "403": { description: No token, or the wrong one }
+        "404": { description: Nothing is kept for that upload }
+    delete:
+      summary: The worker has the upload; the copy here goes
+      responses:
+        "200": { description: Deleted }
+        "403": { description: No token, or the wrong one }
+  /internal/jobs/{id}/files/{name}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: name, in: path, required: true, schema: { type: string, pattern: '^(\d+\.part|source(\.utf8)?\.(csv|txt|xlsx|xls))$' } }
+      - { name: x-import-token, in: header, required: true, schema: { type: string } }
+    get:
+      summary: One file of an upload (for the importing worker)
+      responses:
+        "200":
+          description: The bytes
+          content:
+            application/octet-stream: {}
+        "403": { description: No token, or the wrong one }
+        "404": { description: That file is not kept }

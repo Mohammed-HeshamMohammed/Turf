@@ -130,13 +130,29 @@ services:
       dockerfile: services/importing-lists/Dockerfile
     environment:
       PORT: "8111"
-      # One machine for trying things out: the worker uses the database owner. Production gives it its own login (IMPORT_DB_ROLE on crm-core).
+      # One machine for trying things out: the database owner. Production gives it its own login (IMPORT_DB_ROLE on crm-core).
       DATABASE_URL: "${CRM_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_crm?sslmode=disable}"
       IMPORT_DIR: "/data/imports"
+      # Shared with importing-worker, which fetches each finished upload from here.
+      IMPORT_FILE_TOKEN: "${IMPORT_FILE_TOKEN:-local-import-file-token}"
     volumes:
       - imports:/data/imports
     depends_on:
       - crm-core
+    restart: unless-stopped
+  importing-worker:
+    build:
+      context: ../..
+      dockerfile: services/importing-worker/Dockerfile
+    environment:
+      PORT: "8119"
+      DATABASE_URL: "${CRM_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_crm?sslmode=disable}"
+      IMPORT_DIR: "/data/imports"
+      IMPORT_API_URL: "http://importing-lists:8111"
+      IMPORT_FILE_TOKEN: "${IMPORT_FILE_TOKEN:-local-import-file-token}"
+    # Its own volume, not the upload service's.
+    volumes:
+      - import-work:/data/imports
     # No memory or CPU cap: a large list may use what the machine has.
     restart: unless-stopped
   dialer-sms:
@@ -149,3 +165,4 @@ services:
 volumes:
   postgres-data:
   imports:
+  import-work:
