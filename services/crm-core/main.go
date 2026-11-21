@@ -46,6 +46,7 @@ type config struct {
 	restoreCopyURL                 string // step 41: the database a backup was restored into, to restore one agency from
 	carrierCheck                   bool   // step 39: imports wait for the carriers to verify the agency (CARRIER_CHECK=on)
 	clamdAddr                      string // ClamAV's daemon, like clamav:3310 (step 38)
+	runJobs                        bool   // CRM_RUN_JOBS (default on): this process also works the job queue (split 2)
 }
 
 func loadConfig(getenv func(string) string) (config, error) {
@@ -72,6 +73,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 		clamdAddr: strings.TrimSpace(getenv("CLAMD_ADDR")), carrierCheck: strings.EqualFold(strings.TrimSpace(getenv("CARRIER_CHECK")), "on"),
 		restoreCopyURL: strings.TrimSpace(getenv("RESTORE_COPY_URL")),
 		sharedLearning: strings.EqualFold(strings.TrimSpace(getenv("SHARED_LEARNING")), "on"),
+		runJobs:        !strings.EqualFold(strings.TrimSpace(getenv("CRM_RUN_JOBS")), "false"),
 	}
 	if c.port == "" {
 		c.port = "8107"
@@ -162,8 +164,12 @@ func Main() {
 		s.mail = ses
 	}
 	go s.hub.listen(ctx, cfg.databaseURL)
-	go s.resumeMerges(ctx)
-	go s.resumeAssignments(ctx)
+	// The merges and assignments run through the job queue. CRM_RUN_JOBS=false leaves them to the crm-merge container (split 2):
+	// until that container is running, keep the default, so there is never a time when nobody does them.
+	if err = s.startJobs(ctx, cfg.runJobs); err != nil {
+		log.Fatal(err)
+	}
+	defer s.stopJobs()
 	go s.sweepRowsPeriodically(ctx)
 	go s.learnPendingPeriodically(ctx)
 	go s.checkEmailWaitsPeriodically(ctx)

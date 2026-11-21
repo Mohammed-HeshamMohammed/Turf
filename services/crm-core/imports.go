@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/riverqueue/river"
 )
 
 const mergeBatch = 50000
@@ -430,10 +431,9 @@ func (s *server) importMerge(q *req) error {
 	if job["kind"] != "lead_list" || job["status"] != "ready" {
 		return bad("This import is not ready to be added to your leads yet.")
 	}
-	if _, err = s.st.db.Exec(q.r.Context(), `UPDATE importing.jobs SET status = 'merging', progress = '{"phase":"merging","done":0}', updated_at = now() WHERE id = $1 AND status = 'ready'`, id); err != nil {
+	if _, err = s.startWork(q.r.Context(), leadMergeArgs{Job: id}, `UPDATE importing.jobs SET status = 'merging', progress = '{"phase":"merging","done":0}', updated_at = now() WHERE id = $1 AND status = 'ready'`, id); err != nil {
 		return err
 	}
-	go s.runMerge(context.Background(), id)
 	return s.importReply(q, id)
 }
 
@@ -453,18 +453,17 @@ func (s *server) importRetryMerge(q *req) error {
 		return bad("Only a failed lead merge can be retried here.")
 	}
 	phase := progress["phase"].(string)
-	result, err := s.st.db.Exec(q.r.Context(), `UPDATE importing.jobs SET status = $2, error = '', cancel_requested = false, updated_at = now()
+	var work river.JobArgs = leadMergeArgs{Job: id}
+	if phase == "call_merging" {
+		work = callMergeArgs{Job: id}
+	}
+	result, err := s.startWork(q.r.Context(), work, `UPDATE importing.jobs SET status = $2, error = '', cancel_requested = false, updated_at = now()
 		WHERE id = $1 AND status = 'failed' AND progress->>'phase' = $2`, id, phase)
 	if err != nil {
 		return err
 	}
 	if result.RowsAffected() != 1 {
 		return bad("This import has already changed. Refresh it and try again.")
-	}
-	if phase == "call_merging" {
-		go s.runCallMerge(context.Background(), id)
-	} else {
-		go s.runMerge(context.Background(), id)
 	}
 	return s.importReply(q, id)
 }
@@ -547,12 +546,24 @@ func (s *server) importDelete(q *req) error {
 
 var mergeLock sync.Mutex // one big merge at a time in this process; across copies, SKIP LOCKED keeps batches apart
 
-// runMerge moves the cleaned rows into leads, 50,000 at a time, each batch in its own transaction, so the CRM stays usable and
-// a restart continues from the next batch (rows already merged are marked).
+// runMerge merges a whole import at once (the speed test; the job queue runs it in slices, mergeSlice).
 func (s *server) runMerge(ctx context.Context, id string) {
+	for s.mergeSlice(ctx, id, 0) {
+	}
+}
+
+// mergeSlice moves the cleaned rows into leads, 50,000 at a time, each batch in its own transaction, so the CRM stays usable and
+// a restart continues from the next batch (rows already merged are marked). After budget (0: no limit) it stops between batches and
+// says more is left: the job queue then puts the import back in line, so a huge list neither holds a job for an hour nor keeps
+// other workspaces' imports waiting.
+func (s *server) mergeSlice(ctx context.Context, id string, budget time.Duration) (more bool) {
 	mergeLock.Lock()
 	defer mergeLock.Unlock()
+	started := time.Now()
 	fail := func(err error) {
+		if ctx.Err() != nil {
+			return // the process is stopping, not failing: the work stays going and is queued again (adoptWork)
+		}
 		log.Printf("ERROR merging import %s: %v", id, err)
 		_, _ = s.st.db.Exec(ctx, `UPDATE importing.jobs SET status = 'failed', error = 'The list could not be added to your leads. Nothing was lost; try again or contact support.', updated_at = now() WHERE id = $1`, id)
 	}
@@ -560,42 +571,47 @@ func (s *server) runMerge(ctx context.Context, id string) {
 	var project, team *string
 	var total int64
 	err := s.st.db.QueryRow(ctx, `SELECT j.org_id::text, j.user_id::text, j.project_id::text, j.team_id::text,
-			(SELECT count(*) FROM importing.rows r WHERE r.job_id = j.id AND r.state IN ('clean', 'import', 'merge'))
+			j.merged_rows + (SELECT count(*) FROM importing.rows r WHERE r.job_id = j.id AND r.state IN ('clean', 'import', 'merge'))
 		FROM importing.jobs j WHERE j.id = $1 AND j.status = 'merging'`, id).Scan(&org, &user, &project, &team, &total)
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			fail(err)
 		}
-		return
+		return false
 	}
 	sc := scope{userID: user, orgID: org, scopes: []string{"organization"}}
 	var done int64
 	for {
 		var cancelled bool
 		if err = s.st.db.QueryRow(ctx, `SELECT cancel_requested FROM importing.jobs WHERE id = $1`, id).Scan(&cancelled); err != nil || cancelled {
-			return
+			return false
 		}
 		n, err := s.mergeBatch(ctx, sc, id, project, team)
 		if err != nil {
 			fail(err)
-			return
+			return false
 		}
 		done += n
 		if n == 0 {
 			break
 		}
 		_, _ = s.st.db.Exec(ctx, `UPDATE importing.jobs SET merged_rows = merged_rows + $2, progress = jsonb_build_object('phase', 'merging', 'done', merged_rows + $2, 'total', $3::bigint), updated_at = now() WHERE id = $1`, id, n, total)
+		if budget > 0 && time.Since(started) > budget {
+			return true
+		}
 	}
 	if err = s.linkCoOwners(ctx, sc, id); err != nil {
 		log.Printf("WARN linking co-owners of import %s: %v", id, err)
 	}
 	_, _ = s.st.db.Exec(ctx, `UPDATE importing.jobs SET status = 'done', progress = jsonb_build_object('phase', 'done', 'done', merged_rows, 'total', $2::bigint), updated_at = now() WHERE id = $1 AND status = 'merging'`, id, total)
-	s.hub.publish(org, []byte(`{"kind":"import.done","entity":"lead","seq":0}`))
+	// Through PostgreSQL, not this process's hub: the merge may run in crm-merge, and every copy of the API tells its browsers.
+	s.notify(ctx, org, "import.done", "lead")
 	go func() {
 		if err := s.learnJob(context.WithoutCancel(ctx), id); err != nil && !errors.Is(err, errLearningOff) {
 			log.Printf("WARN learning copy of import %s will be retried: %v", id, err)
 		}
 	}()
+	return false
 }
 
 // mergeBatch adds up to 50,000 new leads (and folds rows into the leads they matched), in one transaction. It returns how
@@ -700,31 +716,6 @@ func mergeBatchIn(ctx context.Context, tx pgx.Tx, sc scope, id string, project, 
 		}
 	}
 	return created + folded, nil
-}
-
-// resumeMerges continues imports that were merging when the service last stopped.
-func (s *server) resumeMerges(ctx context.Context) {
-	rows, err := s.st.db.Query(ctx, `SELECT id::text, status FROM importing.jobs WHERE status IN ('merging', 'call_merging') AND NOT cancel_requested`)
-	if err != nil {
-		log.Printf("WARN looking for imports to continue: %v", err)
-		return
-	}
-	type pending struct{ id, status string }
-	var ids []pending
-	for rows.Next() {
-		var item pending
-		if rows.Scan(&item.id, &item.status) == nil {
-			ids = append(ids, item)
-		}
-	}
-	rows.Close()
-	for _, item := range ids {
-		if item.status == "call_merging" {
-			go s.runCallMerge(ctx, item.id)
-		} else {
-			go s.runMerge(ctx, item.id)
-		}
-	}
 }
 
 // keepRows is how many days failed or cancelled imports retain their holding rows.

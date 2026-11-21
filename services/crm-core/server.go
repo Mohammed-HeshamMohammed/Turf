@@ -14,6 +14,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/riverqueue/river"
 )
 
 var version = "dev"
@@ -69,6 +72,7 @@ type server struct {
 	rules rules
 	st    *store
 	hub   *hub
+	jobs  *river.Client[pgx.Tx] // the job queue (queue.go)
 	now   func() time.Time
 	// Google Calendar (step 28, part B); nil when not set up.
 	calendar calendarAPI
