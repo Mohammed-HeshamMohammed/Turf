@@ -131,7 +131,7 @@ idempotency key and Centrifugo delivers it once.
    messaging_live" (the service makes that login, which may read and delete outbox rows only).
 3. **Caller Whale Live Server:** add `CENTRIFUGO_CONSUMERS_MESSAGING_ENABLED=true` and
    `CENTRIFUGO_CONSUMERS_MESSAGING_POSTGRESQL_DSN=postgres://messaging_live:<E>@<the messaging database's internal host>:5432/postgres?sslmode=require`
-   (the same host and database name as Messaging's `DATABASE_URL`), then redeploy. Its log must not show "error processing postgresql outbox".
+   (the same host and database name as Messaging's `DATABASE_URL`), then redeploy. Do step 2 first: with the reader on, the live server exits at start when it cannot log in, and Coolify keeps restarting it. Its log must not show "error initializing consumers" or "error processing postgresql outbox".
 4. Check: a team chat message arrives without reloading.
 5. **Caller Whale Messaging:** delete `LIVE_API_URL` and `LIVE_API_KEY`, redeploy, and check step 4 again. The log line "LIVE_API_URL
    is set" is gone. `CENTRIFUGO_HTTP_API_KEY` can stay on the Live Server (nothing calls the API then).

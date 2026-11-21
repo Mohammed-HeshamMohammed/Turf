@@ -19,7 +19,7 @@ at a time under an advisory lock and oldest first, wakes on the `messaging_outbo
 delivered. It is off in the file so a live server without the address still starts; Coolify turns it on with
 `CENTRIFUGO_CONSUMERS_MESSAGING_ENABLED=true` and `CENTRIFUGO_CONSUMERS_MESSAGING_POSTGRESQL_DSN` (the messaging database as the
 read-only login `messaging_live`; see `env/centrifugo.production.example`). With more than one live server, each reads safely: the
-lock lets one at a time take a partition. Details: `services/messaging/README.md`, "Live updates: how the outbox is read".
+lock lets one at a time take a partition. **Start-up depends on that database:** with the reader on, Centrifugo checks the login when it starts and exits if it cannot connect (wrong password, database down); Coolify restarts it until it can. Once running, a lost connection only pauses delivery (it retries, backing off up to 5 s). Details: `services/messaging/README.md`, "Live updates: how the outbox is read".
 
 ## Public and private
 

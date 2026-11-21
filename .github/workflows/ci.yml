@@ -80,6 +80,8 @@ jobs:
         # A real live server (the Centrifugo version services/live pins, with its config.json) reading the outbox of a database of its
         # own as the read-only login the service makes, so it never takes the other tests' queues.
         psql -h localhost -U postgres -c "CREATE DATABASE messaging_live_test"
+        # Centrifugo stops at start when it cannot log in, so the login exists first (the service then keeps its password and grants).
+        psql -h localhost -U postgres -c "CREATE ROLE messaging_live LOGIN PASSWORD 'test-live-login-password-0123456789'"
         image=$(sed -n 's#^FROM \(centrifugo/centrifugo:v[0-9.]*\).*#\1#p' ../live/Dockerfile)
         docker run -d --name live --network host -v "$PWD/../live/config.json:/centrifugo/config.json:ro" \
           -e CENTRIFUGO_CLIENT_TOKEN_HMAC_SECRET_KEY=test-live-e2e-token-secret-0123456789 \
