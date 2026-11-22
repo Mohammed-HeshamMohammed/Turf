@@ -5,8 +5,8 @@ deployed, handed over or reviewed on its own.
 
 | | |
 | --- | --- |
-| Made from | `main` at `0caadc6` (2026-11-22) |
-| Content id | `7003e0218dd8e66013880cf37d6e6dcda8bfdce0` (the branch changes only when this does) |
+| Made from | `main` at `6f1dfdc` (2026-11-22) |
+| Content id | `34ae97999878e8042ec0fa140d1fb4ebed5f9730` (the branch changes only when this does) |
 | Holds | `package.json`, `package-lock.json`, `.npmrc`, `packages`, `Cargo.toml`, `Cargo.lock`, `apps/crm`, `apps/crm-desktop`, `crates/desktop-features`, `apps/website/package.json`, `env/desktop.env.example`, `env/README.md` (224 files) |
 | Settings | `.env.example` at the root (from `env/desktop.env.example` on `main`): paste into Coolify's Developer View; secrets stay in Coolify |
 | Build and test | npm ci at the repository root, then npm run build in apps/crm; cargo test --workspace at the root (the window and the feature crates) |
