@@ -1,6 +1,6 @@
 package telnyx
 
-// Build step 25: reading a lead's reply for an opt-out (D207-D209, D351).
+// Reading a lead's reply for an opt-out (D207-D209, D351).
 //
 //   - A reply that is only an opt-out blocks at once, for this agency: "stop texting me" texts, "stop calling me" calls, and "stop",
 //     "leave me alone" or "never call me again" both (when unclear, both). The CRM keeps the block on the agency's list; the thread shows

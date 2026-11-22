@@ -1,6 +1,6 @@
 package telnyx
 
-// Build step 10, part B: working hours (D79), templates (D210), scheduled texts (D211) and one message to many leads (D212).
+// Working hours (D79), templates (D210), scheduled texts (D211) and one message to many leads (D212).
 
 import (
 	"context"
@@ -194,7 +194,7 @@ func textingWindow(t time.Time, zone *time.Location) time.Time {
 	return textingWindowIn(t, zone, textFromHour, textUntilHour)
 }
 
-// textingWindowIn is the same within the agency's own, shorter, hours (step 21, D151).
+// textingWindowIn is the same within the agency's own, shorter, hours (D151).
 func textingWindowIn(t time.Time, zone *time.Location, from, until int) time.Time {
 	if zone == nil {
 		zone = time.UTC

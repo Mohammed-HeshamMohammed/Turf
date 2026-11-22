@@ -43,7 +43,7 @@ type dialRequest struct {
 	TimeoutSecs   int
 	TimeLimitSecs int
 	Scenario      string // simulator only: which scenario to play (ignored by Telnyx; sent as a header only in simulate mode)
-	// Joining a live call (step 21): the call to join, and how (monitor, whisper, barge).
+	// Joining a live call: the call to join, and how (monitor, whisper, barge).
 	SuperviseID, SupervisorRole string
 }
 

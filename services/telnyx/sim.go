@@ -34,7 +34,7 @@ type simulator struct {
 
 	mu    sync.Mutex
 	calls map[string]*simCall
-	// Step 21: the calls joined (call|role) and the plain actions asked for (call|action), for tests to read.
+	// The calls joined (call|role) and the plain actions asked for (call|action), for tests to read.
 	supervisors []string
 	actions     []string
 	pending     []simStep
@@ -42,7 +42,7 @@ type simulator struct {
 	Dupes       bool
 	Reorder     bool
 	journal     []simEntry
-	brands      map[string]string // 10DLC brands (step 39): id -> display name
+	brands      map[string]string // 10DLC brands: id -> display name
 }
 
 type simStep struct {
@@ -329,7 +329,7 @@ func (s *simulator) dial(w http.ResponseWriter, r *http.Request) {
 		Role        string `json:"supervisor_role"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&ask)
-	// Joining a live call: a browser login that answers and listens, whispers or barges into the call (step 21).
+	// Joining a live call: a browser login that answers and listens, whispers or barges into the call.
 	if ask.Supervise != "" && strings.HasPrefix(ask.To, "sip:") && ask.Connection != "" {
 		s.mu.Lock()
 		target := s.calls[ask.Supervise]
@@ -420,7 +420,7 @@ func (s *simulator) play(c *simCall) {
 	case "human_answered", "callback", "do_not_call", "dropped":
 		s.after(c, 4*time.Second, func() {
 			s.answer(c, "human")
-			// What the lead says, heard by captions when the dialer started them (step 26).
+			// What the lead says, heard by captions when the dialer started them.
 			if line := scenarioLines[c.scenario]; line != "" {
 				s.after(c, 5*time.Second, func() { s.speakLine(c, line) })
 			}
@@ -659,7 +659,7 @@ func (s *simulator) say(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
-// brand answers 10DLC brand registration and reading (step 39): pending when created, verified when read, refused when the display
+// brand answers 10DLC brand registration and reading: pending when created, verified when read, refused when the display
 // name says "Refused".
 func (s *simulator) brand(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()

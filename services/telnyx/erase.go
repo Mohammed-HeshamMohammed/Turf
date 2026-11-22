@@ -1,8 +1,8 @@
 package telnyx
 
-// Build step 44 (D367): when an agency deletes a person's data on their request, the CRM lists the person's number here; the dialer
+// When an agency deletes a person's data on their request, the CRM lists the person's number here; the dialer
 // removes its calls (with their captions, signals and recordings' records), texts, threads, notes, alerts, consents and webhook copies
-// with that number in that agency, and tells the CRM it is done. The opt-out stays: the number is never texted again.
+// with that number in that agency, and tells the CRM it is done (D367). The opt-out stays: the number is never texted again.
 
 import (
 	"context"

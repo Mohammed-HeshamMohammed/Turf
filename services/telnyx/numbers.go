@@ -1,6 +1,6 @@
 package telnyx
 
-// Build step 21, part A: team numbers (D116), the number a lead already knows (D117), the hours leads may be called and texted
+// Team numbers (D116), the number a lead already knows (D117), the hours leads may be called and texted
 // (D151), agents' status (D152), and who an incoming call rings (D150).
 
 import (

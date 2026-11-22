@@ -80,8 +80,8 @@ type server struct {
 	webhookKey ed25519.PublicKey
 	sim        *simulator // simulate mode: the fake Telnyx this service talks to
 	now        func() time.Time
-	budget     budgets   // billing's budgets (step 22); nil: nothing is limited
-	reg        registrar // the carrier's 10DLC registration (step 39)
+	budget     budgets   // billing's budgets; nil: nothing is limited
+	reg        registrar // the carrier's 10DLC registration
 }
 
 type req struct {
@@ -129,7 +129,7 @@ func (s *server) handler() http.Handler {
 		}
 		return err
 	}))
-	// Live calls and recording (step 21, part B).
+	// Live calls and recording.
 	mux.Handle("POST /api/v1/calls/{id}/join", s.member(func(q *req) error {
 		var body struct {
 			Mode string `json:"mode"`
@@ -171,7 +171,7 @@ func (s *server) handler() http.Handler {
 		}
 		return err
 	}))
-	// Budgets (step 22).
+	// Budgets.
 	mux.Handle("PUT /api/v1/budgets", s.member(func(q *req) error {
 		var body budgetSet
 		if err := readJSON(q.w, q.r, &body); err != nil {
@@ -266,7 +266,7 @@ func (s *server) handler() http.Handler {
 	}))
 	mux.Handle("POST /api/v1/calls/token", s.member(s.callingToken))
 
-	// Captions and their signals (step 26, part B).
+	// Captions and their signals.
 	mux.Handle("GET /api/v1/calls/{id}/captions", s.member(func(q *req) error {
 		out, err := s.callCaptions(q.r.Context(), q.sc, q.r.PathValue("id"))
 		if err == nil {
@@ -348,7 +348,7 @@ func (s *server) handler() http.Handler {
 		}
 		return err
 	}))
-	// The agent's choice on a reply that may be an opt-out (step 25, D208).
+	// The agent's choice on a reply that may be an opt-out (D208).
 	mux.Handle("POST /api/v1/sms/{id}/opt-out", s.member(func(q *req) error {
 		var ask struct {
 			OptOut bool `json:"opt_out"`
@@ -363,7 +363,7 @@ func (s *server) handler() http.Handler {
 		return err
 	}))
 
-	// Lead threads (step 10): one sender, takeover by rank, notes, and the unanswered-text wait.
+	// Lead threads: one sender, takeover by rank, notes, and the unanswered-text wait.
 	mux.Handle("GET /api/v1/sms/threads/{lead}", s.member(func(q *req) error {
 		view, err := s.threadView(q.r.Context(), q.sc, q.r.PathValue("lead"))
 		if err == nil {
@@ -400,7 +400,7 @@ func (s *server) handler() http.Handler {
 		}
 		return err
 	}))
-	// Working hours, templates and one message to many leads (step 10, part B).
+	// Working hours, templates and one message to many leads.
 	mux.Handle("PUT /api/v1/sms/hours", s.member(func(q *req) error {
 		var body struct {
 			TeamID   string          `json:"team_id"`
@@ -451,7 +451,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("PUT /api/v1/sms/settings", s.member(func(q *req) error {
 		var body struct {
 			WaitMinutes  int `json:"wait_minutes"`
-			ContactFrom  int `json:"contact_from"` // hours leads may be called and texted, inside 8 to 21 (step 21)
+			ContactFrom  int `json:"contact_from"` // hours leads may be called and texted, inside 8 to 21
 			ContactUntil int `json:"contact_until"`
 		}
 		if err := readJSON(q.w, q.r, &body); err != nil {
@@ -470,7 +470,7 @@ func (s *server) handler() http.Handler {
 		return err
 	}))
 
-	// Agents' status (step 21, D152).
+	// Agents' status (D152).
 	mux.Handle("PUT /api/v1/status", s.member(func(q *req) error {
 		var body struct {
 			Status string `json:"status"`
@@ -492,7 +492,7 @@ func (s *server) handler() http.Handler {
 		return err
 	}))
 
-	// Unanswered texts from leads, for a team's leads (their team) or the owner and admins (step 32, D226).
+	// Unanswered texts from leads, for a team's leads (their team) or the owner and admins (D226).
 	mux.Handle("GET /api/v1/sms/waiting", s.member(func(q *req) error {
 		team := q.r.URL.Query().Get("team_id")
 		if !q.sc.runsAgency() && (team == "" || !slices.Contains(q.sc.managed, team)) {
@@ -654,7 +654,7 @@ func (s *server) putNumber(q *req) error {
 		UserID string `json:"user_id"`
 		Calls  *bool  `json:"calls"`
 		Texts  *bool  `json:"texts"`
-		// A team's number, or the agency's default for teams without one (step 21, D116).
+		// A team's number, or the agency's default for teams without one (D116).
 		TeamID  string `json:"team_id"`
 		Default bool   `json:"default"`
 	}

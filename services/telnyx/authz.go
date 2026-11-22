@@ -26,7 +26,7 @@ type grantReply struct {
 	Scopes       []string `json:"scopes"`
 	Capabilities []string `json:"capabilities"`
 	TeamIDs      []string `json:"team_ids"`
-	// Their roles and the teams they lead: who writes templates, sets hours and texts many leads at once (step 10).
+	// Their roles and the teams they lead: who writes templates, sets hours and texts many leads at once.
 	Roles          []string `json:"roles"`
 	ManagedTeamIDs []string `json:"managed_team_ids"`
 }

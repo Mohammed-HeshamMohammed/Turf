@@ -1,6 +1,6 @@
 package telnyx
 
-// Build step 21, part B: joining an agent's live call (D119), recording rules (D276, D277), voicemail messages (D278) and callbacks due
+// Joining an agent's live call (D119), recording rules (D276, D277), voicemail messages (D278) and callbacks due
 // while their agent is away (D153).
 
 import (

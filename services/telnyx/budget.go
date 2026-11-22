@@ -1,6 +1,6 @@
 package telnyx
 
-// Build step 22: budgets. Before a call or a text the dialer asks billing whether the lead's team, the person and the lead's client
+// Budgets. Before a call or a text the dialer asks billing whether the lead's team, the person and the lead's client
 // still have budget (and the agency its allowance); after it, it charges the call's minutes or the text to them, whoever made it
 // (D120, D122, D135). A budget used up stops those paid actions for the people under it, who can ask for more (D123). Replies from
 // leads are never charged. Without BILLING_URL nothing is limited.

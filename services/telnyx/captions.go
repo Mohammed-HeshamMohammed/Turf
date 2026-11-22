@@ -1,6 +1,6 @@
 package telnyx
 
-// Build step 26, part B: captions during a call and what they tell the agent (migrations/0007_captions_signals.sql).
+// Captions during a call and what they tell the agent (migrations/0007_captions_signals.sql).
 //
 //   - When a call is answered and the agency requires captions, or the AI's suggestions are on for the caller (the CRM says which, D148),
 //     the carrier transcribes the lead's side (Telnyx transcription_start, English, D285). Finished lines are kept; captions pause with

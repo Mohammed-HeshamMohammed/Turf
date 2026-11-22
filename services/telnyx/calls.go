@@ -63,7 +63,7 @@ type callRow struct {
 	CRMStatus          string     `db:"crm_status" json:"crm_status"`
 	CRMMessage         string     `db:"crm_message" json:"crm_message"`
 	RecordingReported  bool       `db:"recording_reported" json:"recording_reported"`
-	// Captions and the AI's suggestions on this call, and what the captions pre-selected (step 26).
+	// Captions and the AI's suggestions on this call, and what the captions pre-selected.
 	Captions         bool      `db:"captions" json:"captions"`
 	Suggestions      bool      `db:"suggestions" json:"suggestions"`
 	CaptionsPaused   bool      `db:"captions_paused" json:"captions_paused"`
@@ -118,7 +118,7 @@ type dialAsk struct {
 	Record           bool   `json:"record"`
 	VoicemailDropURL string `json:"voicemail_drop_url"`
 	Scenario         string `json:"scenario"` // simulate mode only
-	// One of the agency's recorded voicemail messages, instead of an address (step 21, D278).
+	// One of the agency's recorded voicemail messages, instead of an address (D278).
 	VoicemailDropID string `json:"voicemail_drop_id"`
 }
 
@@ -129,7 +129,7 @@ func (s *server) placeCall(ctx context.Context, sc scope, ask dialAsk) (*callRow
 	if !validID(ask.LeadID) {
 		return nil, bad("Choose a lead (lead_id).")
 	}
-	// The carriers verified the agency's business (step 39, D314).
+	// The carriers verified the agency's business (D314).
 	if err := s.callingAllowed(ctx, sc.orgID); err != nil {
 		return nil, err
 	}
@@ -148,11 +148,11 @@ func (s *server) placeCall(ctx context.Context, sc scope, ask dialAsk) (*callRow
 	if to == "" {
 		return nil, conflictErr("The lead's phone number is not a number that can be dialled.")
 	}
-	// Only inside the hours leads may be called (step 21, D151), from the number the lead knows or their team's (D116, D117).
+	// Only inside the hours leads may be called (D151), from the number the lead knows or their team's (D116, D117).
 	if err := s.mayContactNow(ctx, sc.orgID); err != nil {
 		return nil, err
 	}
-	// Within the lead's team's, the person's and the agency's budgets (step 22).
+	// Within the lead's team's, the person's and the agency's budgets.
 	if err := s.mayUse(ctx, sc.orgID, sc.userID, lead, "minutes"); err != nil {
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func (s *server) placeCall(ctx context.Context, sc scope, ask dialAsk) (*callRow
 		scenario = strings.TrimSpace(ask.Scenario)
 	}
 	id := newUUID()
-	// Captions when the agency requires them or the AI's suggestions are on for this person (step 26, D148).
+	// Captions when the agency requires them or the AI's suggestions are on for this person (D148).
 	if _, err = s.st.db.Exec(ctx, `INSERT INTO calls (id, org_id, user_id, lead_id, direction, from_number, to_number, route, scenario, amd_mode, record, voicemail_drop_url,
 			captions, suggestions)
 		VALUES ($1, $2, $3, $4, 'outgoing', $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
@@ -395,7 +395,7 @@ func (s *server) react(ctx context.Context, ev event, c *callRow) {
 		}
 	}
 	live := c.EndedAt == nil
-	// Captions (step 26): started on the answered call, read line by line.
+	// Captions: started on the answered call, read line by line.
 	if ev.EventType == "call.answered" && leg == "" && live && c.Captions && !c.CaptionsPaused {
 		s.startCaptions(ctx, c)
 	}
@@ -413,7 +413,7 @@ func (s *server) react(ctx context.Context, ev event, c *callRow) {
 		do("speak", map[string]any{"payload": recordingNotice, "voice": "female", "language": "en-US"})
 		do("record_start", map[string]any{"format": "mp3", "channels": "single"})
 	case ev.EventType == "call.answered" && leg == "" && live && c.Direction == "incoming":
-		// Ring the lead's agent, else the team's available agents, then its leads (step 21, D150); nobody available: the caller leaves
+		// Ring the lead's agent, else the team's available agents, then its leads (D150); nobody available: the caller leaves
 		// a voicemail, recorded on the lead.
 		target, err := s.inboundTarget(ctx, c.OrgID, c.UserID, c.FromNumber)
 		var username string
@@ -676,7 +676,7 @@ func (s *server) settle(ctx context.Context, id string) error {
 	if err = tx.Commit(ctx); err != nil {
 		return err
 	}
-	// The talk time is charged to the lead's team and the caller, once (step 22).
+	// The talk time is charged to the lead's team and the caller, once.
 	s.chargeCall(ctx, c)
 	return nil
 }
