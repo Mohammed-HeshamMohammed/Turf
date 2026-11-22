@@ -1,5 +1,7 @@
 # Auth rebuild in Go, on Firebase
 
+**Now (2026-11-22):** built and running as `services/auth` (Go); below is the plan it was built from.
+
 Status: plan, nothing built yet. Decided with the owner on 2026-11-03. This replaces an earlier draft that proposed Zitadel; Zitadel is dropped.
 
 ## Decisions

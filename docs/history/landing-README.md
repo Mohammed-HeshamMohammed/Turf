@@ -13,7 +13,7 @@ The public site that sells Caller Whale (Phase 1 of `docs/plans/service-architec
 
 ## Accounts
 
-The header has **Sign in** and **Sign up** (through the auth service: email and password, or Google). The site asks the core API what the signed-in person may see: `/dashboard` (credits, usage and the download) only for people Caller Whale invited, `/admin` (invite, set limits, suspend, watch usage) only for Caller Whale's staff. See `docs/plans/callerwhale-launch.md`. The sign-in client is `src/auth/firebase-auth-client.js`, a copy kept in step by `services/auth/clients/sync.mjs`; the Firebase SDK is loaded only when someone signs in.
+The header has **Sign in** and **Sign up** (through the auth service: email and password, or Google). The site asks the core API what the signed-in person may see: `/dashboard` (credits, usage and the download) only for people Caller Whale invited, `/admin` (invite, set limits, suspend, watch usage) only for Caller Whale's staff. See `docs/history/plans/callerwhale-launch.md`. The sign-in client is `src/auth/firebase-auth-client.js`, a copy kept in step by `services/auth/clients/sync.mjs`; the Firebase SDK is loaded only when someone signs in.
 
 ## Pages
 

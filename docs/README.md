@@ -1,0 +1,43 @@
+# Caller Whale docs
+
+Start here. Caller Whale is a CRM for real-estate lead calling: a CRM app (desktop and browser), the public website, and the
+services behind them, all in this repository.
+
+## How it fits together
+
+```
+browser / desktop app ──► gateway (the one public entry) ──► auth · authz · crm-core · messaging · telnyx-* · importing-* · …
+                                                            │
+             centrifugo (live updates) ◄── messaging outbox  └──► PostgreSQL (each service its own database)
+```
+
+- **Every service is its own container** on one VPS, run by Coolify from images GitHub Actions builds. The list, with ports and
+  what each does: [contracts/services.md](../contracts/services.md).
+- **Services talk privately** by network name; only the gateway is public, behind Cloudflare.
+- **Big services are split by work, not copied** (D389): crm-core runs as crm-core, crm-merge and crm-outbox; Telnyx calls and
+  texts as six `telnyx-*` containers; importing as importing-lists and importing-worker. Auth, authz and notifications always stay
+  one container each (D390).
+
+## Where things are
+
+| You want to | Read |
+| --- | --- |
+| Find your way around the code | [README.md](../README.md) (the folders) and each service's own `README.md` |
+| Know why things are the way they are | [The decision list (D-numbers)](plans/people-teams-chats-clients/09-repository-and-releases.md) |
+| Change code and get it to `main` | [AGENTS.md](../AGENTS.md): branch, pull request, CI summary, merge commit |
+| Ship to production | [Production branches and images](plans/production-branches.md), then approve the `production` environment in GitHub |
+| Set up or change a Coolify app | `docs/plans/coolify-setup-*.md`, [coolify-image-swap.md](plans/coolify-image-swap.md) (images and the deploy puller) |
+| Handle secrets, tokens and upkeep | [security-upkeep.md](plans/security-upkeep.md), [rotating-service-tokens.md](operations/rotating-service-tokens.md), [SECURITY.md](../SECURITY.md) |
+| Watch the system | [grafana-access.md](plans/grafana-access.md) (Grafana, alerts) and each service's `/healthz` |
+| Back up and restore | [backups-and-recovery.md](plans/backups-and-recovery.md) |
+| Understand a feature and its pricing | [features/](features/README.md) (one file per feature) and [plans/README.md](plans/README.md) (tiers and seats) |
+| Check a legal point | [legal/](legal/) and the law research in `plans/campaigns-law-*.md`, `plans/learning-store-*.md` |
+| See the website's design | [design/](design/) and [plans/web-rebuild/](plans/web-rebuild/README.md) |
+
+## How the docs are organised
+
+- `docs/plans/` holds what is being built or still runs: designs, rollouts, research behind open decisions. Each starts with a
+  **Status** line; trust the code when they disagree, and fix the doc.
+- `docs/history/` holds what is finished or replaced (older layouts, dated reviews and tests, superseded plans). It is kept for the
+  record and is not kept up to date.
+- `docs/features/`, `docs/legal/`, `docs/design/`, `docs/product/`, `docs/saas/` and `docs/operations/` are what their names say.

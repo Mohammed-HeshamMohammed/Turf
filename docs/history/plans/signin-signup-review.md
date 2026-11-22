@@ -12,7 +12,7 @@ Every item below is **to do**. "Seen" means I saw it on the live page or in a li
 
 3. **The pages say "by invitation" but look open.** Read/seen: the header has a big **Sign up** button, the sign-up page is a normal form, and `AUTH_PUBLIC_SIGNUP=false` in production, so an uninvited person finds out only after filling it in and passing the human check. **Do:** pick one: either explain on the page what happens without an invitation (and keep the form), or check the invitation first (an "enter the email you were invited with" step), and rename the header button if sign-up is not for everyone.
 
-4. **The password rules disagree.** Seen/Read: the page and the auth service enforce **8–4096 characters** (five rules). `docs/plans/callerwhale-launch.md` and `docs/plans/firebase-auth.md` both say **12+ characters** (and say Firebase's password policy is set to 12+). **Do:** decide the real minimum, then make the page, auth, Firebase's policy and the docs say the same thing.
+4. **The password rules disagree.** Seen/Read: the page and the auth service enforce **8–4096 characters** (five rules). `docs/history/plans/callerwhale-launch.md` and `docs/plans/firebase-auth.md` both say **12+ characters** (and say Firebase's password policy is set to 12+). **Do:** decide the real minimum, then make the page, auth, Firebase's policy and the docs say the same thing.
 
 ## Should fix
 

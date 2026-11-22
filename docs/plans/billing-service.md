@@ -1,5 +1,7 @@
 # Billing service: its own container and its own language
 
+**Now (2026-11-22):** built as `services/billing` and deployed; parked (it restarts until the short `core-api=` token leaves `BILLING_TOKENS`). Below is the plan.
+
 Status: plan, nothing built. The owner decided on 2026-11-04 that billing leaves the core API and is not part of authorization: it gets its own container and its own language. The language was left to research (below).
 
 ## Language: Python
