@@ -118,10 +118,11 @@ jobs:
         if: env.PUSH == 'true'
         env:
           REBUILD: ${{ github.event_name == 'schedule' || inputs.rebuild == true }}
+          CONTENT: ${{ steps.files.outputs.content }}
         run: |
-          if [ "$REBUILD" != true ] && docker buildx imagetools inspect "$REF:content-${{ steps.files.outputs.content }}" > /dev/null 2>&1; then
+          if [ "$REBUILD" != true ] && docker buildx imagetools inspect "$REF:content-$CONTENT" > /dev/null 2>&1; then
             echo "already=true" >> "$GITHUB_OUTPUT"
-            echo "$REF:content-${{ steps.files.outputs.content }} is in the registry already; nothing to build." >> "$GITHUB_STEP_SUMMARY"
+            echo "$REF:content-$CONTENT is in the registry already; nothing to build." >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Build${{ env.PUSH == 'true' && ' and push' || '' }}
@@ -155,9 +156,13 @@ jobs:
 
       - name: Digest
         if: steps.build.outputs.digest
+        env:
+          IMAGE: ${{ matrix.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          CONTENT: ${{ steps.files.outputs.content }}
         run: |
-          echo "| ${{ matrix.image }} | \`${{ steps.build.outputs.digest }}\` | content-${{ steps.files.outputs.content }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "$REF@${{ steps.build.outputs.digest }}"
+          echo "| $IMAGE | \`$DIGEST\` | content-$CONTENT |" >> "$GITHUB_STEP_SUMMARY"
+          echo "$REF@$DIGEST"
 
       # Step 48: an image that runs in Coolify (its "deploy" entry in production.json) leaves a record for the deploy job.
       - name: Deploy record
