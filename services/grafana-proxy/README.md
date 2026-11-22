@@ -1,6 +1,6 @@
 # Grafana login proxy
 
-Lets only Caller Whale's platform owner, cofounder, and system administrators into Grafana after MFA. Auth validates the session (`GET /v1/me`) and returns the current platform role (`GET /v1/me/access`). The proxy passes the approved identity to Grafana in its auth-proxy headers (`X-WEBAUTH-USER`, `-EMAIL`, `-NAME`, `-ROLE`). Plan and progress: [docs/plans/grafana-access.md](../../docs/plans/grafana-access.md).
+Lets only Caller Whale's platform owner, cofounder, and system administrators into Grafana after MFA. Auth validates the session (`GET /v1/me`) and returns the current platform role (`GET /v1/me/access`). The proxy passes the approved identity to Grafana in its auth-proxy headers (`X-WEBAUTH-USER`, `-EMAIL`, `-NAME`, `-ROLE`). Plan and progress: [docs/operations/grafana-access.md](../../docs/operations/grafana-access.md).
 
 The gateway routes `/staff/monitoring/` to this proxy. Neither the proxy nor Grafana has its own public domain.
 

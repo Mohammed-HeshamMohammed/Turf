@@ -17,7 +17,7 @@ Seven things that are built, tested and deployed on their own:
 | 6 | **Notification service** | VPS, alone | Email, SMS, push, in-app. Nothing else |
 | 7 | **Feature services** | VPS, one each | Importing lists, Skip Tracing, Dialer/SMS, Leads map, CRM, AI campaigns, Exports, Backup/restore |
 
-Feature 9 in `docs/features` (accounts, security, billing) is not a feature service: accounts and security are piece 5, billing lives with the landing backend and a small `billing` service (see Decisions).
+Feature 9 in `docs/pricing-and-market/features` (accounts, security, billing) is not a feature service: accounts and security are piece 5, billing lives with the landing backend and a small `billing` service (see Decisions).
 
 ## Rules
 
@@ -126,7 +126,7 @@ Goal: you tell Claude "release 0.4.0" and it ships.
 | 3 | **Restructure** the repo to the target layout (move, re-point configs, no behaviour change) | All existing tests pass from the new paths |
 | 4 | **Auth service** split out of `server/rust`, own database, JWKS | The desktop and landing sign in through it; CRM verifies tokens locally |
 | 5 | **Notification service** split out, event contract, email first, SMS next | Sign-up and invoice emails go through it |
-| 6 | **Gateway** and the **feature service template**; move CRM first, then one feature at a time in the order of `docs/features` | Each feature has its own service, database, contract and tests |
+| 6 | **Gateway** and the **feature service template**; move CRM first, then one feature at a time in the order of `docs/pricing-and-market/features` | Each feature has its own service, database, contract and tests |
 | 7 | **Desktop feature modules** under `crates/desktop-features/` | Each feature runs offline from its own module |
 
 Phases 1 and 2 come before the restructure because they are what lets you sell and ship; they only add folders. Phases 3 to 7 are the large refactor and should land one phase per pull request.

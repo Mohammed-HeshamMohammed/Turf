@@ -1,4 +1,4 @@
-# crm-core (plan: docs/plans/crm-core-and-imports.md). Build with the repository root as the context:
+# crm-core (plan: docs/history/plans/crm-core-and-imports.md). Build with the repository root as the context:
 #   docker build -f services/crm-core/Dockerfile .
 FROM golang:1 AS runtime-log-build
 COPY packages/go/runtimelog /src

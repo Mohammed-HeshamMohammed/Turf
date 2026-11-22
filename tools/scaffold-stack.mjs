@@ -110,7 +110,7 @@ put(
   join(root, "services", "README.md"),
   `# Services
 
-The server side of Caller Whale CRM: one folder per service, each with its own code, tests, \`openapi.yaml\`, \`Dockerfile\` and (when it owns data) \`database_setup/\`. See [the plan](../docs/plans/service-architecture.md) for why, and [the registry](../contracts/services.md) for ports and events.
+The server side of Caller Whale CRM: one folder per service, each with its own code, tests, \`openapi.yaml\`, \`Dockerfile\` and (when it owns data) \`database_setup/\`. See [the plan](../docs/history/plans/service-architecture.md) for why, and [the registry](../contracts/services.md) for ports and events.
 
 | Service | Folder | Language | Port | Owns data | Job |
 | --- | --- | --- | --- | --- | --- |
@@ -185,7 +185,7 @@ const composeServices = stack.services
   .join("\n");
 put(
   join(root, "deploy", "compose", "compose.yml"),
-  `# Every service on one machine (decision 1 of docs/plans/service-architecture.md). Only the gateway is published.
+  `# Every service on one machine (decision 1 of docs/history/plans/service-architecture.md). Only the gateway is published.
 # From the repository root:  docker compose --env-file env/compose.env -f deploy/compose/compose.yml up --build
 # The secrets come from env/compose.env (node tools/env-init.mjs creates it; env/README.md).
 name: callerwhale

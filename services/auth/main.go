@@ -1,6 +1,6 @@
 // Auth: the one source of truth for who someone is, for every Caller Whale app and service. Firebase holds accounts and passwords;
 // this service adds the second steps, sessions, refresh tokens and the signed access tokens every other service checks.
-// The human check is not here: it is in the gateway. Plan: docs/plans/go-auth.md.
+// The human check is not here: it is in the gateway. Plan: docs/history/plans/go-auth.md.
 package main
 
 import (

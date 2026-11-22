@@ -8,7 +8,7 @@ package main
 //  3. The gateway's own health and version answers are for callers inside the private network only; nothing identifies the software in
 //     headers.
 //
-// Plan: docs/plans/gateway.md.
+// Plan: docs/history/plans/gateway.md.
 
 import (
 	"net/http"

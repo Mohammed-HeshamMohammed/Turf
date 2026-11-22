@@ -141,7 +141,7 @@ flowchart LR
 
 Calling is fourth because it has the most unknowns, but its two risks (the desktop window's microphone, registration lead time) are tested in step 0.
 
-**Rollout status and what is left to do (DNS, gateway, switching the CRM on): [messaging-rollout-status.md](messaging-rollout-status.md).**
+**Rollout status and what is left to do (DNS, gateway, switching the CRM on): [messaging-rollout-status.md](../history/plans/messaging-rollout-status.md).**
 
 ## Built so far
 

@@ -212,7 +212,7 @@ export function createAuth({ base, storage = globalThis.localStorage, tabStorage
     /** A one-time code that hands this sign-in to the desktop app (sent only to 127.0.0.1 by the website page). */
     /** A one-time code that signs the same person in somewhere else: the desktop app (the default), or the CRM web app (`kind` "browser"). */
     handoff: (kind = "desktop") => withToken("POST", "/v1/handoffs", { kind }).then(answer => answer.code),
-    // ---- the second step (docs/plans/second-factor.md) ----
+    // ---- the second step (docs/history/plans/second-factor.md) ----
     /**
      * After the password, a person who set up a second step gets `mfa_required` with `error.data = { challenge, methods }`
      * (methods: "totp", "email", "telegram", "push"). `sendCode` asks for an email or Telegram code, or an approval on a

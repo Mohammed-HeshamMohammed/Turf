@@ -4,7 +4,7 @@
 
 **Superseded in part (same day):** the all-state table, the charges, and corrected quiet-hours and state-gate rules are in [`campaigns-law-all-states.md`](campaigns-law-all-states.md). Rule 4 below (9 am to 7 pm, Monday to Saturday) is wrong for Rhode Island and Kentucky: use the per-state table there, with Monday to Friday 10 am to 5 pm as the fallback.
 
-It updates `docs/features/06-ai-campaigns.md` (the campaign spec) and follows the same rule as the learning store: law first.
+It updates `docs/pricing-and-market/features/06-ai-campaigns.md` (the campaign spec) and follows the same rule as the learning store: law first.
 
 ## 1. The short answer for the case
 

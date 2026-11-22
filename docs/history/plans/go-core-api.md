@@ -74,7 +74,7 @@ Roles stay as they are today (owner, member, staff, platform roles); staff route
 
 ## Runtime logs
 
-Same adapter as every other service (`docs/design/notes/Runtime logs.md`): the container runs behind `callerwhale-log`, `/healthz` stays quiet when it succeeds, and the line for a failed request names the real reason (the Rust service already logs `request failed` with it; keep that).
+Same adapter as every other service (`docs/operations/runtime-logs.md`): the container runs behind `callerwhale-log`, `/healthz` stays quiet when it succeeds, and the line for a failed request names the real reason (the Rust service already logs `request failed` with it; keep that).
 
 ## Order of work
 

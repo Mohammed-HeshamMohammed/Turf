@@ -30,7 +30,7 @@ Apply [discovery](../02-discovery.md) and [security](../03-security.md) contract
 
 ## Page acceptance
 
-Every capability maps to docs/features or a verified implementation; Coming/Preview labels are consistent. Deep-linked anchors work on reload and keyboard focus is sensible.
+Every capability maps to docs/pricing-and-market/features or a verified implementation; Coming/Preview labels are consistent. Deep-linked anchors work on reload and keyboard focus is sensible.
 Record desktop/mobile light/dark evidence and loading, empty, success and failure states as applicable. Mark unsupported states explicitly rather than silently omit them.
 
 ## Detailed implementation brief

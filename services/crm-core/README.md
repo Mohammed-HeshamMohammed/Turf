@@ -1,6 +1,6 @@
 # crm-core
 
-The CRM's backend: leads, tasks, notes, calls and deals, synced to the web CRM and desktop app. The import worker receives files and stores their rows in PostgreSQL; Core reviews and merges those rows. Plan: [docs/plans/crm-core-and-imports.md](../../docs/plans/crm-core-and-imports.md).
+The CRM's backend: leads, tasks, notes, calls and deals, synced to the web CRM and desktop app. The import worker receives files and stores their rows in PostgreSQL; Core reviews and merges those rows. Plan: [docs/history/plans/crm-core-and-imports.md](../../docs/history/plans/crm-core-and-imports.md).
 
 | | |
 | --- | --- |
@@ -167,7 +167,7 @@ All for the owner or an admin of each agency (`lead_referrals` sits outside eith
 
 ## Restoring one agency from a backup (build step 41)
 
-See `docs/plans/backups-and-recovery.md`. Staff (owner or cofounder, second step): `GET/POST /api/v1/platform/restores`, `POST …/{id}/run`, `POST …/{id}/cancel`. The agency's owner: `GET /api/v1/restores`, `POST /api/v1/restores/{id}/confirm` (second step). The run needs `RESTORE_COPY_URL`. A pull from before a restore answers `reset`.
+See `docs/operations/backups-and-recovery.md`. Staff (owner or cofounder, second step): `GET/POST /api/v1/platform/restores`, `POST …/{id}/run`, `POST …/{id}/cancel`. The agency's owner: `GET /api/v1/restores`, `POST /api/v1/restores/{id}/confirm` (second step). The run needs `RESTORE_COPY_URL`. A pull from before a restore answers `reset`.
 
 ## A lead's data request (build step 44)
 

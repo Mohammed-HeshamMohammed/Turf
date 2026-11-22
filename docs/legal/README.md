@@ -13,8 +13,8 @@ Everything a US privacy and technology lawyer needs to review Caller Whale is in
 | Retention and deletion schedule | owner, lawyer | [retention-schedule.md](retention-schedule.md) |
 | Breach response plan | owner | [breach-response-plan.md](breach-response-plan.md) |
 | Key custody procedure | owners | [key-custody.md](key-custody.md) |
-| US law map (research with sources) | lawyer | [../plans/learning-store-us-law.md](../plans/learning-store-us-law.md) |
-| Learning store compliance note | lawyer | [../plans/learning-store-compliance.md](../plans/learning-store-compliance.md) |
+| US law map (research with sources) | lawyer | [../plans/learning-store-us-law.md](research/learning-store-us-law.md) |
+| Learning store compliance note | lawyer | [../plans/learning-store-compliance.md](research/learning-store-compliance.md) |
 
 ## How the texts reach the product
 

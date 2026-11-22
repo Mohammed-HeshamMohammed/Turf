@@ -1,6 +1,6 @@
 // Authorization: decides what each person may do, and which database rights each request runs under. It has no public
 // address: only Caller Whale's own services call it, each with its own token. The rules live in PostgreSQL.
-// Plan: docs/plans/authorization-service.md.
+// Plan: docs/history/plans/authorization-service.md.
 package main
 
 import (

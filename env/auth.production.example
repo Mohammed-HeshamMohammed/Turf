@@ -31,7 +31,7 @@ AUTHZ_URL=http://authz:8104
 # Use the exact same 64-character value after auth= in authz. Save as a runtime variable, keep it unavailable during build, then redeploy auth after authz.
 # Secret caller token: the same value as the auth entry in authz's AUTHZ_TOKENS, saved as a runtime variable. Never expose it in frontend settings or a public URL.
 AUTHZ_TOKEN=<same new auth token from authz's AUTHZ_TOKENS auth entry>
-# Firebase: only this service uses it (docs/plans/firebase-auth.md). Firebase console -> Project settings -> General -> Web API key.
+# Firebase: only this service uses it (docs/history/plans/firebase-auth.md). Firebase console -> Project settings -> General -> Web API key.
 # Firebase project's Web API key, used only by auth's server-side broker. Not a service-account private key; changing it selects a different Firebase project.
 AUTH_FIREBASE_API_KEY=<Web API key>
 # Google sign-in: the Web client Firebase made (Google Cloud -> Credentials). Redirect URI: https://auth.callerwhale.com/v1/oauth/google/callback
@@ -39,7 +39,7 @@ AUTH_FIREBASE_API_KEY=<Web API key>
 AUTH_GOOGLE_CLIENT_ID=<client id>
 # Secret for the optional direct Google OAuth client. Must match its client ID; Firebase-managed broker flow does not require this direct-client override.
 AUTH_GOOGLE_CLIENT_SECRET=<client secret>
-# Second step (docs/plans/second-factor.md). Email codes are sent by the notification service, which holds the mail login: this
+# Second step (docs/history/plans/second-factor.md). Email codes are sent by the notification service, which holds the mail login: this
 # service only needs its address and its own token there (the "auth" token in the notification service's NOTIFY_TOKENS).
 # Telegram: optional, leave empty to not offer it. Authenticator apps and approvals on another device need nothing.
 # Notification service private address (http://notifications:8102), never a public one. Set with AUTH_NOTIFY_TOKEN for email codes to be offered.

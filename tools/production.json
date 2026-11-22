@@ -1,5 +1,5 @@
 {
-  "comment": "One production branch per part (docs/plans/production-branches.md). `checks`: GitHub checks that must have passed on the commit, besides CI summary, before the branch changes. `paths` are relative to `base` (an entry {\"from\": ..., \"to\": ...} puts that folder somewhere else in the branch, so a Coolify setting that names a path keeps working) (default 'Caller Whale CRM'); a branch holds only those, at those paths, plus .gitignore. `rust: true` adds the Cargo workspace file, cut down to the members present, and Cargo.lock (`rust: \"<folder>\"`: from and to that folder). The web apps, the services (step 50+51, with packages/go) and the desktop app use `base: \"\"` (the repository layout, apps/ since step 52), so their branches carry the npm workspace: the root package.json, its lock file and packages/ (D383, step 49); the desktop branch carries the root Rust workspace whole. `images`: the container images built from the branch's files (.github/workflows/images.yml, step 47): `context` and `dockerfile` are paths in the branch; `buildArgs` maps a build argument to the repository's Actions variable that holds it.",
+  "comment": "One production branch per part (docs/operations/production-branches.md). `checks`: GitHub checks that must have passed on the commit, besides CI summary, before the branch changes. `paths` are relative to `base` (an entry {\"from\": ..., \"to\": ...} puts that folder somewhere else in the branch, so a Coolify setting that names a path keeps working) (default 'Caller Whale CRM'); a branch holds only those, at those paths, plus .gitignore. `rust: true` adds the Cargo workspace file, cut down to the members present, and Cargo.lock (`rust: \"<folder>\"`: from and to that folder). The web apps, the services (step 50+51, with packages/go) and the desktop app use `base: \"\"` (the repository layout, apps/ since step 52), so their branches carry the npm workspace: the root package.json, its lock file and packages/ (D383, step 49); the desktop branch carries the root Rust workspace whole. `images`: the container images built from the branch's files (.github/workflows/images.yml, step 47): `context` and `dockerfile` are paths in the branch; `buildArgs` maps a build argument to the repository's Actions variable that holds it.",
   "components": [
     {
       "name": "website-production",
@@ -442,7 +442,7 @@
         "services/grafana-proxy",
         "services/alert-relay",
         "packages/go",
-        "docs/plans/grafana-access.md",
+        "docs/operations/grafana-access.md",
         "env/grafana.production.example"
       ],
       "build": "go test ./... in services/grafana-proxy; in Coolify: a Docker Compose resource from this branch with deploy/grafana/compose.yml (deploy/grafana/README.md)",

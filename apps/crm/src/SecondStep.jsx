@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { DeviceMobile, EnvelopeSimple, PaperPlaneTilt, ShieldCheck, TelegramLogo } from "@phosphor-icons/react";
 import { Button, Field } from "./ui.jsx";
 
-// The second step after the password (docs/plans/second-factor.md): choose how to confirm it is you, then confirm. The auth
+// The second step after the password (docs/history/plans/second-factor.md): choose how to confirm it is you, then confirm. The auth
 // service offers only the ways this person has, and decides whether the answer is right.
 
 const NAMES = { totp: "Authenticator app", email: "Email", telegram: "Telegram", push: "Approve on another device" };

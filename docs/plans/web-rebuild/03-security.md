@@ -1,7 +1,7 @@
 # Identity, human verification and privacy
 
 Status: Proposed. Parent: [Web rebuild plan](README.md).
-Current implementation reference: [bot protection](../bot-protection.md).
+Current implementation reference: [bot protection](../../operations/bot-protection.md).
 
 ## Service responsibilities
 

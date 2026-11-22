@@ -4,7 +4,7 @@
 
 The proposed website/dashboard rebuild is documented in the [web rebuild plan](../plans/web-rebuild/README.md), with one plan per page. The account description below contains historical details: current identity is brokered by the auth service, the browser does not use Firebase directly, and staff tools belong to dashboard admin mode rather than a public /admin page. Use current source and the new plan's baseline when implementing.
 
-The public site that sells Caller Whale (Phase 1 of `docs/plans/service-architecture.md`). Two parts, each with its own folder and nothing shared at run time.
+The public site that sells Caller Whale (Phase 1 of `docs/history/plans/service-architecture.md`). Two parts, each with its own folder and nothing shared at run time.
 
 | Folder | What | Stack |
 | --- | --- | --- |
@@ -21,10 +21,10 @@ The header has **Sign in** and **Sign up** (through the auth service: email and 
 | Page | Source of its text |
 | --- | --- |
 | Home | Hero, the five tools Caller Whale replaces, feature cards, a tour of four screens, how it works, audiences, plans, FAQ |
-| Features | One section per feature in `docs/features/`, each with its screen, what works today, and what is coming |
-| Pricing | A plan builder (the team size, each of five features Off / Standard / Power with its own number of people, extras, a live total) over the draft prices from `docs/plans/README.md`, then four ready-made plans, ten more (List Cleaner, Data Desk, Caller, Call Floor and others, each openable in the builder) and a comparison table. The CRM is a free base in every plan, and one person pays at most $179 a month for features (the all-in price). The cap lowers the software part only, never the metered costs. See `docs/plans/positioning.md`. The arithmetic is in `web/src/plan.js` with tests in `web/tests`. Checkout is off. See `docs/plans/custom-plans.md` |
+| Features | One section per feature in `docs/pricing-and-market/features/`, each with its screen, what works today, and what is coming |
+| Pricing | A plan builder (the team size, each of five features Off / Standard / Power with its own number of people, extras, a live total) over the draft prices from `docs/pricing-and-market/README.md`, then four ready-made plans, ten more (List Cleaner, Data Desk, Caller, Call Floor and others, each openable in the builder) and a comparison table. The CRM is a free base in every plan, and one person pays at most $179 a month for features (the all-in price). The cap lowers the software part only, never the metered costs. See `docs/pricing-and-market/positioning.md`. The arithmetic is in `web/src/plan.js` with tests in `web/tests`. Checkout is off. See `docs/pricing-and-market/custom-plans.md` |
 | Why Caller Whale | One app instead of five, with a list of where Caller Whale is limited. Competitors are not named and no competitor prices are quoted |
-| Security | What `docs/features/09-accounts-security-billing.md` says is built, and what is not |
+| Security | What `docs/pricing-and-market/features/09-accounts-security-billing.md` says is built, and what is not |
 
 All copy lives in `web/src/content.js`. Every feature and security point carries a status: **In the app now**, **In preview** (works with sample data) or **Coming at launch**. Keep these honest: change the status when the work lands.
 

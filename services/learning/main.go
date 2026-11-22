@@ -1,5 +1,5 @@
 // learning: the separate store of what Caller Whale learns from imported lists. It holds keyed hashes and shapes of leads, never the
-// leads themselves, in its own database that crm-core and the import worker cannot read. Plan: docs/plans/learning-store-compliance.md.
+// leads themselves, in its own database that crm-core and the import worker cannot read. Plan: docs/legal/research/learning-store-compliance.md.
 package main
 
 import (

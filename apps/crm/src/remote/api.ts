@@ -187,7 +187,7 @@ export const api = {
   op: operation => request("POST", "/api/v1/ops", operation),
   rules: () => request("GET", "/api/v1/rules"),
   saveRule: (id, rule) => request("PUT", "/api/v1/rules/" + id, rule),
-  /** List uploads (docs/plans/crm-core-and-imports.md). The pieces themselves go through remote/imports.ts. */
+  /** List uploads (docs/history/plans/crm-core-and-imports.md). The pieces themselves go through remote/imports.ts. */
   imports: {
     start: (body): Promise<any> => request("POST", "/api/v1/imports", body),
     list: (kind = "lead_list"): Promise<any[]> => request("GET", `/api/v1/imports?kind=${encodeURIComponent(kind)}`),

@@ -1,4 +1,4 @@
-// Uploading a list to Caller Whale's server and following it through the steps (docs/plans/crm-core-and-imports.md). The browser cuts the
+// Uploading a list to Caller Whale's server and following it through the steps (docs/history/plans/crm-core-and-imports.md). The browser cuts the
 // file into pieces the server names (about 8 MB), sends three at a time, each with its SHA-256 fingerprint; a piece that fails is sent
 // again, and an upload that was interrupted carries on from the pieces the server already holds. The server does the rest.
 

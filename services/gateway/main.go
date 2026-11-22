@@ -3,7 +3,7 @@
 // private is not found, a request that needs a signed-in person must carry a valid Caller Whale token (signature, issuer,
 // audience and expiry, checked with the auth service's public keys), staff paths also need the authenticator step, and each
 // address and each person has a rate limit. The services behind it check again for themselves: the gateway narrows
-// what reaches them, it does not replace their checks. Plan: docs/plans/gateway.md.
+// what reaches them, it does not replace their checks. Plan: docs/history/plans/gateway.md.
 package main
 
 import (

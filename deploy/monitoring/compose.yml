@@ -1,4 +1,4 @@
-# Grafana for Caller Whale's staff, behind the Caller Whale login proxy (docs/plans/grafana-access.md). One Coolify resource of type
+# Grafana for Caller Whale's staff, behind the Caller Whale login proxy (docs/operations/grafana-access.md). One Coolify resource of type
 # Docker Compose. Neither service has a public domain or published port.
 # The gateway alone reaches grafana-proxy through the shared Coolify network.
 #

@@ -1,4 +1,4 @@
-# Billing (plan: docs/plans/billing-service.md). Build with this folder as the context:
+# Billing (plan: docs/history/plans/billing-service.md). Build with this folder as the context:
 #   docker build -t callerwhale-billing services/billing
 FROM golang:1 AS runtime-log-build
 COPY packages/go/runtimelog /src
