@@ -22,6 +22,12 @@ const examples = {
   'importing-lists.production.example': 'importing-lists',
   'importing-worker.production.example': 'importing-worker',
   'dialer-sms.production.example': 'dialer-sms',
+  'telnyx-phone-api.production.example': 'telnyx-phone-api',
+  'telnyx-phone-webhooks.production.example': 'telnyx-phone-webhooks',
+  'telnyx-phone-jobs.production.example': 'telnyx-phone-jobs',
+  'telnyx-sms-api.production.example': 'telnyx-sms-api',
+  'telnyx-sms-webhooks.production.example': 'telnyx-sms-webhooks',
+  'telnyx-sms-jobs.production.example': 'telnyx-sms-jobs',
   'messaging.production.example': 'messaging',
   'centrifugo.production.example': 'live',
   // Pointer-only example; actual monitoring settings are in deploy/monitoring.

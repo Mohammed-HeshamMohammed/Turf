@@ -444,6 +444,210 @@
         "CENTRIFUGO_CONSUMERS_MESSAGING_ENABLED": "true: the live server reads the messaging outbox itself and delivers it (services/live/config.json, consumer messaging). Set together with the address below.",
         "CENTRIFUGO_CONSUMERS_MESSAGING_POSTGRESQL_DSN": "Secret: the messaging database as the read-only login messaging's service makes, postgres://messaging_live:<messaging's LIVE_DB_PASSWORD>@<messaging database internal host>:5432/postgres?sslmode=require."
       }
+    },
+    "telnyx-phone-api": {
+      "description": "The browser's calls: dialing, hang-up, transfer, wrap-up, recording, voicemail drops, captions, numbers, hours, agent status and budgets. Hosts the calls simulator in simulate mode. One of six containers from services/telnyx (roles.go); network alias telnyx-phone-api, port 8113, no domain of its own.",
+      "sources": [
+        "services/telnyx/main.go",
+        "services/telnyx/roles.go"
+      ],
+      "variables": {
+        "PORT": "HTTP port; default 8113. Match Coolify's container port.",
+        "DATABASE_URL": "Secret PostgreSQL URI of the dialer database. The service creates its own tables (schema dialer_sms) at start.",
+        "AUTH_JWKS_URL": "The auth service's public keys at its private address (http://auth:8101/.well-known/jwks.json); sign-in tokens are checked with them locally.",
+        "AUTHZ_URL": "The authorization service's private address, like http://authz:8104.",
+        "AUTHZ_TOKEN": "Secret: the value after dialer-sms= in authz's AUTHZ_TOKENS, 32+ characters.",
+        "CRM_URL": "crm-core's private address, like http://crm-core:8107. Finished calls are logged there.",
+        "CRM_TOKEN": "Secret: the same value as crm-core's DIALER_TOKEN, 32+ characters.",
+        "CORS_ORIGINS": "Pages that may call this service from a browser. Keep it the same as the gateway's CORS_ORIGINS.",
+        "TELNYX_MODE": "simulate (default: the built-in Telnyx simulator, nothing reaches a phone, no cost) or live (real Telnyx, costs money).",
+        "SIM_SPEED": "Simulate mode: how many times faster than real time the simulator runs; default 1. 10 makes a 45-second call take 4.5 seconds.",
+        "TELNYX_API_KEY": "Secret Telnyx API key; in simulate mode any value, the same on all six telnyx containers (the simulator checks it).",
+        "TELNYX_CONNECTION_ID": "Live: the Call Control application (Voice API) that outbound calls use.",
+        "TELNYX_PUBLIC_KEY": "Live: the base64 Ed25519 public key from the Telnyx portal; webhooks not signed with it are refused.",
+        "TELNYX_WEBHOOK_URL": "Live: where Telnyx sends events, like https://voice.callerwhale.com/webhooks/telnyx. Empty: the application's own setting on the portal.",
+        "TELNYX_MESSAGING_PROFILE_ID": "Live: the messaging profile texts go out on (its webhook must point at /webhooks/telnyx too).",
+        "TELNYX_SIP_CONNECTION_ID": "Live: the credential SIP connection the browser's calling kit signs in to (WebRTC). Empty turns browser calling tokens off.",
+        "TELNYX_FROM_NUMBER": "A number calls and texts go out from when the workspace has none set up (E.164, like +15125550100).",
+        "TELNYX_AMD": "Answering machine detection: detect (default), detect_beep, premium or off. Telnyx charges per answered call for it.",
+        "RECORD_CALLS": "true records every answered call (Telnyx charges per minute); otherwise only calls placed with record set.",
+        "BILLING_URL": "Billing's private address, like http://billing:8103, for budgets on calls, texts and assistant use (step 22). Empty: nothing is limited.",
+        "BILLING_TOKEN": "Secret: the value after dialer-sms= in billing's BILLING_TOKENS, 32+ characters.",
+        "ASSISTANT_URL": "The assistant service's private address, like http://assistant:8109, for call summaries (step 26). Empty: no summaries.",
+        "ASSISTANT_TOKEN": "Secret: the same value as the assistant's AGENT_TOKEN, 32+ characters.",
+        "CARRIER_CHECK": "Step 39: calls wait until the carriers verify the agency's brand and texts until its 10DLC campaign is provisioned. On unless set to off; off only for local work and tests.",
+        "TELNYX_SIM_PRIVATE_KEY": "Simulate mode: one base64 Ed25519 seed (32 bytes), the same on all six telnyx containers; it signs and checks the simulated webhooks. Make it once (openssl rand -base64 32). Not used in live mode."
+      }
+    },
+    "telnyx-phone-webhooks": {
+      "description": "Telnyx call.* webhooks: checked, saved once, answered and acted on at once (answer, record, machine hang-up, voicemail drop, transfer). Its public address is TELNYX_WEBHOOK_URL in live mode. One of six containers from services/telnyx (roles.go); network alias telnyx-phone-webhooks, port 8122, no domain of its own.",
+      "sources": [
+        "services/telnyx/main.go",
+        "services/telnyx/roles.go"
+      ],
+      "variables": {
+        "PORT": "HTTP port; default 8122. Match Coolify's container port.",
+        "DATABASE_URL": "Secret PostgreSQL URI of the dialer database. The service creates its own tables (schema dialer_sms) at start.",
+        "AUTH_JWKS_URL": "The auth service's public keys at its private address (http://auth:8101/.well-known/jwks.json); sign-in tokens are checked with them locally.",
+        "AUTHZ_URL": "The authorization service's private address, like http://authz:8104.",
+        "AUTHZ_TOKEN": "Secret: the value after dialer-sms= in authz's AUTHZ_TOKENS, 32+ characters.",
+        "CRM_URL": "crm-core's private address, like http://crm-core:8107. Finished calls are logged there.",
+        "CRM_TOKEN": "Secret: the same value as crm-core's DIALER_TOKEN, 32+ characters.",
+        "CORS_ORIGINS": "Pages that may call this service from a browser. Keep it the same as the gateway's CORS_ORIGINS.",
+        "TELNYX_MODE": "simulate (default: the built-in Telnyx simulator, nothing reaches a phone, no cost) or live (real Telnyx, costs money).",
+        "SIM_SPEED": "Simulate mode: how many times faster than real time the simulator runs; default 1. 10 makes a 45-second call take 4.5 seconds.",
+        "TELNYX_API_KEY": "Secret Telnyx API key; in simulate mode any value, the same on all six telnyx containers (the simulator checks it).",
+        "TELNYX_CONNECTION_ID": "Live: the Call Control application (Voice API) that outbound calls use.",
+        "TELNYX_PUBLIC_KEY": "Live: the base64 Ed25519 public key from the Telnyx portal; webhooks not signed with it are refused.",
+        "TELNYX_WEBHOOK_URL": "Live: where Telnyx sends events, like https://voice.callerwhale.com/webhooks/telnyx. Empty: the application's own setting on the portal.",
+        "TELNYX_MESSAGING_PROFILE_ID": "Live: the messaging profile texts go out on (its webhook must point at /webhooks/telnyx too).",
+        "TELNYX_SIP_CONNECTION_ID": "Live: the credential SIP connection the browser's calling kit signs in to (WebRTC). Empty turns browser calling tokens off.",
+        "TELNYX_FROM_NUMBER": "A number calls and texts go out from when the workspace has none set up (E.164, like +15125550100).",
+        "TELNYX_AMD": "Answering machine detection: detect (default), detect_beep, premium or off. Telnyx charges per answered call for it.",
+        "RECORD_CALLS": "true records every answered call (Telnyx charges per minute); otherwise only calls placed with record set.",
+        "BILLING_URL": "Billing's private address, like http://billing:8103, for budgets on calls, texts and assistant use (step 22). Empty: nothing is limited.",
+        "BILLING_TOKEN": "Secret: the value after dialer-sms= in billing's BILLING_TOKENS, 32+ characters.",
+        "ASSISTANT_URL": "The assistant service's private address, like http://assistant:8109, for call summaries (step 26). Empty: no summaries.",
+        "ASSISTANT_TOKEN": "Secret: the same value as the assistant's AGENT_TOKEN, 32+ characters.",
+        "CARRIER_CHECK": "Step 39: calls wait until the carriers verify the agency's brand and texts until its 10DLC campaign is provisioned. On unless set to off; off only for local work and tests.",
+        "TELNYX_SIM_PRIVATE_KEY": "Simulate mode: one base64 Ed25519 seed (32 bytes), the same on all six telnyx containers; it signs and checks the simulated webhooks. Make it once (openssl rand -base64 32). Not used in live mode."
+      }
+    },
+    "telnyx-phone-jobs": {
+      "description": "Timed work for calls: settling finished calls into the CRM, callback reminders, clearing old captions and recordings, erasures. Answers only health, version and status. One of six containers from services/telnyx (roles.go); network alias telnyx-phone-jobs, port 8123, no domain of its own.",
+      "sources": [
+        "services/telnyx/main.go",
+        "services/telnyx/roles.go"
+      ],
+      "variables": {
+        "PORT": "HTTP port; default 8123. Match Coolify's container port.",
+        "DATABASE_URL": "Secret PostgreSQL URI of the dialer database. The service creates its own tables (schema dialer_sms) at start.",
+        "AUTH_JWKS_URL": "The auth service's public keys at its private address (http://auth:8101/.well-known/jwks.json); sign-in tokens are checked with them locally.",
+        "AUTHZ_URL": "The authorization service's private address, like http://authz:8104.",
+        "AUTHZ_TOKEN": "Secret: the value after dialer-sms= in authz's AUTHZ_TOKENS, 32+ characters.",
+        "CRM_URL": "crm-core's private address, like http://crm-core:8107. Finished calls are logged there.",
+        "CRM_TOKEN": "Secret: the same value as crm-core's DIALER_TOKEN, 32+ characters.",
+        "CORS_ORIGINS": "Pages that may call this service from a browser. Keep it the same as the gateway's CORS_ORIGINS.",
+        "TELNYX_MODE": "simulate (default: the built-in Telnyx simulator, nothing reaches a phone, no cost) or live (real Telnyx, costs money).",
+        "SIM_SPEED": "Simulate mode: how many times faster than real time the simulator runs; default 1. 10 makes a 45-second call take 4.5 seconds.",
+        "TELNYX_API_KEY": "Secret Telnyx API key; in simulate mode any value, the same on all six telnyx containers (the simulator checks it).",
+        "TELNYX_CONNECTION_ID": "Live: the Call Control application (Voice API) that outbound calls use.",
+        "TELNYX_PUBLIC_KEY": "Live: the base64 Ed25519 public key from the Telnyx portal; webhooks not signed with it are refused.",
+        "TELNYX_WEBHOOK_URL": "Live: where Telnyx sends events, like https://voice.callerwhale.com/webhooks/telnyx. Empty: the application's own setting on the portal.",
+        "TELNYX_MESSAGING_PROFILE_ID": "Live: the messaging profile texts go out on (its webhook must point at /webhooks/telnyx too).",
+        "TELNYX_SIP_CONNECTION_ID": "Live: the credential SIP connection the browser's calling kit signs in to (WebRTC). Empty turns browser calling tokens off.",
+        "TELNYX_FROM_NUMBER": "A number calls and texts go out from when the workspace has none set up (E.164, like +15125550100).",
+        "TELNYX_AMD": "Answering machine detection: detect (default), detect_beep, premium or off. Telnyx charges per answered call for it.",
+        "RECORD_CALLS": "true records every answered call (Telnyx charges per minute); otherwise only calls placed with record set.",
+        "BILLING_URL": "Billing's private address, like http://billing:8103, for budgets on calls, texts and assistant use (step 22). Empty: nothing is limited.",
+        "BILLING_TOKEN": "Secret: the value after dialer-sms= in billing's BILLING_TOKENS, 32+ characters.",
+        "ASSISTANT_URL": "The assistant service's private address, like http://assistant:8109, for call summaries (step 26). Empty: no summaries.",
+        "ASSISTANT_TOKEN": "Secret: the same value as the assistant's AGENT_TOKEN, 32+ characters.",
+        "CARRIER_CHECK": "Step 39: calls wait until the carriers verify the agency's brand and texts until its 10DLC campaign is provisioned. On unless set to off; off only for local work and tests.",
+        "TELNYX_SIM_PRIVATE_KEY": "Simulate mode: one base64 Ed25519 seed (32 bytes), the same on all six telnyx containers; it signs and checks the simulated webhooks. Make it once (openssl rand -base64 32). Not used in live mode."
+      }
+    },
+    "telnyx-sms-api": {
+      "description": "The browser's texts: sending, threads, consent, opt-outs, templates, bulk, settings and alerts. Hosts the texts simulator in simulate mode. One of six containers from services/telnyx (roles.go); network alias telnyx-sms-api, port 8124, no domain of its own.",
+      "sources": [
+        "services/telnyx/main.go",
+        "services/telnyx/roles.go"
+      ],
+      "variables": {
+        "PORT": "HTTP port; default 8124. Match Coolify's container port.",
+        "DATABASE_URL": "Secret PostgreSQL URI of the dialer database. The service creates its own tables (schema dialer_sms) at start.",
+        "AUTH_JWKS_URL": "The auth service's public keys at its private address (http://auth:8101/.well-known/jwks.json); sign-in tokens are checked with them locally.",
+        "AUTHZ_URL": "The authorization service's private address, like http://authz:8104.",
+        "AUTHZ_TOKEN": "Secret: the value after dialer-sms= in authz's AUTHZ_TOKENS, 32+ characters.",
+        "CRM_URL": "crm-core's private address, like http://crm-core:8107. Finished calls are logged there.",
+        "CRM_TOKEN": "Secret: the same value as crm-core's DIALER_TOKEN, 32+ characters.",
+        "CORS_ORIGINS": "Pages that may call this service from a browser. Keep it the same as the gateway's CORS_ORIGINS.",
+        "TELNYX_MODE": "simulate (default: the built-in Telnyx simulator, nothing reaches a phone, no cost) or live (real Telnyx, costs money).",
+        "SIM_SPEED": "Simulate mode: how many times faster than real time the simulator runs; default 1. 10 makes a 45-second call take 4.5 seconds.",
+        "TELNYX_API_KEY": "Secret Telnyx API key; in simulate mode any value, the same on all six telnyx containers (the simulator checks it).",
+        "TELNYX_CONNECTION_ID": "Live: the Call Control application (Voice API) that outbound calls use.",
+        "TELNYX_PUBLIC_KEY": "Live: the base64 Ed25519 public key from the Telnyx portal; webhooks not signed with it are refused.",
+        "TELNYX_WEBHOOK_URL": "Live: where Telnyx sends events, like https://voice.callerwhale.com/webhooks/telnyx. Empty: the application's own setting on the portal.",
+        "TELNYX_MESSAGING_PROFILE_ID": "Live: the messaging profile texts go out on (its webhook must point at /webhooks/telnyx too).",
+        "TELNYX_SIP_CONNECTION_ID": "Live: the credential SIP connection the browser's calling kit signs in to (WebRTC). Empty turns browser calling tokens off.",
+        "TELNYX_FROM_NUMBER": "A number calls and texts go out from when the workspace has none set up (E.164, like +15125550100).",
+        "TELNYX_AMD": "Answering machine detection: detect (default), detect_beep, premium or off. Telnyx charges per answered call for it.",
+        "RECORD_CALLS": "true records every answered call (Telnyx charges per minute); otherwise only calls placed with record set.",
+        "BILLING_URL": "Billing's private address, like http://billing:8103, for budgets on calls, texts and assistant use (step 22). Empty: nothing is limited.",
+        "BILLING_TOKEN": "Secret: the value after dialer-sms= in billing's BILLING_TOKENS, 32+ characters.",
+        "ASSISTANT_URL": "The assistant service's private address, like http://assistant:8109, for call summaries (step 26). Empty: no summaries.",
+        "ASSISTANT_TOKEN": "Secret: the same value as the assistant's AGENT_TOKEN, 32+ characters.",
+        "CARRIER_CHECK": "Step 39: calls wait until the carriers verify the agency's brand and texts until its 10DLC campaign is provisioned. On unless set to off; off only for local work and tests.",
+        "TELNYX_SIM_PRIVATE_KEY": "Simulate mode: one base64 Ed25519 seed (32 bytes), the same on all six telnyx containers; it signs and checks the simulated webhooks. Make it once (openssl rand -base64 32). Not used in live mode."
+      }
+    },
+    "telnyx-sms-webhooks": {
+      "description": "Telnyx message.* and 10dlc.* webhooks. Its public address goes on the Telnyx messaging profile in live mode. One of six containers from services/telnyx (roles.go); network alias telnyx-sms-webhooks, port 8125, no domain of its own.",
+      "sources": [
+        "services/telnyx/main.go",
+        "services/telnyx/roles.go"
+      ],
+      "variables": {
+        "PORT": "HTTP port; default 8125. Match Coolify's container port.",
+        "DATABASE_URL": "Secret PostgreSQL URI of the dialer database. The service creates its own tables (schema dialer_sms) at start.",
+        "AUTH_JWKS_URL": "The auth service's public keys at its private address (http://auth:8101/.well-known/jwks.json); sign-in tokens are checked with them locally.",
+        "AUTHZ_URL": "The authorization service's private address, like http://authz:8104.",
+        "AUTHZ_TOKEN": "Secret: the value after dialer-sms= in authz's AUTHZ_TOKENS, 32+ characters.",
+        "CRM_URL": "crm-core's private address, like http://crm-core:8107. Finished calls are logged there.",
+        "CRM_TOKEN": "Secret: the same value as crm-core's DIALER_TOKEN, 32+ characters.",
+        "CORS_ORIGINS": "Pages that may call this service from a browser. Keep it the same as the gateway's CORS_ORIGINS.",
+        "TELNYX_MODE": "simulate (default: the built-in Telnyx simulator, nothing reaches a phone, no cost) or live (real Telnyx, costs money).",
+        "SIM_SPEED": "Simulate mode: how many times faster than real time the simulator runs; default 1. 10 makes a 45-second call take 4.5 seconds.",
+        "TELNYX_API_KEY": "Secret Telnyx API key; in simulate mode any value, the same on all six telnyx containers (the simulator checks it).",
+        "TELNYX_CONNECTION_ID": "Live: the Call Control application (Voice API) that outbound calls use.",
+        "TELNYX_PUBLIC_KEY": "Live: the base64 Ed25519 public key from the Telnyx portal; webhooks not signed with it are refused.",
+        "TELNYX_WEBHOOK_URL": "Live: where Telnyx sends events, like https://voice.callerwhale.com/webhooks/telnyx. Empty: the application's own setting on the portal.",
+        "TELNYX_MESSAGING_PROFILE_ID": "Live: the messaging profile texts go out on (its webhook must point at /webhooks/telnyx too).",
+        "TELNYX_SIP_CONNECTION_ID": "Live: the credential SIP connection the browser's calling kit signs in to (WebRTC). Empty turns browser calling tokens off.",
+        "TELNYX_FROM_NUMBER": "A number calls and texts go out from when the workspace has none set up (E.164, like +15125550100).",
+        "TELNYX_AMD": "Answering machine detection: detect (default), detect_beep, premium or off. Telnyx charges per answered call for it.",
+        "RECORD_CALLS": "true records every answered call (Telnyx charges per minute); otherwise only calls placed with record set.",
+        "BILLING_URL": "Billing's private address, like http://billing:8103, for budgets on calls, texts and assistant use (step 22). Empty: nothing is limited.",
+        "BILLING_TOKEN": "Secret: the value after dialer-sms= in billing's BILLING_TOKENS, 32+ characters.",
+        "ASSISTANT_URL": "The assistant service's private address, like http://assistant:8109, for call summaries (step 26). Empty: no summaries.",
+        "ASSISTANT_TOKEN": "Secret: the same value as the assistant's AGENT_TOKEN, 32+ characters.",
+        "CARRIER_CHECK": "Step 39: calls wait until the carriers verify the agency's brand and texts until its 10DLC campaign is provisioned. On unless set to off; off only for local work and tests.",
+        "TELNYX_SIM_PRIVATE_KEY": "Simulate mode: one base64 Ed25519 seed (32 bytes), the same on all six telnyx containers; it signs and checks the simulated webhooks. Make it once (openssl rand -base64 32). Not used in live mode."
+      }
+    },
+    "telnyx-sms-jobs": {
+      "description": "Timed work for texts: scheduled texts, unanswered-text alerts, 10DLC brand and campaign registration, opt-out and complaint standing. Answers only health, version and status. One of six containers from services/telnyx (roles.go); network alias telnyx-sms-jobs, port 8126, no domain of its own.",
+      "sources": [
+        "services/telnyx/main.go",
+        "services/telnyx/roles.go"
+      ],
+      "variables": {
+        "PORT": "HTTP port; default 8126. Match Coolify's container port.",
+        "DATABASE_URL": "Secret PostgreSQL URI of the dialer database. The service creates its own tables (schema dialer_sms) at start.",
+        "AUTH_JWKS_URL": "The auth service's public keys at its private address (http://auth:8101/.well-known/jwks.json); sign-in tokens are checked with them locally.",
+        "AUTHZ_URL": "The authorization service's private address, like http://authz:8104.",
+        "AUTHZ_TOKEN": "Secret: the value after dialer-sms= in authz's AUTHZ_TOKENS, 32+ characters.",
+        "CRM_URL": "crm-core's private address, like http://crm-core:8107. Finished calls are logged there.",
+        "CRM_TOKEN": "Secret: the same value as crm-core's DIALER_TOKEN, 32+ characters.",
+        "CORS_ORIGINS": "Pages that may call this service from a browser. Keep it the same as the gateway's CORS_ORIGINS.",
+        "TELNYX_MODE": "simulate (default: the built-in Telnyx simulator, nothing reaches a phone, no cost) or live (real Telnyx, costs money).",
+        "SIM_SPEED": "Simulate mode: how many times faster than real time the simulator runs; default 1. 10 makes a 45-second call take 4.5 seconds.",
+        "TELNYX_API_KEY": "Secret Telnyx API key; in simulate mode any value, the same on all six telnyx containers (the simulator checks it).",
+        "TELNYX_CONNECTION_ID": "Live: the Call Control application (Voice API) that outbound calls use.",
+        "TELNYX_PUBLIC_KEY": "Live: the base64 Ed25519 public key from the Telnyx portal; webhooks not signed with it are refused.",
+        "TELNYX_WEBHOOK_URL": "Live: where Telnyx sends events, like https://voice.callerwhale.com/webhooks/telnyx. Empty: the application's own setting on the portal.",
+        "TELNYX_MESSAGING_PROFILE_ID": "Live: the messaging profile texts go out on (its webhook must point at /webhooks/telnyx too).",
+        "TELNYX_SIP_CONNECTION_ID": "Live: the credential SIP connection the browser's calling kit signs in to (WebRTC). Empty turns browser calling tokens off.",
+        "TELNYX_FROM_NUMBER": "A number calls and texts go out from when the workspace has none set up (E.164, like +15125550100).",
+        "TELNYX_AMD": "Answering machine detection: detect (default), detect_beep, premium or off. Telnyx charges per answered call for it.",
+        "RECORD_CALLS": "true records every answered call (Telnyx charges per minute); otherwise only calls placed with record set.",
+        "BILLING_URL": "Billing's private address, like http://billing:8103, for budgets on calls, texts and assistant use (step 22). Empty: nothing is limited.",
+        "BILLING_TOKEN": "Secret: the value after dialer-sms= in billing's BILLING_TOKENS, 32+ characters.",
+        "ASSISTANT_URL": "The assistant service's private address, like http://assistant:8109, for call summaries (step 26). Empty: no summaries.",
+        "ASSISTANT_TOKEN": "Secret: the same value as the assistant's AGENT_TOKEN, 32+ characters.",
+        "CARRIER_CHECK": "Step 39: calls wait until the carriers verify the agency's brand and texts until its 10DLC campaign is provisioned. On unless set to off; off only for local work and tests.",
+        "TELNYX_SIM_PRIVATE_KEY": "Simulate mode: one base64 Ed25519 seed (32 bytes), the same on all six telnyx containers; it signs and checks the simulated webhooks. Make it once (openssl rand -base64 32). Not used in live mode."
+      }
     }
   }
 }

@@ -183,12 +183,51 @@ services:
       - import-work:/data/imports
     # No memory or CPU cap: a large list may use what the machine has.
     restart: unless-stopped
-  dialer-sms:
+  # Calls and texts through Telnyx: six containers from services/telnyx (roles.go). The calls API keeps the old name dialer-sms.
+  telnyx-phone-api:
     build:
       context: ../..
-      dockerfile: services/telnyx/Dockerfile
+      dockerfile: services/telnyx/Dockerfile.phone-api
     environment:
       PORT: "8113"
+    networks:
+      default:
+        aliases: [dialer-sms]
+    restart: unless-stopped
+  telnyx-phone-webhooks:
+    build:
+      context: ../..
+      dockerfile: services/telnyx/Dockerfile.phone-webhooks
+    environment:
+      PORT: "8122"
+    restart: unless-stopped
+  telnyx-phone-jobs:
+    build:
+      context: ../..
+      dockerfile: services/telnyx/Dockerfile.phone-jobs
+    environment:
+      PORT: "8123"
+    restart: unless-stopped
+  telnyx-sms-api:
+    build:
+      context: ../..
+      dockerfile: services/telnyx/Dockerfile.sms-api
+    environment:
+      PORT: "8124"
+    restart: unless-stopped
+  telnyx-sms-webhooks:
+    build:
+      context: ../..
+      dockerfile: services/telnyx/Dockerfile.sms-webhooks
+    environment:
+      PORT: "8125"
+    restart: unless-stopped
+  telnyx-sms-jobs:
+    build:
+      context: ../..
+      dockerfile: services/telnyx/Dockerfile.sms-jobs
+    environment:
+      PORT: "8126"
     restart: unless-stopped
 volumes:
   postgres-data:
