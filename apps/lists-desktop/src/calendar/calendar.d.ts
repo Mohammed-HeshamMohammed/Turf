@@ -1,4 +1,4 @@
-// Types for calendar.jsx, this app's own copy of packages/calendar (no longer synced, step 49).
+// Types for calendar.jsx, this app's own copy of packages/calendar (no longer synced).
 import type { JSX } from "react";
 
 export interface DateRange {

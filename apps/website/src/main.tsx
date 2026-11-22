@@ -5,7 +5,7 @@ import { App } from "./App.tsx";
 import "./app.css";
 import { installErrorReports } from "@callerwhale/error-report";
 
-// Errors in people's browsers reach the auth service's log, without their text (step 42).
+// Errors in people's browsers reach the auth service's log, without their text.
 installErrorReports(`${(import.meta.env.VITE_CALLERWHALE_AUTH_URL || "http://localhost:8101").replace(/\/$/, "")}/v1/client-errors`, "site", String(import.meta.env.VITE_APP_VERSION || "web"));
 
 const root = document.getElementById("root") as HTMLElement;

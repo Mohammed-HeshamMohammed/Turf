@@ -1,4 +1,4 @@
-// Step 48 (D379, D381): puts freshly built images into Coolify. The Images workflow's build job leaves one record per pushed image
+// Puts freshly built images into Coolify (D379, D381). The Images workflow's build job leaves one record per pushed image
 // that has a Coolify target in tools/production.json ({image, ref, digest, coolify, setting}); the deploy job, after the
 // "production" environment's approval, runs this. Two kinds of target:
 //   - a Docker Image application ("deploy": {"coolify": "<id>"}): its image and tag are set to the image's digest;

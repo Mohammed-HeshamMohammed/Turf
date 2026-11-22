@@ -51,7 +51,7 @@ export function InviteManager({ auth, authBase, scope, orgId = "" }: { auth: Aut
   const [copied, setCopied] = useState(false);
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamId, setTeamId] = useState("");
-  // A team lead can be invited with the teams they will lead; those teams get them when they accept (step 3).
+  // A team lead can be invited with the teams they will lead; those teams get them when they accept.
   const [leadTeams, setLeadTeams] = useState<string[]>([]);
   // Seats team leads asked for when every seat was taken (D71); only the owner and admins see them.
   const [seatAsks, setSeatAsks] = useState<{ id: string; name: string; for_email: string; created_at: number }[]>([]);

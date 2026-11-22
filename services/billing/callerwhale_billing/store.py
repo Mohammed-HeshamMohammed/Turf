@@ -109,7 +109,7 @@ class Store:
         return rows
 
     def entitlements(self, org_id: UUID) -> dict:
-        """What one workspace may use: its plan's limits with staff overrides on top, and the discounts it earned (step 45). A
+        """What one workspace may use: its plan's limits with staff overrides on top, and the discounts it earned. A
         workspace without a plan has no limits here."""
         discounts = self.discounts(org_id)
         with self.pool.connection() as conn:
@@ -204,7 +204,7 @@ class Store:
             "org_id": str(org_id), "plan": sub["plan_key"], "status": sub["status"], "period_end": sub["period_end"].isoformat(),
             "seats": limits["seats"], "minutes_allowed": limits["monthly_minutes"], "minutes_used": used, "limited": True, "payment_required": unpaid,
             "limits": limits,
-            # Paid through the payment provider, and by whom: a handover of ownership waits for the new owner to pay (step 13, D70).
+            # Paid through the payment provider, and by whom: a handover of ownership waits for the new owner to pay (D70).
             "provider_paid": sub["provider"] is not None and sub["status"] not in ("canceled",),
             "payer_id": str(sub["payer_id"]) if sub["payer_id"] else None,
         }

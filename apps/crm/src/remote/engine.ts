@@ -12,7 +12,7 @@ import { leadSource } from "../lead-source.ts";
 /** Leads per page when the first load of the records is read a page at a time, so the first ones show while the rest arrive. */
 const SNAPSHOT_PAGE = 250;
 
-// The web cache's automatic refresh (build step 5, plan 07 "Web cache"), in layers:
+// The web cache's automatic refresh (plan 07 "Web cache"), in layers:
 //   1. always: live updates over the socket, and a quiet refresh every QUIET_MS while the tab is visible;
 //   2. on events: the network coming back, the tab coming back after AWAY_MS, a role or team change (the socket's access.changed);
 //   3. a full re-read only when the position cannot be trusted: the person's access changed (at once), or the server says this tab

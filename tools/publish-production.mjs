@@ -11,7 +11,7 @@
 //   node tools/publish-production.mjs --export <dir> [name]  write each branch's files to <dir>/<name> (for image builds), touch nothing
 //   CALLERWHALE_COMMIT_TRAILER="Co-Authored-By: ..." adds a line to the end of each commit message
 //
-// It refuses a commit whose "CI summary" check on GitHub has not passed (.github/workflows/ci.yml, step 46): a branch Coolify deploys
+// It refuses a commit whose "CI summary" check on GitHub has not passed (.github/workflows/ci.yml): a branch Coolify deploys
 // from never gets code that failed its tests. A branch with `checks` in production.json (the desktop app and the engine: "Desktop
 // summary", .github/workflows/desktop.yml) changes only when those passed on the commit too; the other branches go ahead without it. It asks GitHub with the `gh` command. --without-checks skips this, for an emergency
 // only, and says so loudly.
@@ -232,7 +232,7 @@ function run() {
     // The branch changes only when its files do, not on every commit to main: compare the files without the note.
     const content = git(["write-tree"], { env }).trim();
     // --export: write the branch's files (without the note) to <dir>/<name> for an image build, and <dir>/<name>.content with the
-    // content id; no branch is touched (.github/workflows/images.yml, step 47).
+    // content id; no branch is touched (.github/workflows/images.yml).
     if (exportDir) {
       const out = resolve(exportDir, component.name);
       rmSync(out, { recursive: true, force: true });

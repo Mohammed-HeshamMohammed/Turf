@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { Auth } from "@callerwhale/auth-client";
 
-// Build step 13: handing an agency to a new owner (D28, D70, D199, D200), and an agency whose owner is gone (D27, D201).
+// Handing an agency to a new owner (D28, D70, D199, D200), and an agency whose owner is gone (D27, D201).
 
 type Handover = { id: string; org_id: string; org_name: string; kind: string; from_id: string; from_name: string; to_id: string; to_name: string; old_roles: string[]; created_at: number; expires_at: number };
 type Member = { user_id: string; name?: string; email?: string; roles: string[] };
@@ -140,7 +140,7 @@ export function OwnerlessAgencies({ auth, authBase }: { auth: Auth; authBase: st
 
 type Stage = { stage: string; owner?: boolean; grace_ends?: number; read_only_ends?: number; delete_at?: number; closed_at?: number | null };
 
-/** Step 18: where an agency stands with its plan, said to the people it concerns (D80, D204, D205, D206), and the owner's close and
+/** Where an agency stands with its plan, said to the people it concerns (D80, D204, D205, D206), and the owner's close and
  * reopen with 30 days to change their mind (D82). */
 export function AgencyStanding({ auth, authBase, orgId }: { auth: Auth; authBase: string; orgId: string }) {
   const request = useRequest(auth, authBase);
@@ -171,7 +171,7 @@ export function AgencyStanding({ auth, authBase, orgId }: { auth: Auth; authBase
   </section>;
 }
 
-/** Step 18: after the plan was lowered, the owner chooses who keeps a seat; the others are suspended, their work held (D81, D365). */
+/** After the plan was lowered, the owner chooses who keeps a seat; the others are suspended, their work held (D81, D365). */
 export function SeatChoice({ auth, authBase, orgId }: { auth: Auth; authBase: string; orgId: string }) {
   const request = useRequest(auth, authBase);
   const [use, setUse] = useState<{ seats: number | null; over: number; people: { user_id: string; name: string; email: string; you: boolean }[] } | null>(null);
@@ -197,7 +197,7 @@ export function SeatChoice({ auth, authBase, orgId }: { auth: Auth; authBase: st
   </section>;
 }
 
-/** Step 19: the owner lets Caller Whale's support into the agency for a set time, and can end it early (D83, D202). */
+/** The owner lets Caller Whale's support into the agency for a set time, and can end it early (D83, D202). */
 export function SupportAccess({ auth, authBase, orgId }: { auth: Auth; authBase: string; orgId: string }) {
   const request = useRequest(auth, authBase);
   const [until, setUntil] = useState<number | null>(null);
@@ -240,7 +240,7 @@ export function SupportedAgencies({ auth, authBase }: { auth: Auth; authBase: st
   </section>;
 }
 
-/** Step 24: changes an outside AI asked for on the person's behalf, which happen only once they confirm them here (D130). */
+/** Changes an outside AI asked for on the person's behalf, which happen only once they confirm them here (D130). */
 export function AIRequests({ auth, authBase }: { auth: Auth; authBase: string }) {
   const request = useRequest(auth, authBase);
   const [list, setList] = useState<{ id: string; client_name: string; summary: string; expires_at: number }[]>([]);

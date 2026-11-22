@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "./nav.tsx";
 
-// Build step 34: the public status page and the outage banner (D235). Both read GET /v1/status from the auth service.
+// The public status page and the outage banner (D235). Both read GET /v1/status from the auth service.
 
 type Part = { id: string; name: string; state: "up" | "degraded" | "down"; since: number | null };
 type Incident = { id: string; components: string[]; severity: "degraded" | "down"; title: string; message: string; started_at: number; resolved_at: number | null; updates: { at: number; message: string }[] };
@@ -76,7 +76,7 @@ function IncidentCard({ incident }: { incident: Incident }) {
   );
 }
 
-/** The "This wasn't me" link from a new-device email (step 35): it signs that device out and emails a password reset link. */
+/** The "This wasn't me" link from a new-device email: it signs that device out and emails a password reset link. */
 export function NotMe({ authBase }: { authBase: string }) {
   const [message, setMessage] = useState("Signing that device out…");
   useEffect(() => {
