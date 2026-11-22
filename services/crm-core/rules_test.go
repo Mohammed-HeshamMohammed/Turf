@@ -69,7 +69,7 @@ func TestAccessRevisionChangesWithAccessAndNotWithOrder(t *testing.T) {
 	}
 }
 
-// Only the numbered setup scripts may change the database's structure (docs/plans/go-core-api.md).
+// Only the numbered setup scripts may change the database's structure (docs/history/plans/go-core-api.md).
 func TestOnlyMigrationsChangeStructure(t *testing.T) {
 	ddl := regexp.MustCompile(`(?i)\b(CREATE|ALTER|DROP)\s+(TABLE|INDEX|SCHEMA|VIEW|POLICY|FUNCTION|TRIGGER|ROLE)\b`)
 	files, _ := filepath.Glob("*.go")

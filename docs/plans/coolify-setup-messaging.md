@@ -1,5 +1,7 @@
 # Coolify setup: team chat (the messaging service and the live server)
 
+**Now (2026-11-22):** carried out; messaging and the live server run. The live-delivery switch-over is in `messaging-rollout-status.md`.
+
 **Status:** written 2026-11-14 with the code; not yet carried out. Do these in order. Secrets are typed by you in Coolify only.
 Nothing changes for people using the CRM until step 7, and step 7 is undone by clearing one build setting.
 

@@ -1,5 +1,7 @@
 # Authorization service: its own branch, container and database rights
 
+**Now (2026-11-22):** built and running as `services/authz` (its README is current); below is the plan it was built from.
+
 Status: plan, nothing built. Asked for by the owner on 2026-11-04 and updated the same day with the owner's answers. It works with today's Rust core API and does not wait for any core API rewrite.
 
 ## The owner's decisions

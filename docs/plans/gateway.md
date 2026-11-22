@@ -1,5 +1,7 @@
 # Gateway: the front door for everything
 
+**Now (2026-11-22):** the gateway is the public entry in Coolify (images since 2026-11-20); `services/gateway`'s README is current.
+
 **Status:** built (2026-10-30), not yet the public entry in Coolify. Code: `services/gateway`. Settings: `env/gateway.env.example`.
 
 ## Why
