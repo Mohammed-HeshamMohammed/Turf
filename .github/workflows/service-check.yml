@@ -72,7 +72,7 @@ jobs:
         run: bash -euo pipefail -c "$SETUP"
 
       - if: inputs.language == 'go'
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: ${{ inputs.dir }}/go.mod
           cache-dependency-path: ${{ inputs.dir }}/go.sum
