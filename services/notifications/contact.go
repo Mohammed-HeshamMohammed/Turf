@@ -131,11 +131,14 @@ func (s *Server) contact(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "That message could not be sent."})
 		return
 	}
-	if err := s.sender.Send(msg); err != nil {
+	queued, err := s.deliver(r.Context(), "contact", "contact", msg)
+	if err != nil {
 		log.Printf("contact form message not sent: %v", err)
 		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "We could not send your message. Try again in a moment."})
 		return
 	}
-	log.Print("contact form message sent")
+	if !queued {
+		log.Print("contact form message sent")
+	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true})
 }

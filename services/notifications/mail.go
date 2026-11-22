@@ -54,7 +54,7 @@ func (s SMTP) Send(m Message) error {
 	}
 	to, err := mail.ParseAddress(m.To)
 	if err != nil {
-		return fmt.Errorf("the recipient is not an address: %w", err)
+		return fmt.Errorf("%w: the recipient is not an address: %w", errPermanent, err)
 	}
 	body, err := build(from, to, m)
 	if err != nil {
@@ -92,7 +92,7 @@ func (s SMTP) Send(m Message) error {
 		return fmt.Errorf("the mail server refused the sender: %w", err)
 	}
 	if err := client.Rcpt(to.Address); err != nil {
-		return fmt.Errorf("the mail server refused the recipient: %w", err)
+		return refusal("the mail server refused the recipient", err)
 	}
 	w, err := client.Data()
 	if err != nil {
@@ -102,9 +102,20 @@ func (s SMTP) Send(m Message) error {
 		return err
 	}
 	if err := w.Close(); err != nil {
-		return fmt.Errorf("the mail server refused the message: %w", err)
+		return refusal("the mail server refused the message", err)
 	}
-	return client.Quit()
+	_ = client.Quit() // the message was accepted; a failed goodbye does not change that
+	return nil
+}
+
+// refusal is the error for a mail server that said no to one message. A 5xx answer (no such recipient, the content refused) is
+// marked errPermanent, since no retry changes it; anything else ("try later", a lost connection) is left to be tried again.
+func refusal(what string, err error) error {
+	var answer *textproto.Error
+	if errors.As(err, &answer) && answer.Code >= 500 {
+		return fmt.Errorf("%w: %s: %w", errPermanent, what, err)
+	}
+	return fmt.Errorf("%s: %w", what, err)
 }
 
 // build writes the message with a plain-text part and, when there is one, an HTML part.

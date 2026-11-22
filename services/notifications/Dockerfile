@@ -7,9 +7,11 @@ RUN cd /src && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log
 FROM golang:1 AS build
 WORKDIR /repo/services/notifications
 COPY packages/go /repo/packages/go
-COPY services/notifications/go.mod ./
+COPY services/notifications/go.mod services/notifications/go.sum ./
+RUN go mod download
 COPY services/notifications/*.go ./
-RUN CGO_ENABLED=0 go build -o /out/service .
+COPY services/notifications/database_setup ./database_setup
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/service .
 
 FROM gcr.io/distroless/static-debian12
 COPY --from=runtime-log-build /runtime-log /usr/local/bin/callerwhale-log

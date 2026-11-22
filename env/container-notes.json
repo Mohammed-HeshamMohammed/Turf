@@ -94,10 +94,12 @@
       "description": "Central mail sender: only authorized backend callers can request messages; SMTP credentials stay here.",
       "sources": [
         "services/notifications/main.go",
-        "services/notifications/mail.go"
+        "services/notifications/mail.go",
+        "services/notifications/queue.go"
       ],
       "variables": {
         "PORT": "Notification API HTTP listening port; default 8102. Match Coolify's private/public upstream configuration.",
+        "DATABASE_URL": "Optional secret PostgreSQL URI of the notifications database (a database named notifications on an existing Coolify PostgreSQL). Set: emails are queued and retried; empty: sent during the request.",
         "NOTIFY_TOKENS": "Secret caller=token pairs, 24+ characters each; only auth today. Match the caller's token; changing one side breaks that caller's mail.",
         "NOTIFY_SMTP_HOST": "SMTP server hostname for delivery. Use the mail server's authenticated submission endpoint, not an inbound MX routing worker.",
         "NOTIFY_SMTP_PORT": "SMTP submission port; default 587. Use STARTTLS 587 or implicit TLS 465 as supported by the server; do not use cleartext submission.",

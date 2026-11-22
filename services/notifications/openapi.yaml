@@ -50,7 +50,7 @@ paths:
                   type: object
                   description: "mfa_code: {code}. invitation: {name, inviter, monthly_credits, link}. team_invitation: {inviter, role, link}. confirm_email: {name, link}."
       responses:
-        "202": { description: Handed to the mail server }
+        "202": { description: "Queued (queued: true; the service retries until the mail server takes it) or, without a queue, handed to the mail server (queued: false)" }
         "400": { description: Unknown template or missing data }
         "401": { description: No valid service token }
         "429": { description: Too many requests }
