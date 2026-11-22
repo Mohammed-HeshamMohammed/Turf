@@ -35,6 +35,8 @@ updates:
       - "/services/learning"
       - "/services/mcp"
       - "/services/alert-relay"
+      - "/packages/go/authverify"
+      - "/packages/go/runtimelog"
     schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
     groups:
@@ -92,6 +94,12 @@ updates:
       - "/services/importing-lists"
       - "/services/importing-worker"
       - "/scaffolds/leads-map"
+      - "/services/live"
+      - "/deploy/monitoring/alloy"
+      - "/deploy/monitoring/blackbox"
+      - "/deploy/monitoring/grafana"
+      - "/deploy/monitoring/loki"
+      - "/deploy/monitoring/prometheus"
       - "/scaffolds/skip-tracing"
     schedule: { interval: monthly, time: "06:00", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
