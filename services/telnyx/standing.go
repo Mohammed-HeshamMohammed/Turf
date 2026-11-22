@@ -1,6 +1,6 @@
 package telnyx
 
-// Build step 39: each agency's opt-out and complaint rates over 30 days (D269). Above a line the owner is warned, then texting is
+// Each agency's opt-out and complaint rates over 30 days (D269). Above a line the owner is warned, then texting is
 // limited, then suspended until Caller Whale's staff review it (in the CRM's staff view, which this service tells). Each change is
 // kept, and the owner can appeal. Starting lines, to be tuned with real traffic: carriers watch opt-outs above a few percent and
 // complaints above a tenth of a percent.
@@ -179,7 +179,7 @@ func (s *server) carrierPeriodically(ctx context.Context) {
 	}
 }
 
-// erasePeriodically removes, every ten minutes, the numbers the CRM lists as deleted on a person's request (step 44).
+// erasePeriodically removes, every ten minutes, the numbers the CRM lists as deleted on a person's request.
 func (s *server) erasePeriodically(ctx context.Context) {
 	t := time.NewTicker(10 * time.Minute)
 	defer t.Stop()

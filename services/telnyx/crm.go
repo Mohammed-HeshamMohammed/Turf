@@ -24,22 +24,22 @@ type leadInfo struct {
 	DoNotCall bool   `json:"do_not_call"`
 	MayCall   bool   `json:"may_call"`
 	Reason    string `json:"reason"`
-	// For the lead's text thread (step 10): who works it, its team's leads and deputies, and the asker's rank toward it.
+	// For the lead's text thread: who works it, its team's leads and deputies, and the asker's rank toward it.
 	AssigneeID      string `json:"assignee_id"`
 	TeamID          string `json:"team_id"`
 	ClientID        string `json:"client_id"`
-	WaitingApproval bool   `json:"waiting_approval"` // its list waits for the client's approval (step 23)
-	// The number's blocks (step 25): calls and texts each, with why; and whether its list carries the agency's consent to text (D355).
+	WaitingApproval bool   `json:"waiting_approval"` // its list waits for the client's approval
+	// The number's blocks: calls and texts each, with why; and whether its list carries the agency's consent to text (D355).
 	BlockedCalls bool   `json:"blocked_calls"`
 	BlockedTexts bool   `json:"blocked_texts"`
 	BlockReason  string `json:"block_reason"`
 	ListConsent  bool   `json:"list_consent"`
-	// The AI's call suggestions for the asker on this lead's team, and whether captions must run (step 26, D148).
+	// The AI's call suggestions for the asker on this lead's team, and whether captions must run (D148).
 	AISuggestions    bool     `json:"ai_suggestions"`
 	CaptionsRequired bool     `json:"captions_required"`
 	TeamLeads        []string `json:"team_leads"`
 	TeamDeputies     []string `json:"team_deputies"`
-	TeamAgents       []string `json:"team_agents"` // the team's other people, for an incoming call (step 21)
+	TeamAgents       []string `json:"team_agents"` // the team's other people, for an incoming call
 	Rank             string   `json:"rank"`
 	ErrMessage       string   `json:"-"`
 }
@@ -57,11 +57,11 @@ type crm interface {
 	findLead(ctx context.Context, org, user, phone string) (leadInfo, error)
 	recordCall(ctx context.Context, org, user, operationID string, payload map[string]any) (opAnswer, error)
 	addRecording(ctx context.Context, org, user, operationID string, payload map[string]any) (opAnswer, error)
-	// block puts a number on the agency's block list after the lead's own opt-out reply, or lifts that block on START (step 25).
+	// block puts a number on the agency's block list after the lead's own opt-out reply, or lifts that block on START.
 	block(ctx context.Context, org, user, phone, lead string, payload map[string]any) error
-	// carrier tells the CRM an agency's carrier registration and texting standing (step 39); the answer carries a staff review.
+	// carrier tells the CRM an agency's carrier registration and texting standing; the answer carries a staff review.
 	carrier(ctx context.Context, org string, standing map[string]any) (carrierReply, error)
-	// erasures are numbers whose calls and texts must go after a person's data request (step 44); erasureDone says they went.
+	// erasures are numbers whose calls and texts must go after a person's data request; erasureDone says they went.
 	erasures(ctx context.Context) ([]erasure, error)
 	erasureDone(ctx context.Context, id string) error
 }

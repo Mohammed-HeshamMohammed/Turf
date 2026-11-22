@@ -10,7 +10,6 @@
 package telnyx
 
 import (
-	"slices"
 	"callerwhale/authverify"
 	"context"
 	"crypto/ed25519"
@@ -22,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -35,8 +35,8 @@ type config struct {
 	origins                                          map[string]bool
 	grantTTL                                         time.Duration
 	crmURL, crmToken                                 string
-	billingURL, billingToken                         string // billing's budgets (step 22); without them nothing is limited
-	assistantURL, assistantToken                     string // the in-app assistant (step 26): the assistant service and its AGENT_TOKEN
+	billingURL, billingToken                         string // billing's budgets; without them nothing is limited
+	assistantURL, assistantToken                     string // the in-app assistant: the assistant service and its AGENT_TOKEN
 
 	simulate        bool
 	apiURL, apiKey  string
@@ -55,7 +55,7 @@ type config struct {
 	simPrivateKey   string
 	noTimers        bool // tests: settle only when asked
 	anyHours        bool // simulate mode only (SIM_ANY_HOURS=true): try calls and texts at any hour; live always keeps the hours
-	carrierCheck    bool // step 39: calls and texts wait for the agency's carrier registration (CARRIER_CHECK, on unless "off")
+	carrierCheck    bool // calls and texts wait for the agency's carrier registration (CARRIER_CHECK, on unless "off")
 }
 
 func loadConfig(getenv func(string) string) (config, error) { return loadConfigFor(roleAll, getenv) }

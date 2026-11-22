@@ -31,13 +31,13 @@ type smsRow struct {
 	Error      string     `db:"error" json:"error"`
 	CreatedAt  time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time  `db:"updated_at" json:"updated_at"`
-	SendAt     *time.Time `db:"send_at" json:"send_at"`   // a scheduled text's time (step 10)
+	SendAt     *time.Time `db:"send_at" json:"send_at"`   // a scheduled text's time
 	BatchID    *string    `db:"batch_id" json:"batch_id"` // one message to many leads
-	// A reply read as an opt-out, or waiting for the agent's choice (step 25, D207, D208).
+	// A reply read as an opt-out, or waiting for the agent's choice (D207, D208).
 	OptOutQuestion string     `db:"opt_out_question" json:"opt_out_question"`
 	OptOutBy       *string    `db:"opt_out_by" json:"opt_out_by"`
 	OptOutAt       *time.Time `db:"opt_out_at" json:"opt_out_at"`
-	Complaint      bool       `db:"complaint" json:"complaint"` // a reply that complains (step 39)
+	Complaint      bool       `db:"complaint" json:"complaint"` // a reply that complains
 }
 
 var (
@@ -49,12 +49,12 @@ type textAsk struct {
 	Text     string `json:"text"`
 	From     string `json:"from"`
 	Scenario string `json:"scenario"` // simulate mode only: sms_delivered or sms_failed
-	// Later instead of now (step 10, D211): sent then, inside the lead's texting hours, unless the number was blocked meanwhile.
+	// Later instead of now (D211): sent then, inside the lead's texting hours, unless the number was blocked meanwhile.
 	SendAt *time.Time `json:"send_at"`
 }
 
 func (s *server) sendText(ctx context.Context, sc scope, ask textAsk) (*smsRow, error) {
-	// A time given: the text waits for it (step 10, D211).
+	// A time given: the text waits for it (D211).
 	if ask.SendAt != nil {
 		return s.scheduleText(ctx, sc, ask, *ask.SendAt, "", false)
 	}
@@ -62,7 +62,7 @@ func (s *server) sendText(ctx context.Context, sc scope, ask textAsk) (*smsRow, 
 	if err != nil {
 		return nil, err
 	}
-	// Only inside the hours leads may be texted (step 21, D151); later ones can be scheduled.
+	// Only inside the hours leads may be texted (D151); later ones can be scheduled.
 	if err := s.mayContactNow(ctx, sc.orgID); err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (s *server) sendText(ctx context.Context, sc scope, ask textAsk) (*smsRow, 
 	}
 	m, err := s.deliver(ctx, sc.orgID, ask.LeadID, id, from, to, strings.TrimSpace(ask.Text), ask.Scenario)
 	if err == nil {
-		s.charge(ctx, sc.orgID, sc.userID, lead, "texts", 1, id) // to the lead's team and the sender (step 22)
+		s.charge(ctx, sc.orgID, sc.userID, lead, "texts", 1, id) // to the lead's team and the sender
 	}
 	return m, err
 }
@@ -107,7 +107,7 @@ func (s *server) mayText(ctx context.Context, sc scope, ask textAsk, anySender b
 	if !sc.can("message") {
 		return "", leadInfo{}, forbidden("Your role does not allow texting.")
 	}
-	// The carriers approved the agency's texting, and its opt-out and complaint rates allow it (step 39).
+	// The carriers approved the agency's texting, and its opt-out and complaint rates allow it.
 	if err := s.textingAllowed(ctx, sc.orgID, anySender); err != nil {
 		return "", leadInfo{}, err
 	}
@@ -122,7 +122,7 @@ func (s *server) mayText(ctx context.Context, sc scope, ask textAsk, anySender b
 	if err != nil {
 		return "", lead, err
 	}
-	// One person sends in a lead's conversation (step 10, D17).
+	// One person sends in a lead's conversation (D17).
 	if !anySender {
 		if err := thread.mustBeSender(sc.userID); err != nil {
 			return "", lead, err
@@ -189,7 +189,7 @@ func (s *server) deliver(ctx context.Context, org, lead, id, from, to, text, sce
 	if err = s.replayTextEvents(ctx, carrierID); err != nil {
 		return nil, err
 	}
-	// The lead is answered: their wait ends (step 10).
+	// The lead is answered: their wait ends.
 	if err = s.textAnswered(ctx, org, lead); err != nil {
 		return nil, err
 	}
@@ -327,13 +327,13 @@ func (s *server) textReceived(ctx context.Context, ev event, raw []byte) error {
 		id, org, user, from, to, text, ev.str("id"), s.route()); err != nil || tag.RowsAffected() == 0 {
 		return err
 	}
-	// A complaining reply counts toward the agency's complaint rate (step 39, D269).
+	// A complaining reply counts toward the agency's complaint rate (D269).
 	if isComplaint(text) {
 		if _, err = tx.Exec(ctx, `UPDATE sms_messages SET complaint = true WHERE id = $1`, id); err != nil {
 			return err
 		}
 	}
-	// An opt-out reply blocks at once; a reply that only mentions one waits for the agent's choice (step 25, D207, D208).
+	// An opt-out reply blocks at once; a reply that only mentions one waits for the agent's choice (D207, D208).
 	word := plainWords(text)
 	reading := readOptOut(text)
 	started := slices.Contains(startWords, word)
@@ -376,7 +376,7 @@ func (s *server) textReceived(ctx context.Context, ev event, raw []byte) error {
 	if err == nil && lead.Found {
 		_, _ = s.st.db.Exec(ctx, `UPDATE sms_messages SET lead_id = $2, updated_at = now() WHERE id = $1`, id, lead.LeadID)
 		_, _ = s.st.db.Exec(ctx, `UPDATE sms_messages SET lead_id = $3 WHERE org_id = $1 AND to_number = $2 AND lead_id IS NULL`, org, from, lead.LeadID)
-		// The text now waits for an answer: too long, and the team's leads are told (step 10, D21).
+		// The text now waits for an answer: too long, and the team's leads are told (D21).
 		if !reading.clear {
 			// Who works the lead and leads its team, so the right people are told if it waits (asked as the number's owner).
 			if _, _, err := s.leadThread(ctx, scope{userID: user, orgID: org}, lead.LeadID); err != nil {

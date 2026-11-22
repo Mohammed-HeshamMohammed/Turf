@@ -217,7 +217,7 @@
         "services/telnyx",
         "packages/go"
       ],
-      "build": "go test ./... (the database tests are skipped without DIALER_TEST_DATABASE_URL); docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8113, network alias dialer-sms, no domain of its own",
+      "build": "go test ./... in services/telnyx (database tests need DIALER_TEST_DATABASE_URL). Seven images from the repository root: services/telnyx/Dockerfile (cmd/dialer-sms, every part in one, port 8113) and Dockerfile.<part> for the six telnyx-phone-* and telnyx-sms-* containers (ports 8113, 8122-8126); see services/telnyx/README.md",
       "images": [
         {
           "name": "cw-dialer-sms",

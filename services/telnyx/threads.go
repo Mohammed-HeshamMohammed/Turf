@@ -1,6 +1,6 @@
 package telnyx
 
-// Build step 10: lead threads. A lead's texts are one thread, seen by whoever may see the lead (the CRM decides, D16). One person
+// Lead threads. A lead's texts are one thread, seen by whoever may see the lead (the CRM decides, D16). One person
 // sends (D17): the lead's agent, unless someone above them took it over. Takeover follows rank: the owner or an admin over a lead of
 // the lead's team, a lead over its deputy, a deputy over the agent (D76). The holder hands control back; the agent can ask for it back
 // but not take it (D18). Everyone who sees the thread reads and writes its internal notes (D96). A text from the lead that waits longer

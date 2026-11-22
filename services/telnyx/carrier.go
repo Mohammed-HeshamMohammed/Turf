@@ -1,6 +1,6 @@
 package telnyx
 
-// Build step 39 (migrations/0009_carrier.sql): each agency registers its own texting brand and campaign with the US carriers (10DLC)
+// Each agency registers its own texting brand and campaign with the US carriers (10DLC)
 // through Telnyx (D268). Nobody in the agency calls until its brand is verified, or texts until its campaign is provisioned with
 // the carriers (D314), so one agency's behaviour cannot get the others blocked. With CARRIER_CHECK=off (tests and local work) the
 // registration is not required. Telnyx's 10DLC API, read 2026-11-18:

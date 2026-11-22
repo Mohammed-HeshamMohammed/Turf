@@ -1,6 +1,6 @@
 package telnyx
 
-// Build step 26, part C: the call's summary afterwards, with a suggested outcome for the agent to confirm (D320, D361). The AI is in
+// The call's summary afterwards, with a suggested outcome for the agent to confirm (D320, D361). The AI is in
 // the assistant service (ASSISTANT_URL, ASSISTANT_TOKEN); it is told the captions and the signals of this call only. The summary is a
 // draft kept on the call for its agent; it reaches the lead's record when the agent puts it in the wrap-up's notes (D322). Each summary
 // is one use of the assistant, charged to the lead's team and client within the person's daily cap (D323).
