@@ -3,6 +3,8 @@
 # auth service and the core API ask this service to send an email and never hold a mail setting themselves.
 # Notification API HTTP listening port; default 8102. Match Coolify's private/public upstream configuration.
 PORT=8102
+# Optional secret PostgreSQL URI of the notifications database (a database named notifications on an existing Coolify PostgreSQL). Set: emails are queued and retried; empty: sent during the request.
+DATABASE_URL=<postgres://user:password@<postgres internal host>:5432/notifications?sslmode=require>
 # Who may ask for mail: name=token pairs, comma separated, each token at least 24 random characters (the caller sets the same
 # token: AUTH_NOTIFY_TOKEN on auth, CALLERWHALE_NOTIFY_TOKEN on core-api).
 # Secret caller=token pairs, 24+ characters each; only auth today. Match the caller's token; changing one side breaks that caller's mail.

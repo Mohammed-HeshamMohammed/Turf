@@ -160,6 +160,11 @@ jobs:
     with:
       dir: services/notifications
       language: go
+      # The mail queue tests remake the notifications schema.
+      env: NOTIFY_TEST_DATABASE_URL=postgres://postgres:testpass@localhost:5432/postgres?sslmode=disable
+      must_pass: |
+        --- PASS: TestAnEmailTheMailServerCannotTakeYetIsKeptAndSentOnceLater
+        --- PASS: TestTwoSendersNeverSendTheSameEmail
 
   mcp:
     needs: changes

@@ -40,6 +40,8 @@ services:
       dockerfile: services/notifications/Dockerfile
     environment:
       PORT: "8102"
+      # The mail queue. A database that cannot be reached only means emails are sent during their request.
+      DATABASE_URL: "${NOTIFICATIONS_DATABASE_URL:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/callerwhale_notifications?sslmode=disable}"
     restart: unless-stopped
   billing:
     build:

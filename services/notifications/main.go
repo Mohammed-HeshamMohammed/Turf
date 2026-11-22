@@ -5,13 +5,16 @@ package main
 
 import (
 	"callerwhale/runtimelog"
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -32,6 +35,8 @@ type Config struct {
 	// while its token is being replaced: add the new one, switch the caller over, then remove the old one.
 	Tokens map[string][]string
 	SMTP   SMTP
+	// DatabaseURL is the notifications database (DATABASE_URL). Set, emails are queued and retried; empty, sent during the request.
+	DatabaseURL string
 }
 
 func loadConfig() Config {
@@ -42,6 +47,7 @@ func loadConfig() Config {
 			cfg.Tokens[name] = append(cfg.Tokens[name], token)
 		}
 	}
+	cfg.DatabaseURL = strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	cfg.ContactTo = strings.TrimSpace(os.Getenv("NOTIFY_CONTACT_TO"))
 	cfg.ContactOrigins = strings.Split(os.Getenv("NOTIFY_CONTACT_ORIGINS"), ",")
 	port := strings.TrimSpace(os.Getenv("NOTIFY_SMTP_PORT"))
@@ -62,6 +68,7 @@ func loadConfig() Config {
 type Server struct {
 	tokens     map[string][]string
 	sender     Sender
+	queue      *queue // nil: every email is sent during its request
 	configured bool
 	now        func() time.Time
 	mu         sync.Mutex
@@ -160,14 +167,29 @@ func (s *Server) mail(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
-	if err := s.sender.Send(msg); err != nil {
+	queued, err := s.deliver(r.Context(), name, req.Template, msg)
+	if err != nil {
 		// The reason is for this service's log; the caller only learns that the mail server did not take it.
 		log.Printf("mail %q for %s not sent: %v", req.Template, name, err)
 		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "The mail server did not accept the message."})
 		return
 	}
-	log.Printf("mail %q sent for %s", req.Template, name)
-	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true})
+	if !queued {
+		log.Printf("mail %q sent for %s", req.Template, name)
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true, "queued": queued})
+}
+
+// deliver queues the email when there is a queue, and otherwise sends it now. When the queue cannot take it (its database is
+// down), it is sent now instead, so a database problem never stops mail. queued says which happened.
+func (s *Server) deliver(ctx context.Context, caller, template string, m Message) (queued bool, err error) {
+	if s.queue != nil {
+		if err = s.queue.add(ctx, caller, template, m); err == nil {
+			return true, nil
+		}
+		log.Printf("WARN mail %q for %s could not be queued, sending it now: %v", template, caller, err)
+	}
+	return false, s.sender.Send(m)
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
@@ -201,6 +223,19 @@ func main() {
 		log.Print("NOTIFY_CONTACT_TO is empty: the website's contact form answers 503 until it is set")
 	}
 	srv := newServer(cfg.Tokens, cfg.SMTP, cfg.SMTP.Configured()).withContact(cfg.ContactTo, cfg.ContactOrigins)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	if cfg.DatabaseURL == "" {
+		log.Print("DATABASE_URL is empty: every email is sent during its request, and one the mail server does not take is lost")
+	} else if q, err := openQueue(ctx, cfg.DatabaseURL, cfg.SMTP); err != nil {
+		// A database that cannot be reached at start must not stop mail: send directly until the next start.
+		log.Printf("WARN the mail queue is not available, so every email is sent during its request: %v", err)
+	} else {
+		defer q.close()
+		srv.queue = q
+		go q.run(ctx)
+		log.Print("INFO emails are queued and retried (the notifications database)")
+	}
 	log.Printf("%s listening on :%s", service, port)
 	serveUntilStopped(&http.Server{Addr: ":" + port, Handler: runtimelog.LogHTTP(srv.mux()), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 2 * time.Minute})
 }
