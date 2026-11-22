@@ -4,7 +4,7 @@
 
 In simulate mode the dialer runs a fake Telnyx inside its own container: no Telnyx account, no minutes, nothing reaches a phone. Nothing changes for people using the CRM: no screen uses the dialer yet. To undo everything: stop and delete the `dialer-sms` application and its database, clear crm-core's `DIALER_TOKEN`, and remove `dialer-sms=` from authz's `AUTHZ_TOKENS`.
 
-Service: `services/dialer-sms/README.md`. Variables: `env/dialer-sms.production.example`.
+Service: `services/telnyx/README.md`. Variables: `env/dialer-sms.production.example`.
 
 ## What you are creating
 
