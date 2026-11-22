@@ -1,6 +1,6 @@
 package main
 
-// Build step 34 (database_setup/0031_status_breach.sql).
+// (database_setup/0031_status_breach.sql).
 //
 //   - The public status: each part of Caller Whale (sign-in, the CRM, calls, texts, chats, email) as up, degraded or down, from the
 //     incidents staff open and, when STATUS_PROBES is set ("calls=http://dialer-sms:8113/healthz,..."), from the monitoring stack's

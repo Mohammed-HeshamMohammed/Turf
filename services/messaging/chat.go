@@ -687,7 +687,7 @@ func (s *server) editMessage(q *req) error {
 		if sender != q.sc.userID || kind != "text" {
 			return forbidden("You can edit only your own messages.")
 		}
-		// A message can be edited for 15 minutes after it was sent (step 16); after that it stands, and can still be deleted.
+		// A message can be edited for 15 minutes after it was sent; after that it stands, and can still be deleted.
 		var late bool
 		if err := tx.QueryRow(ctx, `SELECT created_at < now() - interval '15 minutes' FROM messages WHERE id = $1`, id).Scan(&late); err != nil {
 			return err

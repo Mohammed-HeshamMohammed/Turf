@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Build step 13: handing an agency to a new owner, and an agency whose owner is gone.
+// Handing an agency to a new owner, and an agency whose owner is gone.
 //
 //   - The owner offers the agency to a member, choosing their own next role (admin, team lead, or leaving), with their second step
 //     (D28, D200). The member accepts with their second step; when the agency pays through the payment provider, only once they pay

@@ -55,7 +55,7 @@ type config struct {
 	scanWindow     time.Duration
 	scanPause      time.Duration
 	corsOrigins    map[string]bool // pages (like https://callerwhale.com) that may read the gateway's own replies from a browser
-	// Step 35: authz, for each agency's allowed countries and networks (its token reads only those). Empty: no place limits.
+	// Authz, for each agency's allowed countries and networks (its token reads only those). Empty: no place limits.
 	authzURL, authzToken string
 }
 
@@ -198,16 +198,16 @@ func classify(method, path string) need {
 		return open
 	case method == http.MethodPost && path == "/api/v1/billing/webhook": // the payment provider's signature is checked by the core API
 		return open
-	// Email to leads (step 29): a lead clicking a link or unsubscribing, and SNS delivering replies (its signature is checked by the CRM).
-	// Website forms (step 36): anyone may open and send one; the CRM limits sends per address and turns robots away.
+	// Email to leads: a lead clicking a link or unsubscribing, and SNS delivering replies (its signature is checked by the CRM).
+	// Website forms: anyone may open and send one; the CRM limits sends per address and turns robots away.
 	case (method == http.MethodGet || method == http.MethodPost) && strings.HasPrefix(path, "/api/v1/public/forms/"):
 		return open
 	case (method == http.MethodGet || method == http.MethodPost) && strings.HasPrefix(path, "/api/v1/public/email/"):
 		return open
-	// Shared-file links (step 38): the CRM checks the link, its expiry and the scan, and records each opening.
+	// Shared-file links: the CRM checks the link, its expiry and the scan, and records each opening.
 	case method == http.MethodGet && strings.HasPrefix(path, "/api/v1/public/files/"):
 		return open
-	// Keys for outside tools (step 33): the CRM checks the key (cwk_...) itself; the per-address limit still applies.
+	// Keys for outside tools: the CRM checks the key (cwk_...) itself; the per-address limit still applies.
 	case (method == http.MethodGet || method == http.MethodPost) && strings.HasPrefix(path, "/api/v1/tools/"):
 		return open
 	case method == http.MethodGet && path == "/api/v1/google/callback": // Google sends the person back here; a one-use state made for them proves who they are
@@ -230,7 +230,7 @@ type gateway struct {
 	scans    *scanners
 	humanIPs *limiter // guarded requests per address: every one costs a call to Google
 	now      func() time.Time
-	places   *placeCache // each agency's allowed countries and networks (step 35)
+	places   *placeCache // each agency's allowed countries and networks
 }
 
 func newGateway(cfg config) *gateway {
@@ -474,7 +474,7 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	// An agency limited to chosen countries and networks (step 35, D243).
+	// An agency limited to chosen countries and networks (D243).
 	if ok, why := g.placeAllowed(r, caller); !ok {
 		writeJSON(w, http.StatusForbidden, map[string]any{"error": why, "code": "place_not_allowed"})
 		return

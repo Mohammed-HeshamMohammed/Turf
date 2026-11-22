@@ -1,6 +1,6 @@
 package main
 
-// Build step 24: limits on AI.
+// Limits on AI.
 //
 //   - An outside AI (ChatGPT, Claude, Gemini) connected through MCP with the team:manage permission can read the people and teams of the
 //     person's agency, within the person's own rights. Inviting, removing, changing roles, deleting a team and cancelling an invitation

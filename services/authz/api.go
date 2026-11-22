@@ -153,11 +153,11 @@ func (s *server) grant(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return store(err)
 		}
-		// Caller Whale's staff, in an agency that granted support access (step 19).
+		// Caller Whale's staff, in an agency that granted support access.
 		if f, err = s.asSupport(r, req.UserID, req.OrgID, f); err != nil {
 			return store(err)
 		}
-		// The owner may require the second step of everyone (step 35, D238).
+		// The owner may require the second step of everyone (D238).
 		if f, err = s.everyoneNeedsSecondStep(r.Context(), req.OrgID, f); err != nil {
 			return store(err)
 		}
@@ -763,7 +763,7 @@ func (s *server) person(w http.ResponseWriter, r *http.Request) error {
 		held := slices.ContainsFunc(m.Roles, func(role string) bool { return slices.Contains(heldRoles, role) })
 		spaces = append(spaces, workspaceRoles{OrgID: org, Roles: m.Roles, BusinessOwner: held})
 	}
-	// The platform owner and cofounder also see the agencies that let support in now (step 19), as support.
+	// The platform owner and cofounder also see the agencies that let support in now, as support.
 	if staff == "owner" || staff == "cofounder" {
 		open, err := s.rules.supportOpen(r.Context(), s.now().Unix())
 		if err != nil {

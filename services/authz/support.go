@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Build step 19: support access. The owner lets Caller Whale's staff into the agency for a set time (24 hours by default), and can end
+// Support access. The owner lets Caller Whale's staff into the agency for a set time (24 hours by default), and can end
 // it early (D83). Meanwhile the platform owner and cofounder, with their second step, open it as "support": they see its screens and
 // can change its workspace rules to fix a problem, but cannot edit, export or delete leads, message anyone (so internal chats stay
 // closed to them) or spend money (D202). Each visit goes into the agency's record of people changes, which the owner sees.

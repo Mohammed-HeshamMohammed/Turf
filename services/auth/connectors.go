@@ -33,7 +33,7 @@ const (
 )
 
 // connectorScopes are what an assistant can be given. Phase 1 has one: reading the person's own account and plan.
-// team:manage (step 24) reads the agency's people and teams and asks for changes the person confirms in Caller Whale.
+// team:manage reads the agency's people and teams and asks for changes the person confirms in Caller Whale.
 var connectorScopes = []string{"account:read", "team:manage"}
 
 func (s *server) connectorRoutes(mux *http.ServeMux) {

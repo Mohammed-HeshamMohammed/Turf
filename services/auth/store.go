@@ -228,7 +228,7 @@ func (s *server) openSession(ctx context.Context, u *user, kind string, mfaPasse
 	if err != nil {
 		return nil, err
 	}
-	s.noteDevice(ctx, u, id) // where it came from; a new device emails the person (step 35, D242)
+	s.noteDevice(ctx, u, id) // where it came from; a new device emails the person (D242)
 	return s.tokens(u, id, mfaPassed, provider, t, refresh)
 }
 

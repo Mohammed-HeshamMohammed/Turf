@@ -1,6 +1,6 @@
 package main
 
-// Build step 26, part C: the in-app assistant for the agency's people (D320). The CRM and the dialer ask here, over the private network
+// The in-app assistant for the agency's people (D320). The CRM and the dialer ask here, over the private network
 // with AGENT_TOKEN; this service holds the AI key and the rules. It keeps nothing: the lead's facts come with each request and are
 // neither logged nor stored (D322), and the AI is reached only through providers that neither keep nor train on what is sent (D321).
 // What the agent sees is a draft: nothing is sent or saved from here.

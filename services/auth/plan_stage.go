@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Build step 18: an unpaid plan's grace period, then read-only, then closed; and an agency its owner closes, with 30 days to reopen it
+// An unpaid plan's grace period, then read-only, then closed; and an agency its owner closes, with 30 days to reopen it
 // (D80, D82, D204, D205, D206, D364). authz holds the stage and applies it to every request; this file shows it and lets the owner
 // close and reopen.
 

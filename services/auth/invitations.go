@@ -39,7 +39,7 @@ type invitation struct {
 	ResendsLeft  int    `json:"resends_left"`
 	ExtendsLeft  int    `json:"extends_left"`
 	NextResendAt int64  `json:"next_resend_at"`
-	// Everything the invitation carries (step 3, D45): its roles, the teams an agent joins, and the teams a lead will lead.
+	// Everything the invitation carries (D45): its roles, the teams an agent joins, and the teams a lead will lead.
 	Roles       []string `json:"roles"`
 	TeamIDs     []string `json:"team_ids"`
 	LeadTeamIDs []string `json:"lead_team_ids"`
@@ -265,7 +265,7 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 		Email  string `json:"email"`
 		Role   string `json:"role"`
 		TeamID string `json:"team_id"`
-		// Step 3 (D45): several roles, several teams, and the teams a lead will lead. Left out, role and team_id are all.
+		// Several roles, several teams, and the teams a lead will lead (D45). Left out, role and team_id are all.
 		Roles       []string `json:"roles"`
 		TeamIDs     []string `json:"team_ids"`
 		LeadTeamIDs []string `json:"lead_team_ids"`
@@ -730,7 +730,7 @@ func (s *server) acceptInvitation(w http.ResponseWriter, r *http.Request) error 
 	if err := tx.Commit(r.Context()); err != nil {
 		return err
 	}
-	// A team lead's invitation names the teams they lead: those teams get them as a lead now (step 3, problems 1 and 2). The
+	// A team lead's invitation names the teams they lead: those teams get them as a lead now. The
 	// membership is already in place; a team that cannot take them (deleted, or already led under the old rules) is reported.
 	notLed := s.leadTeamsOnAccept(r, item, c.Sub)
 	// org_id lets the app open the agency just joined rather than the one used last (problem 17).

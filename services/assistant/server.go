@@ -61,7 +61,7 @@ type server struct {
 	perMin  *counter // every message, scripted or not
 	aiPerIP *counter // AI answers per visitor per day
 	aiAll   *counter // AI answers for everyone per day: the bill has a ceiling
-	// AGENT_TOKEN: the CRM's and the dialer's key to the in-app assistant (step 26); empty turns it off.
+	// AGENT_TOKEN: the CRM's and the dialer's key to the in-app assistant; empty turns it off.
 	agentToken string
 }
 

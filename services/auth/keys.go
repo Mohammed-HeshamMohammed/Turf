@@ -28,7 +28,7 @@ type claims struct {
 	Sub           string `json:"sub"`
 	Email         string `json:"email"`
 	Name          string `json:"name"`
-	Tag           string `json:"tag,omitempty"` // the #tag after the name (step 4)
+	Tag           string `json:"tag,omitempty"` // the #tag after the name
 	SID           string `json:"sid"`
 	MFA           bool   `json:"mfa"`
 	EmailVerified bool   `json:"email_verified"`

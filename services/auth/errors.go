@@ -40,7 +40,7 @@ type handler func(w http.ResponseWriter, r *http.Request) error
 // sentence, the log gets the detail (never a request body, header or token).
 func serve(h handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r = withDevice(r) // the device and place a new session comes from (step 35)
+		r = withDevice(r) // the device and place a new session comes from
 		err := h(w, r)
 		if err == nil {
 			return

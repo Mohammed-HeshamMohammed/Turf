@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Build step 18: what an unpaid plan, or an agency its owner closed, does to the people in it.
+// What an unpaid plan, or an agency its owner closed, does to the people in it.
 //
 //	grace (7 days from the day the plan went unpaid): everything works; the owner and admins are warned (D80, D204).
 //	read-only (the 30 days after): people read and export; nothing is called, texted, imported, and no one is invited (D205, D364).
@@ -91,7 +91,7 @@ func (s *server) planStage(w http.ResponseWriter, r *http.Request) error {
 }
 
 // seatUse answers GET /v1/orgs/{org}/seats: the plan's seats and the people using one (everyone but clients and the suspended). When a
-// lowered plan leaves more people than seats, the owner chooses who keeps one and the others are suspended (step 18, D81, D365).
+// lowered plan leaves more people than seats, the owner chooses who keeps one and the others are suspended (D81, D365).
 func (s *server) seatUse(w http.ResponseWriter, r *http.Request) error {
 	org, err := s.workspace(r)
 	if err != nil {

@@ -19,7 +19,7 @@ type config struct {
 	publicURL      string // this service's public address
 	websiteURL     string
 	landingURL     string            // where a sign-in or a confirmation link started from the public site returns
-	statusProbes   map[string]string // STATUS_PROBES: part=health address, as the monitoring stack checks it (step 34)
+	statusProbes   map[string]string // STATUS_PROBES: part=health address, as the monitoring stack checks it
 	statusSource   string            // STATUS_SOURCE_URL: where those checks are read (alert-relay); default http://alert-relay:8121
 	appURL         string
 	devTokens      bool // development only: return email confirmation tokens in answers

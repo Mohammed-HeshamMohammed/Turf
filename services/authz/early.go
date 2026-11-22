@@ -1,6 +1,6 @@
 package main
 
-// Build step 40 (D294): the switches (D104) an agency's owner may turn on early, knowing they may change. Staff still turn any
+// The switches (D104) an agency's owner may turn on early, knowing they may change. Staff still turn any
 // switch with PUT /v1/orgs/{org}/features/{name}.
 
 import (

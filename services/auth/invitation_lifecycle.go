@@ -1,6 +1,6 @@
 package main
 
-// What happens to an invitation after it is sent (build step 2): its status, held seats and the "Blocked" state, resending and
+// What happens to an invitation after it is sent: its status, held seats and the "Blocked" state, resending and
 // extending it, the invited person declining it or blocking the agency, the agency's own validity and daily limit, and
 // cancelling an inviter's invitations when they lose the right to invite.
 
@@ -494,7 +494,7 @@ func (s *server) closeSeatRequest(w http.ResponseWriter, r *http.Request) error 
 
 // leaveWorkspace is a person leaving an agency at once (D25). Their access ends now; they stop leading or deputising any team;
 // invitations they sent and that still wait are cancelled. Their leads stay with their teams, where the team's leads (or the
-// owner) see them, until the owner hands them on (build step 12). The owner cannot leave.
+// owner) see them, until the owner hands them on. The owner cannot leave.
 func (s *server) leaveWorkspace(w http.ResponseWriter, r *http.Request) error {
 	org := r.PathValue("org")
 	if _, err := uuid.Parse(org); err != nil {

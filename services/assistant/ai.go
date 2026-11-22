@@ -81,7 +81,7 @@ func (a *ai) ask(ctx context.Context, history []message, page string) (string, e
 // complete is one answer from the model to a system prompt and messages, at most maxTokens long.
 func (a *ai) complete(ctx context.Context, system string, history []message, maxTokens int) (string, error) {
 	msgs := append([]message{{Role: "system", Content: system}}, history...)
-	// Only providers that neither keep nor train on what is sent (step 24, D321): OpenRouter routes around any that would.
+	// Only providers that neither keep nor train on what is sent (D321): OpenRouter routes around any that would.
 	body, _ := json.Marshal(map[string]any{"model": a.model, "messages": msgs, "max_tokens": maxTokens, "temperature": 0.3,
 		"provider": map[string]any{"data_collection": "deny"}})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.url, bytes.NewReader(body))
