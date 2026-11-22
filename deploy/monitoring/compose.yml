@@ -147,8 +147,11 @@ services:
       # The link each alert push opens: Grafana's alert list behind the staff login; default https://gate.callerwhale.com/staff/monitoring/alerting/list.
       ALERTS_URL: "${ALERTS_URL:-https://gate.callerwhale.com/staff/monitoring/alerting/list}"
     networks:
-      - grafana
-      - coolify
+      grafana:
+      # Its name on the platform network: auth's status page reads GET /probes here (STATUS_SOURCE_URL).
+      coolify:
+        aliases:
+          - alert-relay
     healthcheck:
       test: ["CMD", "/service", "health"]
       interval: 30s

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -58,21 +58,34 @@ func TestStatusAndBreachNotices(t *testing.T) {
 		t.Fatalf("status emails (opened and resolved): %d", statusMails)
 	}
 
-	// Automatic checks: two failures in a row mark a part down.
+	// Automatic checks come from the monitoring stack: a part whose health address it reports down shows down, since then.
 	if _, err := parseProbes("calls=ftp://x"); err == nil {
 		t.Fatal("a bad probe address was taken")
 	}
-	down := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) }))
-	defer down.Close()
-	probes, _ := parseProbes("chats=" + down.URL)
-	w.s.probeStatus(context.Background(), probes)
+	chatsUp := true
+	monitoring := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(rw).Encode(map[string]any{"probes": []map[string]any{
+			{"target": "http://messaging:8108/healthz", "up": chatsUp, "since": 1_800_000_000},
+			{"target": "http://crm-core:8107/healthz", "up": true},
+		}})
+	}))
+	defer monitoring.Close()
+	probes, _ := parseProbes("chats=http://messaging:8108/healthz,crm=http://crm-core:8107/healthz")
+	w.s.probes = newProbeSource(monitoring.URL, probes)
 	if s, _ := state(); s["chats"] != "up" {
-		t.Fatal("one failure marked it down")
+		t.Fatalf("all answering: %v", s)
 	}
-	w.s.probeStatus(context.Background(), probes)
-	if s, _ := state(); s["chats"] != "down" {
-		t.Fatalf("two failures: %v", s)
+	chatsUp = false
+	w.s.probes = newProbeSource(monitoring.URL, probes) // a fresh copy (the last one is kept 15 seconds)
+	if s, _ := state(); s["chats"] != "down" || s["crm"] != "up" {
+		t.Fatalf("chats down: %v", s)
 	}
+	// The monitoring stack unreachable: incidents only, nothing invented.
+	w.s.probes = newProbeSource("http://127.0.0.1:1", probes)
+	if s, _ := state(); s["chats"] != "up" {
+		t.Fatalf("monitoring unreachable: %v", s)
+	}
+	w.s.probes = nil
 
 	// Breach notices.
 	if a := w.call("POST", "/v1/admin/breach-notices", map[string]any{"org_ids": []string{flowOrg}, "discovered_at": now() - 3600, "what": "x", "to_do": "y"}, owner); a.status != 403 {

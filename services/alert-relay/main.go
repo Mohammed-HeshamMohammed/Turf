@@ -5,7 +5,8 @@
 //
 // Settings: RELAY_TOKEN (32+ characters; Grafana's contact points send it), PUSH_TARGETS ("owner=https://ntfy.sh/<topic>,
 // cofounder=https://ntfy.sh/<topic>"), ONCALL_ORDER ("owner,cofounder": whose week comes first), ONCALL_FROM (the Monday the
-// first person's week starts, 2026-11-23), ALERTS_URL (the link sent with each alert, Grafana's alert list), PORT (8121).
+// first person's week starts, 2026-11-23), ALERTS_URL (the link sent with each alert, Grafana's alert list), PROMETHEUS_URL
+// (default http://prometheus:9090, for GET /probes: which services answer their health check, read by auth's status page), PORT (8121).
 package main
 
 import (
@@ -25,6 +26,7 @@ import (
 
 type config struct {
 	port, token, alertsURL string
+	prometheus             string            // PROMETHEUS_URL: the monitoring resource's Prometheus, for GET /probes
 	targets                map[string]string // person -> push URL
 	order                  []string
 	from                   time.Time
@@ -34,6 +36,9 @@ func loadConfig(getenv func(string) string) (config, error) {
 	c := config{port: strings.TrimSpace(getenv("PORT")), token: strings.TrimSpace(getenv("RELAY_TOKEN")), alertsURL: strings.TrimSpace(getenv("ALERTS_URL")), targets: map[string]string{}}
 	if c.port == "" {
 		c.port = "8121"
+	}
+	if c.prometheus = strings.TrimRight(strings.TrimSpace(getenv("PROMETHEUS_URL")), "/"); c.prometheus == "" {
+		c.prometheus = "http://prometheus:9090"
 	}
 	if len(c.token) < 32 {
 		return c, errors.New("RELAY_TOKEN needs at least 32 characters")
@@ -87,9 +92,10 @@ func (c config) onCall(now time.Time) string {
 }
 
 type server struct {
-	cfg  config
-	http *http.Client
-	now  func() time.Time
+	cfg   config
+	http  *http.Client
+	now   func() time.Time
+	cache probeCache
 }
 
 // grafanaMessage is the part of Grafana's webhook this relay reads.
@@ -228,6 +234,7 @@ func (s *server) handler() http.Handler {
 		_, _ = w.Write([]byte(`{"ok":true,"service":"alert-relay"}`))
 	})
 	mux.HandleFunc("POST /alerts", s.alerts)
+	mux.HandleFunc("GET /probes", s.probes)
 	return mux
 }
 

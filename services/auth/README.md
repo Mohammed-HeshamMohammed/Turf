@@ -90,7 +90,7 @@ A new numbered SQL file goes in `database_setup/`; a route added here goes in th
 
 - `GET /v1/status` (open): each part (sign_in, crm, calls, texts, chats, email) up, degraded or down; open incidents (the `banner`) and the last 30 days'. The website's `/status` page and every page's outage banner read it.
 - Staff: `POST /v1/admin/status/incidents {components, severity: degraded|down, title, message}`, `POST /v1/admin/status/incidents/{id} {message, resolved}`. Opening and resolving email everyone who chose it: `GET`/`PUT /v1/me/status-emails {on}`.
-- `STATUS_PROBES` (optional): `part=private health address,...`, checked every minute; two failures in a row show the part down until it answers.
+- `STATUS_PROBES` (optional): `part=private health address,...`, the addresses the monitoring stack already checks every 15 seconds (`deploy/monitoring/prometheus/prometheus.yml`, job `services`). The page reads those checks from alert-relay's `GET /probes` (`STATUS_SOURCE_URL`, default `http://alert-relay:8121`), kept 15 seconds: a part whose checks all failed for 45 seconds shows down, since it last answered. Auth itself checks nothing and calls no other service for it; when the monitoring stack cannot be read, the page shows the incidents only.
 - Staff: `POST /v1/admin/breach-notices {org_ids, discovered_at, what, to_do}` emails each agency's owner now and keeps whether it went within 72 hours of `discovered_at`; `GET /v1/admin/breach-notices` lists them with their deadline.
 
 ## Sign-in security (build step 35, part A)

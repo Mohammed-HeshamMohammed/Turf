@@ -3,8 +3,8 @@ package main
 // Build step 34 (database_setup/0031_status_breach.sql).
 //
 //   - The public status: each part of Caller Whale (sign-in, the CRM, calls, texts, chats, email) as up, degraded or down, from the
-//     incidents staff open and, when STATUS_PROBES is set ("calls=http://dialer-sms:8113/healthz,..."), from a check every minute
-//     (two failures in a row mark it down). Anyone may read it; signed-in screens show its banner while something is wrong, and people
+//     incidents staff open and, when STATUS_PROBES is set ("calls=http://dialer-sms:8113/healthz,..."), from the monitoring stack's
+//     own health checks (see probeSource; three failed checks in a row mark it down). Anyone may read it; signed-in screens show its banner while something is wrong, and people
 //     who chose it get an email when an incident opens and when it ends (D235).
 //   - Breach notices: staff record what happened and what to do for each affected agency; its owner is emailed at once, and each notice
 //     shows whether it went within 72 hours of Caller Whale knowing (D236). What to tell leads and authorities is the lawyer's, in
@@ -14,10 +14,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -96,20 +99,9 @@ func (s *server) getStatus(w http.ResponseWriter, r *http.Request) error {
 			set(c, in.Severity, in.StartedAt)
 		}
 	}
-	rows, err := s.db.Query(ctx, `SELECT component, since FROM status_probes WHERE NOT ok AND failures >= 2`)
-	if err != nil {
-		return err
+	for part, at := range s.probes.downParts(ctx) {
+		set(part, "down", at)
 	}
-	for rows.Next() {
-		var c string
-		var at int64
-		if err := rows.Scan(&c, &at); err != nil {
-			rows.Close()
-			return err
-		}
-		set(c, "down", at)
-	}
-	rows.Close()
 	parts := []map[string]any{}
 	for _, p := range statusParts {
 		parts = append(parts, map[string]any{"id": p.id, "name": p.name, "state": state[p.id], "since": nilIfZero(since[p.id])})
@@ -256,40 +248,82 @@ func (s *server) tellSubscribers(ctx context.Context, title, message, kind strin
 	}
 }
 
-// probeStatus checks each configured part once: two failures in a row mark it down until it answers again.
-func (s *server) probeStatus(ctx context.Context, probes map[string]string) {
-	client := &http.Client{Timeout: 5 * time.Second}
-	for part, target := range probes {
-		ok := false
-		if req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil); err == nil {
-			if res, err := client.Do(req); err == nil {
-				ok = res.StatusCode/100 == 2
-				res.Body.Close()
-			}
-		}
-		t := now()
-		if _, err := s.db.Exec(ctx, `INSERT INTO status_probes (component, ok, failures, since, checked_at) VALUES ($1, $2, CASE WHEN $2 THEN 0 ELSE 1 END, $3, $3)
-			ON CONFLICT (component) DO UPDATE SET failures = CASE WHEN $2 THEN 0 ELSE status_probes.failures + 1 END,
-				since = CASE WHEN status_probes.ok = $2 THEN status_probes.since ELSE $3 END, ok = $2, checked_at = $3`, part, ok, t); err != nil {
-			log.Printf("WARN status probe %s: %v", part, err)
-		}
-	}
+// probeSource is where the status page learns which parts answer their health check: the monitoring stack, which already checks
+// every service every 15 seconds (alert-relay's GET /probes reads it from Prometheus). This service checks nothing itself and calls
+// no other service for it. A part is down when every check of the last 45 seconds failed. When the monitoring stack cannot be
+// read, the page shows the incidents staff opened only.
+type probeSource struct {
+	url   string            // STATUS_SOURCE_URL, like http://alert-relay:8121
+	parts map[string]string // STATUS_PROBES: part -> its health address, as the monitoring stack names it
+	http  *http.Client
+
+	mu     sync.Mutex
+	at     time.Time
+	down   map[string]int64 // part -> since when (0: not known)
+	warned time.Time
 }
 
-func (s *server) probeStatusPeriodically(ctx context.Context, probes map[string]string) {
-	if len(probes) == 0 {
-		return
+func newProbeSource(url string, parts map[string]string) *probeSource {
+	if url == "" || len(parts) == 0 {
+		return nil
 	}
-	t := time.NewTicker(time.Minute)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			s.probeStatus(ctx, probes)
+	return &probeSource{url: url, parts: parts, http: &http.Client{Timeout: 3 * time.Second}}
+}
+
+// downParts answers the parts that are down, from a copy at most 15 seconds old.
+func (p *probeSource) downParts(ctx context.Context) map[string]int64 {
+	if p == nil {
+		return nil
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.down != nil && time.Since(p.at) < 15*time.Second {
+		return p.down
+	}
+	down, err := p.fetch(ctx)
+	if err != nil {
+		if time.Since(p.warned) >= 10*time.Minute {
+			log.Printf("WARN the status page cannot read the monitoring checks, so it shows incidents only: %v", err)
+			p.warned = time.Now()
+		}
+		return nil
+	}
+	p.down, p.at = down, time.Now()
+	return down
+}
+
+func (p *probeSource) fetch(ctx context.Context) (map[string]int64, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.url+"/probes", nil)
+	if err != nil {
+		return nil, err
+	}
+	res, err := p.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("the monitoring checks answered %d", res.StatusCode)
+	}
+	var body struct {
+		Probes []struct {
+			Target string `json:"target"`
+			Up     bool   `json:"up"`
+			Since  int64  `json:"since"`
+		} `json:"probes"`
+	}
+	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(&body); err != nil {
+		return nil, err
+	}
+	down := map[string]int64{}
+	for part, target := range p.parts {
+		for _, pr := range body.Probes {
+			if pr.Target == target && !pr.Up {
+				down[part] = pr.Since
+			}
 		}
 	}
+	return down, nil
 }
 
 // parseProbes reads STATUS_PROBES: "calls=http://dialer-sms:8113/healthz,crm=http://crm-core:8107/healthz".
