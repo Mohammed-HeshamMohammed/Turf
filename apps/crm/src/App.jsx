@@ -374,7 +374,7 @@ export function App() {
       const preferred = START_PAGES.find(page => page.id === preferences.startPage && ROLES[role].pages.includes(page.id));
       if (preferred) setRoute(preferred.path);
     }
-    // The web keeps one agency in memory: changes the person could not send there before switching away come back with it (step 5).
+    // The web keeps one agency in memory: changes the person could not send there before switching away come back with it.
     if (vault instanceof MemoryVault) for (const op of takeWork(me.organization_id)) await vault.enqueue(op);
     // The refresh never re-reads the records while the person types, has a dialog open or is on a call.
     const isBusy = () => screenBusy(document, Boolean(getCallSession().active || getCallSession().awaitingOutcome));
@@ -414,7 +414,7 @@ export function App() {
     if (sync) {
       await sync.sync();
       if (sync.status !== "synced" || sync.ops.length) {
-        // On the web nothing is kept on the device: the agency's records leave memory, its unsent changes wait in this tab (step 5).
+        // On the web nothing is kept on the device: the agency's records leave memory, its unsent changes wait in this tab.
         if (!(sync.vault instanceof MemoryVault)) {
           notify(sync.error || "Sync or resolve the pending changes before switching workspaces.");
           return;
@@ -444,7 +444,7 @@ export function App() {
     if (state.remoteStatus === "signed-out") signOut();
   }, [state.remoteStatus, signOut]);
   // Losing access to the open agency (removed or suspended) clears it from memory at once and goes back to the person's other
-  // agencies, or the "not invited" screen when there are none (step 5).
+  // agencies, or the "not invited" screen when there are none.
   useEffect(() => {
     if (state.remoteStatus !== "removed") return;
     const current = latest.current.remote;

@@ -7,7 +7,7 @@ import "./crm.css";
 import { installErrorReports } from "@callerwhale/error-report";
 import { AUTH_SERVER } from "./remote/api.ts";
 
-// Errors in the app reach the auth service's log, without their text (step 42).
+// Errors in the app reach the auth service's log, without their text.
 installErrorReports(`${AUTH_SERVER}/v1/client-errors`, "crm", String(import.meta.env?.VITE_APP_VERSION || "web"));
 
 const root = createRoot(document.getElementById("root"));

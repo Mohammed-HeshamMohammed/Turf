@@ -14,7 +14,7 @@ import { TeamMonitor } from "./TeamMonitor.jsx";
 export function Team() {
   const { state, navigate, notify } = useCrm();
   const finance = capability(state, "finance");
-  // A solo operator who wants to add callers makes the same workspace an agency (step 17, D59, D203).
+  // A solo operator who wants to add callers makes the same workspace an agency (D59, D203).
   const solo = Boolean(state.remote?.roles?.includes("solo"));
   const [upgrading, setUpgrading] = useState(false);
   const upgrade = async () => {
