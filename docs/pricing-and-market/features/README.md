@@ -2,7 +2,7 @@
 
 One file per feature, agreed one at a time. Each file says what the feature does, where its data lives, what it costs Caller Whale to run, and how it compares with competitors. It ends with **the amount of the feature in each tier, what that costs Caller Whale, and the price the feature sells for**.
 
-Features are priced on their own. Plan prices are not fixed yet: they come later from adding up the features in each tier, in [the plans doc](../pricing-and-market/README.md).
+Features are priced on their own. Plan prices are not fixed yet: they come later from adding up the features in each tier, in [the plans doc](../README.md).
 
 Every feature file uses the same five tiers:
 

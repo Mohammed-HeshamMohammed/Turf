@@ -30,7 +30,8 @@ browser / desktop app ──► gateway (the one public entry) ──► auth ·
 | Handle secrets, tokens and upkeep | [security-upkeep.md](operations/security-upkeep.md), [rotating-service-tokens.md](operations/rotating-service-tokens.md), [SECURITY.md](../SECURITY.md) |
 | Watch the system | [grafana-access.md](operations/grafana-access.md) (Grafana, alerts) and each service's `/healthz` |
 | Back up and restore | [backups-and-recovery.md](operations/backups-and-recovery.md) |
-| Understand a feature and its pricing | [features/](features/README.md) (one file per feature) and [pricing-and-market/](pricing-and-market/README.md) (tiers, seats, prices, payments, competitors) |
+| Know what Caller Whale is and who it is for | [product/identity-and-goals.md](product/identity-and-goals.md) |
+| Understand a feature and its pricing | [pricing-and-market/features/](pricing-and-market/features/README.md) (one file per feature) and [pricing-and-market/](pricing-and-market/README.md) (tiers, seats, prices, payments, competitors) |
 | Check a legal point | [legal/](legal/) and the law research in [legal/research/](legal/research/) |
 | See what is still being planned | [plans/](plans/README.md) |
 | See the website's design | [design/](design/) and [plans/web-rebuild/](plans/web-rebuild/README.md) |
@@ -40,11 +41,12 @@ browser / desktop app ──► gateway (the one public entry) ──► auth ·
 - `docs/plans/` holds only what is still open: work not built yet or part built. Each starts with a **Status** line; trust the
   code when they disagree, and fix the doc. When a plan is finished it moves to `docs/history/plans/`, or to `docs/operations/` if
   it is a how-to that is still followed.
-- `docs/history/` holds what is finished or replaced (older layouts, finished plans, dated reviews and tests). It is kept for the
-  record and is not kept up to date.
+- `docs/history/` holds what is finished or replaced (older layouts and READMEs, finished plans, dated reviews, snapshots and
+  the first prototype's ER diagrams). It is kept for the record and is not kept up to date.
 - `docs/operations/` holds the how-tos for running what is built: production branches, Coolify setup, backups, monitoring,
-  secrets and security upkeep.
-- `docs/pricing-and-market/` holds the subscription side: tiers and seats, prices, currencies, payment methods, usage credits,
-  custom plans and the competitor research behind them.
-- `docs/features/`, `docs/legal/` (with the law research in `legal/research/`), `docs/design/` and `docs/product/` are what
-  their names say.
+  runtime logs, secrets and security upkeep.
+- `docs/pricing-and-market/` holds the subscription side: tiers and seats, each feature's value, cost and price
+  (`features/`), currencies, payment methods, usage credits, custom plans and the competitor research behind them.
+- `docs/product/` says what Caller Whale is, for whom and why.
+- `docs/design/` holds the website's look (theme, layout sheets, mockup); `docs/assets/screenshots/` the app screenshots.
+- `docs/legal/` holds the legal package, with the law research in `legal/research/`.

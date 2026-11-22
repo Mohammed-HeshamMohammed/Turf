@@ -1,6 +1,6 @@
 # Payment methods by region
 
-**Status:** Draft (2026-10-25). Part of [Feature 9: Accounts, security and billing](../features/09-accounts-security-billing.md).
+**Status:** Draft (2026-10-25). Part of [Feature 9: Accounts, security and billing](features/09-accounts-security-billing.md).
 
 How customers in each region can pay for Caller Whale, through which provider, what it costs, and who owes the tax on the sale.
 
@@ -20,7 +20,7 @@ So every region below needs a way to pay, even though the leads are all American
 2. **Stripe is used only where it saves real money**, mainly US bank debit for big annual plans. Every Stripe sale is Caller Whale's own sale, so Caller Whale owes the tax on it; keeping Stripe mostly to the US keeps Caller Whale out of foreign tax registrations.
 3. **Prices are in US dollars.** Paddle can show local currencies at checkout.
 4. **Crypto is an optional planned payment route**, subject to provider approval and advice on the US-company/Egypt-resident setup. Prefer provider conversion to USD; see the crypto section below.
-5. **Stripe and US bank debit need the US company.** Stripe is not open to businesses registered in Egypt. Paddle and Stripe pay out to the US company's account (see [Company setup](../features/09-accounts-security-billing.md#company-setup)).
+5. **Stripe and US bank debit need the US company.** Stripe is not open to businesses registered in Egypt. Paddle and Stripe pay out to the US company's account (see [Company setup](features/09-accounts-security-billing.md#company-setup)).
 
 ## By region
 

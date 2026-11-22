@@ -39,7 +39,7 @@ The caps come from one rule, in `ALL_IN` in `landing/web/src/plan.js`: Solo $179
 - The all-in price lowers only the software part of a feature: the margin above what it costs us to run.
 - Calling, texts, phone numbers, number lookups, storage, map lookups and AI sending cost real money each month. They are priced at cost plus 25% (`USAGE_MARKUP`) and the all-in price cannot go below that. A test checks it for every mix of features and team size.
 - **Extras are never discounted.** Texts ($15 per 1,000), campaign emails ($2 per 1,000), numbers ($1), number lookups ($10 per 1,000) and the other add-ons are outside the all-in price entirely.
-- The metered cost per feature is in `COSTS` in `plan.js`, from the cost tables in `docs/features`. The CRM's storage (about $4 per person) is absorbed, because the CRM is a free base.
+- The metered cost per feature is in `COSTS` in `plan.js`, from the cost tables in `docs/pricing-and-market/features`. The CRM's storage (about $4 per person) is absorbed, because the CRM is a free base.
 
 Unlimited calling is the exception that has no bill attached yet. It is only safe with a written and enforced fair-use limit.
 

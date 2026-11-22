@@ -13,7 +13,7 @@ Status: plan, nothing built yet. Decided with the owner on 2026-11-03. This repl
 5. **Do not reinvent the wheel.** Use maintained open-source libraries for every part that has one (list below). We write only the rules that are ours.
 6. **Review after the build** for better ideas (last section).
 7. **Plan for every kind of use, attack and sudden shutdown** (section "Cases").
-8. **Same runtime logs** as `docs/design/notes/Runtime logs.md` (section "Runtime logs").
+8. **Same runtime logs** as `docs/operations/runtime-logs.md` (section "Runtime logs").
 9. **Licence.** The repository is proprietary and private; every branch carries `LICENSE`. Open-source libraries keep their own licences. Do not modify and offer an AGPL component to users.
 
 ## What the Go service is
@@ -66,7 +66,7 @@ Sudden stops (power cut, forced shutdown, container kill, deploy during sign-in)
 
 ## Runtime logs
 
-Follow `docs/design/notes/Runtime logs.md`:
+Follow `docs/operations/runtime-logs.md`:
 - The Go service is wrapped by the shared runner (`callerwhale-log`) with `CALLERWHALE_LOG_SERVICE=Auth`, as every other image is, and uses the Go HTTP adapter for request rows (method, path, status, duration).
 - Never log request headers, cookies, bodies, tokens or email addresses. The source must not emit them; redaction is a second line of defence.
 - Failed sign-ins, lockouts, human-check refusals and refresh-token reuse are `[REJECTED]` or `[WARN]` rows with a short reason and no secret.
@@ -160,7 +160,7 @@ The Rust service is gone from the repository and the Go one lives at `services/a
 
 ### What is left on the server side
 
-1. **Docker image**: build `services/auth/Dockerfile` (no Docker on the development machine) and read the first real log rows in Coolify against `docs/design/notes/Runtime logs.md`.
+1. **Docker image**: build `services/auth/Dockerfile` (no Docker on the development machine) and read the first real log rows in Coolify against `docs/operations/runtime-logs.md`.
 2. **Production branch**: done in `tools/production.json`; publish it, then point the Coolify app at the new branch content.
 3. **Side by side**: run the Go service on its own name with the same database and signing key (settings are the same names), point the gateway's `auth` route at it, watch real sign-ins (password, Google, Apple, second step, desktop), keep the Rust container stopped but not deleted.
 4. **One live sign-in of each kind** (reCAPTCHA through the gateway, Google, Apple, authenticator, email code, Telegram, approval, desktop handoff) with real Firebase, Google, Apple, Telegram and the notification service: none of those are exercised by the tests, only stand-ins.

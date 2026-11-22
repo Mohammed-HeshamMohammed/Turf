@@ -6,7 +6,7 @@ Customers don't buy this as a feature, but every plan depends on it and it carri
 
 ## What exists today
 
-From [the SaaS notes](../history/plans/saas-README.md):
+From [the SaaS notes](../../history/plans/saas-README.md):
 
 - **Sign-up website** (`/#/signup`): name, email, password (12+ characters), optional business name. Creates the person, the organization, the role presets, the owner membership and a trial.
 - **Email confirmation**, required before buying a plan.
@@ -71,9 +71,9 @@ Everything runs on the server. The desktop and web apps show the screens; sign-i
 
 **Annual billing** cuts the fixed $0.30–0.50 per payment to once a year and is worth offering at a discount.
 
-Which methods customers can use in the US, Canada, Latin America, Europe and Africa, and who owes the tax in each: [Payment methods by region](../pricing-and-market/payment-methods-by-region.md).
+Which methods customers can use in the US, Canada, Latin America, Europe and Africa, and who owes the tax in each: [Payment methods by region](../payment-methods-by-region.md).
 
-**Expanded shortlist and crypto:** the [payment methods document](../pricing-and-market/payment-methods-by-region.md#expanded-provider-shortlist) lists all candidate providers. Crypto is now an optional planned route through Stripe stablecoins or BitPay, preferably settled in USD. It remains subject to provider approval and advice on the company/founder jurisdictions. No crypto integration or fee is assumed implemented. Stripe's current documentation supports stablecoin subscriptions; the earlier claim that recurring crypto is unavailable is superseded.
+**Expanded shortlist and crypto:** the [payment methods document](../payment-methods-by-region.md#expanded-provider-shortlist) lists all candidate providers. Crypto is now an optional planned route through Stripe stablecoins or BitPay, preferably settled in USD. It remains subject to provider approval and advice on the company/founder jurisdictions. No crypto integration or fee is assumed implemented. Stripe's current documentation supports stablecoin subscriptions; the earlier claim that recurring crypto is unavailable is superseded.
 
 ## Company setup
 

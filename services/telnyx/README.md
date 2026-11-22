@@ -12,7 +12,7 @@ Feature 3: calling and texting leads through **Telnyx** (Voice API / Call Contro
 | Owns data | Yes, its own PostgreSQL schema (`dialer_sms`) |
 | Status | Built and tested against the simulator (2026-11-15). Not deployed: it needs its own Coolify application (ask the owner first). Never run against real Telnyx yet |
 
-Plan: `docs/plans/messaging-sms-voice.md`. Feature: `docs/features/03-dialer-auto-dialing-sms.md`.
+Plan: `docs/plans/messaging-sms-voice.md`. Feature: `docs/pricing-and-market/features/03-dialer-auto-dialing-sms.md`.
 
 ## The six containers
 

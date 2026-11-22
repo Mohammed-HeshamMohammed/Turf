@@ -11,11 +11,11 @@ The subscription side of Caller Whale. This page is the tier and seat reference;
 | [usage-credits-review.md](usage-credits-review.md) | Usage credits: what billing does today and the proposed contract |
 | [positioning.md](positioning.md) | What competitors charge and where Caller Whale sits |
 
-Each feature's own costs and per-tier amounts are in [the features folder](../features/README.md).
+Each feature's own costs and per-tier amounts are in [the features folder](features/README.md).
 
 ## Tiers and seats
 
-**Status:** Draft (2026-10-25). The tiers and seat rules below are agreed. Prices are not fixed: each plan's price is worked out from the features in it, which are priced one at a time in [the features folder](../features/README.md).
+**Status:** Draft (2026-10-25). The tiers and seat rules below are agreed. Prices are not fixed: each plan's price is worked out from the features in it, which are priced one at a time in [the features folder](features/README.md).
 
 This replaces the plan table in [the SaaS notes](../history/plans/saas-README.md) (Free trial, Solo, Business), which predates Duo and per-feature pricing.
 
@@ -58,27 +58,27 @@ Filled in as each feature is agreed. The price column is the sum of each feature
 
 | Feature | Free trial | Solo | Duo | Team | Pro |
 | --- | --- | --- | --- | --- | --- |
-| [1. Importing lists](../features/01-importing-lists.md): active leads on the server | 25,000 | 1,000,000 | 2,000,000 shared | 1,000,000 per seat, shared | 2,500,000 per seat, shared |
+| [1. Importing lists](features/01-importing-lists.md): active leads on the server | 25,000 | 1,000,000 | 2,000,000 shared | 1,000,000 per seat, shared | 2,500,000 per seat, shared |
 | 1. Importing lists: selling price | Free | $49 | $69 | $39 per seat | $59 per seat |
-| [2. Skip Tracing](../features/02-skip-tracing.md): rows checked on the server per month | 25,000 | 1,000,000 | 2,000,000 shared | 1,000,000 per seat, shared | 3,000,000 per seat, shared |
+| [2. Skip Tracing](features/02-skip-tracing.md): rows checked on the server per month | 25,000 | 1,000,000 | 2,000,000 shared | 1,000,000 per seat, shared | 3,000,000 per seat, shared |
 | 2. Skip Tracing: number lookups per month | 100 | 1,000 | 2,000 shared | 1,000 per seat, shared | 3,000 per seat, shared |
 | 2. Skip Tracing: selling price | Free | $79 | $119 | $59 per seat | $89 per seat |
-| [3. Dialer, auto dialing, SMS](../features/03-dialer-auto-dialing-sms.md): dialing mode | Power (1 line) | Power (1 line) | Power (1 line) | Power (1 line) | Multi-line (2–3), voicemail skip and drop |
+| [3. Dialer, auto dialing, SMS](features/03-dialer-auto-dialing-sms.md): dialing mode | Power (1 line) | Power (1 line) | Power (1 line) | Power (1 line) | Multi-line (2–3), voicemail skip and drop |
 | 3. Dialer: minutes / texts / numbers per month | 30 / — / demo | 3,000 / 500 / 1 | 6,000 / 1,000 / 2 shared | 3,000 / 500 / 1 per seat | 8,000 / 2,000 / 3 per seat |
 | 3. Dialer: selling price | Free | $99 | $179 | $89 per seat | $239 per seat |
-| [4. Leads map](../features/04-leads-map.md): exact locations per month | 500 | 5,000 | 10,000 shared | 5,000 per seat, shared | 15,000 per seat, shared |
+| [4. Leads map](features/04-leads-map.md): exact locations per month | 500 | 5,000 | 10,000 shared | 5,000 per seat, shared | 15,000 per seat, shared |
 | 4. Leads map: offline maps (desktop) | — | 1 state | 2 states | 1 state per seat | All of the US |
 | 4. Leads map: selling price | Free | $19 | $29 | $15 per seat | $29 per seat |
-| [5. The CRM](../features/05-crm.md): document storage | 1 GB | 25 GB | 50 GB shared | 25 GB per seat, shared | 100 GB per seat, shared |
+| [5. The CRM](features/05-crm.md): document storage | 1 GB | 25 GB | 50 GB shared | 25 GB per seat, shared | 100 GB per seat, shared |
 | 5. The CRM: roles / follow-up rules / API | — / 3 / ❌ | — / 10 / ❌ | Simple / 20 / ❌ | 8 roles / 25 / ❌ | Custom roles / unlimited / ✅ |
 | 5. The CRM: selling price | Free | $49 | $79 | $45 per seat | $59 per seat |
-| [6. AI campaigns](../features/06-ai-campaigns.md): campaign emails / AI reply drafts per month | 100 / 20 | 5,000 / 500 | 10,000 / 1,000 shared | 5,000 / 500 per seat | 20,000 / 2,000 per seat |
+| [6. AI campaigns](features/06-ai-campaigns.md): campaign emails / AI reply drafts per month | 100 / 20 | 5,000 / 500 | 10,000 / 1,000 shared | 5,000 / 500 per seat | 20,000 / 2,000 per seat |
 | 6. AI campaigns: selling price | Free | $49 | $79 | $39 per seat | $79 per seat |
-| [7. Exports](../features/07-exports.md): rows per export | 1,000 | Unlimited | Unlimited | Unlimited | Unlimited |
+| [7. Exports](features/07-exports.md): rows per export | 1,000 | Unlimited | Unlimited | Unlimited | Unlimited |
 | 7. Exports: selling price | Free | Included | Included | Included | Included |
-| [8. Backup and restore](../features/08-backup-and-restore.md): recycle bin / point-in-time restore | 7 days / — | 30 days / 14 days | 30 days / 14 days | 30 days / 30 days | 90 days / 30 days, priority |
+| [8. Backup and restore](features/08-backup-and-restore.md): recycle bin / point-in-time restore | 7 days / — | 30 days / 14 days | 30 days / 14 days | 30 days / 30 days | 90 days / 30 days, priority |
 | 8. Backup and restore: selling price | Free | Included | Included | Included | Included |
-| [9. Accounts, security and billing](../features/09-accounts-security-billing.md): audit log / SSO | — / — | 30 days / — | 30 days / — | 1 year / — | 2 years / ✅ |
+| [9. Accounts, security and billing](features/09-accounts-security-billing.md): audit log / SSO | — / — | 30 days / — | 30 days / — | 1 year / — | 2 years / ✅ |
 | 9. Accounts, security and billing: selling price | Free | Included | Included | Included | Included |
 | **Plan price so far** | **Free** | **$344** | **$554** | **$286 per seat** (from $858) | **$554 per seat** (from $1,662) |
 | Payment fees on that price (Paddle, the default checkout: ~5% + $0.50; Stripe bank debit for annual plans: 0.8%, capped at $5) | — | ~$17.70 | ~$28.20 | ~$14.30 per seat + $0.50 | ~$27.70 per seat + $0.50 |

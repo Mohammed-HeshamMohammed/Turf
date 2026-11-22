@@ -45,7 +45,7 @@ export const BUILDER_FEATURES: Feature[] = priceRows
     limits: { solo: r.limits[SOLO], duo: r.limits[DUO], team: r.limits[TEAM], pro: r.limits[PRO] },
   }));
 
-// Extras from the "Add-ons" tables in docs/features. Quantities are whole units.
+// Extras from the "Add-ons" tables in docs/pricing-and-market/features. Quantities are whole units.
 export const ADDONS: { id: string; name: string; unit: string; price: number }[] = [
   { id: "texts", name: "Extra texts", unit: "1,000 texts", price: 15 },
   { id: "numbers", name: "Extra phone number", unit: "number / month", price: 1 }, // about what a number costs Caller Whale, passed on
@@ -69,7 +69,7 @@ export const FLEX: Record<string, { addon: string; ask: string }> = {
 export const ALL_IN = { solo: 179, duo: 288, team: 146, pro: 300 };
 
 /**
- * What the metered parts of each feature cost Caller Whale when fully used, per person (docs/features, "Cost to Caller Whale, fully
+ * What the metered parts of each feature cost Caller Whale when fully used, per person (docs/pricing-and-market/features, "Cost to Caller Whale, fully
  * used"): calls, texts and numbers; lookups; storage; geocoding; AI and sending. These are real bills, so the all-in
  * price is never allowed to take a feature below its cost plus USAGE_MARKUP. Only the software margin above that is
  * discounted. Extras (texts, emails, numbers, lookups) are outside the cap and always full price.

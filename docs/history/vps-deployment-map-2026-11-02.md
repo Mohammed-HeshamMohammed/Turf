@@ -181,6 +181,6 @@ The gateway currently has no public domain. DNS was not changed during this prov
 - Coolify's initial repository scan retained a Compose path containing `Caller Whale CRM` from `main`. This blocked application creation with “docker compose location field format is invalid.” The production-branch scan and valid Compose path resolved it; do not deploy the main-repo scan result accidentally.
 - Compose-owned literal settings can appear in Coolify's environment table. Bulk replacement can fail with “Cannot delete environment variable PORT.” Preserve managed service settings and use per-variable edits for remaining changes; a partial save must be rechecked.
 - Monitoring was cloned from the gateway's credential-free configuration. Unused inherited gateway keys may remain in the Coolify environment table; the monitoring Compose file does not consume them. They do not authorize public access. Clean them up through the normal reviewed configuration workflow rather than deleting managed Compose settings.
-- New application images use the [shared runtime-log standard](Runtime%20logs.md).
+- New application images use the [shared runtime-log standard](../operations/runtime-logs.md).
 
 Evidence collected: Coolify resource inventory and successful gateway/notification deployment histories; read-only internal HTTP 200 probes to both services; PostgreSQL database/role bootstrap output; auth's explicit missing-CAPTCHA startup error. Actual authentication, mail delivery, CRM jobs and monitoring authorization remain activation gates, not reported successes.

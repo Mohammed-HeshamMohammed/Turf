@@ -1,4 +1,4 @@
-// What each feature is and how far along it is. Taken from docs/features. The status words are honest:
+// What each feature is and how far along it is. Taken from docs/pricing-and-market/features. The status words are honest:
 //   now      built and working in the app today
 //   preview  built as a working screen with sample data; the live service behind it is not connected yet
 //   soon     planned for launch, not built

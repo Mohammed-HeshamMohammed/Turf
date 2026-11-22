@@ -57,7 +57,7 @@ The builder makes any mix of features, people and extras, so there are far too m
 
 ## Stripe, second, in its test mode
 
-Stripe is the second provider (bank debit and invoices for annual and large plans, per `docs/features/09-accounts-security-billing.md`). Differences that change the work, from Stripe's documentation ([Adaptive Pricing](https://docs.stripe.com/payments/checkout/adaptive-pricing), [Stripe Tax testing](https://docs.stripe.com/tax/testing)):
+Stripe is the second provider (bank debit and invoices for annual and large plans, per `docs/pricing-and-market/features/09-accounts-security-billing.md`). Differences that change the work, from Stripe's documentation ([Adaptive Pricing](https://docs.stripe.com/payments/checkout/adaptive-pricing), [Stripe Tax testing](https://docs.stripe.com/tax/testing)):
 
 - **Local currency** is Stripe's *Adaptive Pricing*, switched on in its payment settings separately for the test and live modes. It works with **Checkout Sessions only**, not the Payment Intents API, and needs the prices in a settlement currency. So a Stripe checkout is Stripe's hosted or embedded checkout, not a custom form.
 - **Tax stays in your base currency** with Adaptive Pricing: tax calculation, reporting and invoicing are in the integration currency, unlike Paddle, which handles it all.

@@ -1,6 +1,6 @@
 # Desktop backend
 
-The Rust code the container links in: one library crate per feature under `features/`, in the same order as `docs/features`. Each is a scaffold today (`FEATURE` and `status()` with two tests) and grows as logic moves in from `src-tauri/` and the Python engine in `service/`.
+The Rust code the container links in: one library crate per feature under `features/`, in the same order as `docs/pricing-and-market/features`. Each is a scaffold today (`FEATURE` and `status()` with two tests) and grows as logic moves in from `src-tauri/` and the Python engine in `service/`.
 
 Rules:
 

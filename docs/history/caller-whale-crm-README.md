@@ -3,7 +3,7 @@
 > **Where things are now (2026-10-27).** The app moved into the new layout. Run every command in the sections below from **`apps/crm`**, not from this folder: that is where `package.json`, `src/` and `tests/` are. The Tauri container is `apps/crm-desktop`. "Deploy this folder" means `apps/crm`. The old Rust core API (`services/core-api`) was removed; `contracts/` stays here. See [desktop/README.md](desktop/README.md) and [services/README.md](../../services/README.md).
 
 
-A separate interactive frontend prototype of [Caller Whale's CRM and performance plan](../product/CALLERWHALE_CRM_AND_PERFORMANCE_PLAN.md). It extends the design of the original Caller Whale app (the `apps/lists-desktop/` folder): Schibsted Grotesk, gray surfaces, rounded cards, black pill navigation, and peach accents.
+A separate interactive frontend prototype of [Caller Whale's CRM and performance plan](plans/crm-and-performance-plan-2026-10-15.md). It extends the design of the original Caller Whale app (the `apps/lists-desktop/` folder): Schibsted Grotesk, gray surfaces, rounded cards, black pill navigation, and peach accents.
 
 **Client demo:** [callerwhale-crm-demo.vercel.app](https://callerwhale-crm-demo.vercel.app/). No Vercel login is needed. Open the Caller Whale logo menu and choose **Explore as** to review different roles.
 

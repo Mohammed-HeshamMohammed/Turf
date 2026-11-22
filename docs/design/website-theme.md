@@ -2,7 +2,7 @@
 
 Last reviewed: 3 November 2026. Status: **proposal for the owner to approve.** Nothing here is implemented yet.
 
-This is the one theme for every page of the public site (home, features, pricing, security, contact, sign-in and sign-up). It sits beside [Caller Whale identity and goals](Caller%20Whale%20identity%20and%20goals.md), which says who we are; this note says how the site should look and feel. It replaces the "Precision Studio" direction in `docs/plans/web-rebuild/05-selected-direction.md` wherever the two disagree.
+This is the one theme for every page of the public site (home, features, pricing, security, contact, sign-in and sign-up). It sits beside [Caller Whale identity and goals](../product/identity-and-goals.md), which says who we are; this note says how the site should look and feel. It replaces the "Precision Studio" direction in `docs/plans/web-rebuild/05-selected-direction.md` wherever the two disagree.
 
 ## 1. What is wrong with the site today
 
