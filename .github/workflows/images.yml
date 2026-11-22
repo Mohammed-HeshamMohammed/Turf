@@ -63,7 +63,7 @@ jobs:
         run: |
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "owner=${OWNER,,}" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ steps.sha.outputs.sha }}
       - id: list
@@ -87,7 +87,7 @@ jobs:
       REF: ghcr.io/${{ needs.plan.outputs.owner }}/${{ matrix.image }}
       SHA: ${{ needs.plan.outputs.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.plan.outputs.sha }}
           fetch-depth: 1
@@ -106,9 +106,9 @@ jobs:
           node "tools/image-matrix.mjs" --args >> "$GITHUB_OUTPUT"
           if [ "$PUSH" = true ] && grep -q '^missing=.' "$GITHUB_OUTPUT"; then echo "::error::Set the repository Actions variables this image needs"; exit 1; fi
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - if: env.PUSH == 'true'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -127,7 +127,7 @@ jobs:
       - name: Build${{ env.PUSH == 'true' && ' and push' || '' }}
         id: build
         if: steps.have.outputs.already != 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ${{ steps.files.outputs.dir }}/${{ matrix.context }}
           file: ${{ steps.files.outputs.dir }}/${{ matrix.dockerfile }}
@@ -147,7 +147,7 @@ jobs:
       # GitHub's signed build record: free while the repository is public. Once it is private it needs GitHub Enterprise, so it is
       # skipped then; the provenance above stays in the registry either way.
       - if: env.PUSH == 'true' && steps.build.outputs.digest && github.event.repository.private == false
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ env.REF }}
           subject-digest: ${{ steps.build.outputs.digest }}
@@ -171,7 +171,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/deploy"
           node -e 'const e=process.env; console.log(JSON.stringify({image:e.IMAGE, ref:e.REF, digest:e.DIGEST, coolify:e.COOLIFY, setting:e.SETTING}))' > "$RUNNER_TEMP/deploy/$IMAGE.json"
       - if: env.PUSH == 'true' && steps.build.outputs.digest && matrix.coolify != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: deploy-${{ matrix.image }}
           path: ${{ runner.temp }}/deploy/${{ matrix.image }}.json
@@ -204,11 +204,11 @@ jobs:
     outputs:
       apps: ${{ steps.plan.outputs.apps }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.plan.outputs.sha }}
           sparse-checkout: tools
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: deploy-*
           path: deploys
@@ -232,11 +232,11 @@ jobs:
       group: coolify-deploy
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.plan.outputs.sha }}
           sparse-checkout: tools
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: deploy-*
           path: deploys
