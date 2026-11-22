@@ -1,6 +1,6 @@
 package crm
 
-// Build step 36 (migrations/0042_web_forms.sql): website forms per client (D247).
+// Website forms per client (D247).
 //
 // GET /api/v1/public/forms/{token} is the form page (also inside an <iframe>: it sets its own Content-Security-Policy, which lets the
 // sites the owner named, or any site, embed it and allows nothing else). POST to the same address sends it. Both are open at the gateway.

@@ -7,7 +7,7 @@ import (
 	"slices"
 )
 
-// upgrade asks authz to make a solo workspace an agency (build step 17): the solo operator becomes its owner and leads its first team.
+// upgrade asks authz to make a solo workspace an agency: the solo operator becomes its owner and leads its first team.
 func (a *authzClient) upgrade(ctx context.Context, org, user, teamID, teamName string) error {
 	var out map[string]any
 	return a.call(ctx, http.MethodPost, "/v1/orgs/"+url.PathEscape(org)+"/upgrade", map[string]any{"user_id": user, "team_id": teamID, "team_name": teamName}, &out)

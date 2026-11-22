@@ -418,7 +418,7 @@ func redactLead(lead map[string]any, sc scope) map[string]any {
 		delete(lead, "value_amount")
 		delete(lead, "value_currency")
 	}
-	// Masked numbers for agents (step 30, D163): the dialer still dials the real one, which only the CRM gives it.
+	// Masked numbers for agents (D163): the dialer still dials the real one, which only the CRM gives it.
 	if masksFor(sc, asString(lead["team_id"])) {
 		if p, ok := lead["phone"].(string); ok && p != "" {
 			lead["phone"] = maskPhone(p)
@@ -684,7 +684,7 @@ func (r *run) leadUpdate(p map[string]any) (any, error) {
 	if changes["do_not_call"] == false && before["do_not_call"] == true && !r.sc.can("assign") {
 		return nil, reject("Only a manager can lift a do-not-call")
 	}
-	// A blocked number keeps its leads do-not-call: the block is lifted on the block list, with a reason (step 25, D207).
+	// A blocked number keeps its leads do-not-call: the block is lifted on the block list, with a reason (D207).
 	if changes["do_not_call"] == false && before["do_not_call"] == true {
 		b, err := numberBlocked(r.ctx, r.tx, asString(before["phone"]))
 		if err != nil {
@@ -711,7 +711,7 @@ func (r *run) leadUpdate(p map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Marking a lead do-not-call blocks its number for the whole agency (step 25, D139).
+	// Marking a lead do-not-call blocks its number for the whole agency (D139).
 	if changes["do_not_call"] == true && before["do_not_call"] != true {
 		if err = block(r.ctx, r.tx, r.sc, blockAsk{Phone: asString(merge(before, changes)["phone"]), Calls: true, Texts: true, Source: "lead", LeadID: id}); err != nil {
 			return nil, err
@@ -1053,7 +1053,7 @@ func (r *run) callRecord(p map[string]any) (any, error) {
 		scheduled = &t
 	}
 	phone := str(p, "phone")
-	if len(nonDigits.ReplaceAllString(phone, "")) < 7 { // none, or the masked number an agent's device shows (step 30)
+	if len(nonDigits.ReplaceAllString(phone, "")) < 7 { // none, or the masked number an agent's device shows
 		phone = asString(before["phone"])
 	}
 	// The carrier's facts about a call (record id, durations, recording) come only from the dialer service.
@@ -1111,7 +1111,7 @@ func (r *run) callRecord(p map[string]any) (any, error) {
 		return nil, err
 	}
 	// "Do not call" blocks the number for the agency; dnc_kind "anyone" is the agent confirming the person wants no calls from anyone,
-	// "complainer" reports a known complainer: both go to Caller Whale's database (step 25, D139, D351).
+	// "complainer" reports a known complainer: both go to Caller Whale's database (D139, D351).
 	if out.meaning == "do_not_call" {
 		kind := str(p, "dnc_kind")
 		if !slices.Contains([]string{"anyone", "complainer"}, kind) {
@@ -1584,7 +1584,7 @@ func (r *run) dealCreate(p map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	// The stages of the lead's client, else the agency's (step 28, D154).
+	// The stages of the lead's client, else the agency's (D154).
 	stages, err := stagesFor(r.ctx, r.tx, asString(lead["client_id"]))
 	if err != nil {
 		return nil, err
@@ -1681,13 +1681,13 @@ func (r *run) dealUpdate(p map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Who won it and when, for commissions (step 27); a deal moved out of "Closed won" loses both.
+	// Who won it and when, for commissions; a deal moved out of "Closed won" loses both.
 	if before["stage"] != deal["stage"] && (before["stage"] == "Closed won" || deal["stage"] == "Closed won") {
 		if deal, err = r.one(`UPDATE deals SET closed_at = CASE WHEN stage = 'Closed won' THEN now() END, closed_by = CASE WHEN stage = 'Closed won' THEN $2::uuid END
 			WHERE id = $1 RETURNING to_jsonb(deals.*)`, id, r.sc.userID); err != nil {
 			return nil, err
 		}
-		// Credit by role, and the won lead leaves the calling queues (step 28, D157, D283).
+		// Credit by role, and the won lead leaves the calling queues (D157, D283).
 		if err = r.creditDeal(deal, deal["stage"] == "Closed won"); err != nil {
 			return nil, err
 		}

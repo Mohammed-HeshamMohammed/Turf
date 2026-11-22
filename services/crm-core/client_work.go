@@ -1,6 +1,6 @@
 package crm
 
-// Build step 23, part B: sharing one call or deal with a client (D136, D281), lists sent to a client for approval (D138), and the quiet
+// Sharing one call or deal with a client (D136, D281), lists sent to a client for approval (D138), and the quiet
 // marker of the same number under another client (D133).
 
 import (

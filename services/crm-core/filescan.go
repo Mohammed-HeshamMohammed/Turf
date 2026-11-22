@@ -1,6 +1,6 @@
 package crm
 
-// Build step 38: every file on a lead is scanned before anyone can open it (D257), by ClamAV's clamd over its INSTREAM command.
+// Every file on a lead is scanned before anyone can open it (D257), by ClamAV's clamd over its INSTREAM command.
 
 import (
 	"bufio"
@@ -132,4 +132,3 @@ func (s *server) scanWaiting(ctx context.Context) error {
 	}
 	return nil
 }
-

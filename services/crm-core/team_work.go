@@ -1,6 +1,6 @@
 package crm
 
-// Leads and teams (build step 20, part one): each team's settings, its unassigned leads, and claiming them.
+// Leads and teams: each team's settings, its unassigned leads, and claiming them.
 //
 //   - A team's leads, an admin or the owner change its settings (D348); everyone in the team reads them.
 //   - A team's leads and deputies hand out its unassigned leads; its agents may claim them too when the team allows it (D111), up to

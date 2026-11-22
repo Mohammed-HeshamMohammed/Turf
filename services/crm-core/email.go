@@ -1,6 +1,6 @@
 package crm
 
-// Build step 29: email to leads (migrations/0037_lead_email.sql, D161, D316-D319).
+// Email to leads (migrations/0037_lead_email.sql, D161, D316-D319).
 //
 // Set up with EMAIL_SES_REGION (Amazon SES; its login comes from AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, set in Coolify only),
 // EMAIL_PUBLIC_URL (this API's public address, for links in emails), EMAIL_REPLY_DOMAIN (a domain whose mail SES receives, for
@@ -829,4 +829,3 @@ func (s *server) tellAboutEmail(ctx context.Context, org, email string) error {
 	}
 	return tx.Commit(ctx)
 }
-

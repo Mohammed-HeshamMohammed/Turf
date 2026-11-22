@@ -1,6 +1,6 @@
 package crm
 
-// Build step 41 (migrations/0046_agency_restores.sql): restoring one agency from a backup without touching any other (D297, D370).
+// Restoring one agency from a backup without touching any other (D297, D370).
 //
 // Staff restore a backup of the CRM database into a separate database, the restore copy (RESTORE_COPY_URL), with pg_restore. Then
 // staff ask here; the agency's owner confirms with their second step; staff run it. The run brings the copy up to this version

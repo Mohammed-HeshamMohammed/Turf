@@ -140,7 +140,7 @@ func (s *server) leadDetails(q *req) error {
 			return err
 		}
 	}
-	// Who opened which lead (step 30, D165), and far more than usual (D164).
+	// Who opened which lead (D165), and far more than usual (D164).
 	if len(lead) > 0 {
 		s.noteAccess(q, id, 1)
 	}

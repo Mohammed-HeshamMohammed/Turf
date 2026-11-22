@@ -1,6 +1,6 @@
 package crm
 
-// Handing on a person's work (build step 12). Someone who left, was removed or is suspended keeps their name on their leads: the
+// Handing on a person's work. Someone who left, was removed or is suspended keeps their name on their leads: the
 // leads stay with their teams, where the team's leads hold them and can work them (D20, D26, D182; D365 for a seat lost with a smaller
 // plan). Nothing moves until someone hands it on, so a suspended person who comes back finds whatever was not handed on (D26).
 // The owner or an admin hands on anyone's work, all to one person or to the team's unassigned leads; a team lead hands on the work in
@@ -176,7 +176,7 @@ func (s *server) handOn(q *req) error {
 	if err != nil {
 		return err
 	}
-	// Their coming appointments on those leads go to whoever takes the leads, and onto that person's calendar (step 28, D160).
+	// Their coming appointments on those leads go to whoever takes the leads, and onto that person's calendar (D160).
 	apptRows, err := tx.Query(ctx, `UPDATE appointments SET closer_id = coalesce($2::uuid, closer_id) WHERE closer_id = $1 AND status = 'booked' AND starts_at > now()
 		AND lead_id = ANY($3::uuid[]) RETURNING id::text, CASE WHEN $2::uuid IS NULL THEN '' ELSE closer_id::text END, lead_id::text, starts_at, ends_at`, user, to, uuidArray(moved))
 	if err != nil {

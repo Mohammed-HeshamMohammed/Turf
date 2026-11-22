@@ -1,6 +1,6 @@
 package crm
 
-// Build step 39 (migrations/0045_carrier_standing.sql): the dialer reports each agency's carrier registration and texting standing
+// The dialer reports each agency's carrier registration and texting standing
 // here. The CRM tells the agency's owner when the standing changes, holds imports until the carriers verify the agency when
 // CARRIER_CHECK=on (D314), and shows staff every agency's rates with a second step, never lead details (D269, D271). Staff clear a
 // step here; the dialer reads it in this route's answer.
