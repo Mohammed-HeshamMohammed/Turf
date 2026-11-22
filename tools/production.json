@@ -2,9 +2,9 @@
   "comment": "One production branch per part (docs/plans/production-branches.md). `checks`: GitHub checks that must have passed on the commit, besides CI summary, before the branch changes. `paths` are relative to `base` (an entry {\"from\": ..., \"to\": ...} puts that folder somewhere else in the branch, so a Coolify setting that names a path keeps working) (default 'Caller Whale CRM'); a branch holds only those, at those paths, plus .gitignore. `rust: true` adds the Cargo workspace file, cut down to the members present, and Cargo.lock (`rust: \"<folder>\"`: from and to that folder). The web apps, the services (step 50+51, with packages/go) and the desktop app use `base: \"\"` (the repository layout, apps/ since step 52), so their branches carry the npm workspace: the root package.json, its lock file and packages/ (D383, step 49); the desktop branch carries the root Rust workspace whole. `images`: the container images built from the branch's files (.github/workflows/images.yml, step 47): `context` and `dockerfile` are paths in the branch; `buildArgs` maps a build argument to the repository's Actions variable that holds it.",
   "components": [
     {
-      "name": "landing-web-production",
+      "name": "website-production",
       "envExample": "env/landing-web.production.example",
-      "title": "Landing site",
+      "title": "Website (apps/website, callerwhale.com)",
       "base": "",
       "paths": [
         "package.json",
@@ -15,13 +15,14 @@
         "apps/crm/package.json"
       ],
       "build": "npm ci at the repository root (npm workspaces), then npm run build in apps/website. The image is built in GitHub Actions from this branch's files with the branch root as the context (images.yml); set VITE_CALLERWHALE_AUTH_URL as a build variable (env/landing-web.production.example)",
-      "note": false,
       "images": [
         {
           "name": "cw-website",
           "context": ".",
           "dockerfile": "apps/website/Dockerfile",
-          "deploy": { "coolify": "7iglktaamqg3fsnxkzydofiz" },
+          "deploy": {
+            "coolify": "7iglktaamqg3fsnxkzydofiz"
+          },
           "buildArgs": {
             "VITE_CALLERWHALE_AUTH_URL": "CALLERWHALE_AUTH_URL"
           }
@@ -29,8 +30,8 @@
       ]
     },
     {
-      "name": "landing-dashboard-web-production",
-      "title": "CRM web app (app.callerwhale.com): the desktop frontend built for the browser",
+      "name": "crm-web-production",
+      "title": "CRM web app (apps/crm-web, app.callerwhale.com): the desktop frontend built for the browser",
       "base": "",
       "paths": [
         "package.json",
@@ -42,7 +43,6 @@
         "apps/website/package.json"
       ],
       "build": "The image is built in GitHub Actions from this branch's files with the branch root as the context (images.yml): Dockerfile apps/crm-web/Dockerfile, port 8080, health /healthz, build args VITE_CALLERWHALE_AUTH_URL, VITE_CALLERWHALE_API_URL and VITE_CALLERWHALE_MESSAGING_URL",
-      "note": false,
       "exclude": [
         "apps/crm-web/README.md"
       ],
@@ -51,7 +51,9 @@
           "name": "cw-crm-web",
           "context": ".",
           "dockerfile": "apps/crm-web/Dockerfile",
-          "deploy": { "coolify": "tdqx7o94epfaiqpp38gqx3ya" },
+          "deploy": {
+            "coolify": "tdqx7o94epfaiqpp38gqx3ya"
+          },
           "buildArgs": {
             "VITE_CALLERWHALE_AUTH_URL": "CALLERWHALE_AUTH_URL",
             "VITE_CALLERWHALE_API_URL": "CALLERWHALE_API_URL",
@@ -63,152 +65,167 @@
     {
       "name": "auth-backend-production",
       "envExample": "env/auth.production.example",
-      "title": "Authentication service",
+      "title": "Authentication service (services/auth)",
       "base": "",
       "paths": [
         "services/auth",
         "packages/go"
       ],
       "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8101",
-      "note": false,
       "images": [
         {
           "name": "cw-auth",
           "context": ".",
           "dockerfile": "services/auth/Dockerfile",
-          "deploy": { "coolify": "pmabp02jo9zcziyp1e3ujx8f" }
+          "deploy": {
+            "coolify": "pmabp02jo9zcziyp1e3ujx8f"
+          }
         }
       ]
     },
     {
       "name": "notifications-backend-production",
       "envExample": "env/notifications.production.example",
-      "title": "Notification service",
+      "title": "Notification service (services/notifications)",
       "base": "",
       "paths": [
         "services/notifications",
         "packages/go"
       ],
       "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8102",
-      "note": false,
       "images": [
         {
           "name": "cw-notifications",
           "context": ".",
           "dockerfile": "services/notifications/Dockerfile",
-          "deploy": { "coolify": "drehhescbm16tavi7r4j0det" }
+          "deploy": {
+            "coolify": "drehhescbm16tavi7r4j0det"
+          }
         }
       ]
     },
     {
       "name": "mcp-backend-production",
       "envExample": "env/mcp.production.example",
-      "title": "MCP connector service",
+      "title": "MCP connector service (services/mcp)",
       "base": "",
       "paths": [
         "services/mcp",
         "packages/go"
       ],
       "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8106, domain mcp.callerwhale.com",
-      "note": false,
       "images": [
         {
           "name": "cw-mcp",
           "context": ".",
           "dockerfile": "services/mcp/Dockerfile",
-          "deploy": { "coolify": "afvnfuour1x4uayxfhq9imcy" }
+          "deploy": {
+            "coolify": "afvnfuour1x4uayxfhq9imcy"
+          }
         }
       ]
     },
     {
       "name": "crm-core-backend-production",
       "envExample": "env/crm-core.production.example",
-      "title": "CRM core",
+      "title": "CRM core (services/crm-core): the API, crm-merge and crm-outbox",
       "base": "",
       "paths": [
         "services/crm-core",
         "packages/go"
       ],
       "build": "go test ./... (the database tests are skipped without CRM_TEST_DATABASE_URL); docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8107, no domain; no upload volume",
-      "note": false,
       "images": [
         {
           "name": "cw-crm-core",
           "context": ".",
           "dockerfile": "services/crm-core/Dockerfile",
-          "deploy": { "coolify": "pbhaa90fu9dh3tl2x9kzjdly" }
+          "deploy": {
+            "coolify": "pbhaa90fu9dh3tl2x9kzjdly"
+          }
         },
         {
           "name": "cw-crm-merge",
           "context": ".",
           "dockerfile": "services/crm-core/Dockerfile.merge",
-          "deploy": { "coolify": "kzxlerxee9uluexd06py5ek1" }
+          "deploy": {
+            "coolify": "kzxlerxee9uluexd06py5ek1"
+          }
         },
         {
           "name": "cw-crm-outbox",
           "context": ".",
           "dockerfile": "services/crm-core/Dockerfile.outbox",
-          "deploy": { "coolify": "vvjjxyny0na44pjeekn0xmrh" }
+          "deploy": {
+            "coolify": "vvjjxyny0na44pjeekn0xmrh"
+          }
         }
+      ],
+      "exclude": [
+        "services/crm-core/bench/Dockerfile",
+        "services/crm-core/bench/run.sh"
       ]
     },
     {
       "name": "messaging-backend-production",
       "envExample": "env/messaging.production.example",
-      "title": "Messaging",
+      "title": "Messaging (services/messaging)",
       "base": "",
       "paths": [
         "services/messaging",
         "packages/go"
       ],
       "build": "go test ./... (the database tests are skipped without MESSAGING_TEST_DATABASE_URL); docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8108, no domain of its own",
-      "note": false,
       "images": [
         {
           "name": "cw-messaging",
           "context": ".",
           "dockerfile": "services/messaging/Dockerfile",
-          "deploy": { "coolify": "t8rinub6nqgympnlhs8uom9w" }
+          "deploy": {
+            "coolify": "t8rinub6nqgympnlhs8uom9w"
+          }
         }
       ]
     },
     {
       "name": "live-backend-production",
       "envExample": "env/centrifugo.production.example",
-      "title": "Live server (Centrifugo with Caller Whale's settings)",
+      "title": "Live server (services/live): Centrifugo with Caller Whale's settings",
       "base": "",
       "paths": [
         "services/live",
         "packages/go"
       ],
       "build": "node --test (config.test.mjs); docker build . Coolify: build pack Dockerfile, base directory /, Dockerfile /Dockerfile, port 8000, no domain of its own (the gateway routes live.callerwhale.com to it)",
-      "note": false,
       "images": [
         {
           "name": "cw-live",
           "context": ".",
           "dockerfile": "services/live/Dockerfile",
-          "deploy": { "coolify": "jp4nw7z0jyy3m3vxyouvjo9d" }
+          "deploy": {
+            "coolify": "jp4nw7z0jyy3m3vxyouvjo9d"
+          }
         }
       ]
     },
     {
-      "name": "dialer-sms-backend-production",
+      "name": "telnyx-backend-production",
       "envExample": "env/dialer-sms.production.example",
-      "title": "Dialer and SMS (Telnyx, with a built-in simulator)",
+      "title": "Telnyx calls and texts (services/telnyx): six containers, with a built-in Telnyx simulator",
       "base": "",
       "paths": [
         "services/telnyx",
         "packages/go"
       ],
       "build": "go test ./... (the database tests are skipped without DIALER_TEST_DATABASE_URL); docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8113, network alias dialer-sms, no domain of its own",
-      "note": false,
       "images": [
         {
           "name": "cw-dialer-sms",
           "context": ".",
           "dockerfile": "services/telnyx/Dockerfile",
-          "deploy": { "coolify": "hnro3xava3rvdwa5g3why6as" }
+          "deploy": {
+            "coolify": "hnro3xava3rvdwa5g3why6as"
+          }
         },
         {
           "name": "cw-telnyx-phone-api",
@@ -245,140 +262,147 @@
     {
       "name": "importing-lists-backend-production",
       "envExample": "env/importing-lists.production.example",
-      "title": "Import uploads",
+      "title": "Importing lists (services/importing-lists): takes list uploads",
       "base": "",
       "paths": [
         "services/importing-lists",
         "packages/go"
       ],
       "build": "python -m unittest discover -s tests; docker build . Coolify: base directory /, Dockerfile /Dockerfile, no domain; its own persistent volume at /data/imports (the uploads as they arrive)",
-      "note": false,
       "images": [
         {
           "name": "cw-importing-lists",
           "context": ".",
           "dockerfile": "services/importing-lists/Dockerfile",
-          "deploy": { "coolify": "ovzio8h7fqwhhms0dmq3oitd" }
+          "deploy": {
+            "coolify": "ovzio8h7fqwhhms0dmq3oitd"
+          }
         }
       ]
     },
     {
       "name": "importing-worker-backend-production",
       "envExample": "env/importing-worker.production.example",
-      "title": "Import worker",
+      "title": "Importing worker (services/importing-worker): imports the uploaded lists",
       "base": "",
       "paths": [
         "services/importing-worker",
         "packages/go"
       ],
       "build": "python -m unittest discover -s tests; docker build . Coolify: base directory /, Dockerfile /Dockerfile, no domain, no memory cap; its own persistent volume at /data/imports (the uploads it has fetched)",
-      "note": false,
       "images": [
         {
           "name": "cw-importing-worker",
           "context": ".",
           "dockerfile": "services/importing-worker/Dockerfile",
-          "deploy": { "coolify": "lqnkpvxxsjyiuixmll23kjrp" }
+          "deploy": {
+            "coolify": "lqnkpvxxsjyiuixmll23kjrp"
+          }
         }
       ]
     },
     {
       "name": "assistant-backend-production",
       "envExample": "env/assistant.production.example",
-      "title": "Website assistant",
+      "title": "Assistant (services/assistant)",
       "base": "",
       "paths": [
         "services/assistant",
         "packages/go"
       ],
       "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8109, no domain of its own (the gateway routes assistant.callerwhale.com to it)",
-      "note": false,
       "images": [
         {
           "name": "cw-assistant",
           "context": ".",
           "dockerfile": "services/assistant/Dockerfile",
-          "deploy": { "coolify": "ttx1uhqkq0yqyynypljgdg1b" }
+          "deploy": {
+            "coolify": "ttx1uhqkq0yqyynypljgdg1b"
+          }
         }
       ]
     },
     {
       "name": "learning-backend-production",
       "envExample": "env/learning.production.example",
-      "title": "Learning store",
+      "title": "Learning store (services/learning)",
       "base": "",
       "paths": [
         "services/learning",
         "packages/go"
       ],
       "build": "go test ./... (the database test needs LEARNING_TEST_URL); docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8112, no domain; its own PostgreSQL resource",
-      "note": false,
       "images": [
         {
           "name": "cw-learning",
           "context": ".",
           "dockerfile": "services/learning/Dockerfile",
-          "deploy": { "coolify": "aglpc4qq7he7oskohr8gwo3t" }
+          "deploy": {
+            "coolify": "aglpc4qq7he7oskohr8gwo3t"
+          }
         }
       ]
     },
     {
       "name": "gateway-backend-production",
       "envExample": "env/gateway.production.example",
-      "title": "Gateway",
+      "title": "Gateway (services/gateway)",
       "base": "",
       "paths": [
         "services/gateway",
         "packages/go"
       ],
       "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8100",
-      "note": false,
       "images": [
         {
           "name": "cw-gateway",
           "context": ".",
           "dockerfile": "services/gateway/Dockerfile",
-          "deploy": { "coolify": "uet17t0ao4zerab9ejksuzjt" }
+          "deploy": {
+            "coolify": "uet17t0ao4zerab9ejksuzjt"
+          }
         }
       ]
     },
     {
       "name": "authz-backend-production",
       "envExample": "env/authz.production.example",
-      "title": "Authorization service",
+      "title": "Authorization service (services/authz)",
       "base": "",
       "paths": [
         "services/authz",
         "packages/go"
       ],
       "build": "go test ./... ; docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8104, no domain",
-      "note": false,
       "images": [
         {
           "name": "cw-authz",
           "context": ".",
           "dockerfile": "services/authz/Dockerfile",
-          "deploy": { "coolify": "pqtwac85tcbuqqtjuejj2sd2" }
+          "deploy": {
+            "coolify": "pqtwac85tcbuqqtjuejj2sd2"
+          }
         }
       ]
     },
     {
       "name": "billing-backend-production",
       "envExample": "env/billing.production.example",
-      "title": "Billing service",
+      "title": "Billing service (services/billing)",
       "base": "",
       "paths": [
         "services/billing",
         "packages/go"
       ],
       "build": "python -m unittest discover -s tests (after pip install -r requirements-test.txt); docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8103, no domain",
-      "note": false,
       "images": [
         {
           "name": "cw-billing",
           "context": ".",
           "dockerfile": "services/billing/Dockerfile",
-          "deploy": { "coolify": "a9jtxsbmazlno460ldvhj1k5" }
+          "deploy": {
+            "coolify": "a9jtxsbmazlno460ldvhj1k5"
+          }
         }
       ]
     },
@@ -427,13 +451,19 @@
           "name": "cw-grafana-proxy",
           "context": ".",
           "dockerfile": "services/grafana-proxy/Dockerfile",
-          "deploy": { "coolify": "cs7nxvwhusacrlrsmolbqll9", "setting": "CW_GRAFANA_PROXY_IMAGE" }
+          "deploy": {
+            "coolify": "cs7nxvwhusacrlrsmolbqll9",
+            "setting": "CW_GRAFANA_PROXY_IMAGE"
+          }
         },
         {
           "name": "cw-alert-relay",
           "context": ".",
           "dockerfile": "services/alert-relay/Dockerfile",
-          "deploy": { "coolify": "cs7nxvwhusacrlrsmolbqll9", "setting": "CW_ALERT_RELAY_IMAGE" }
+          "deploy": {
+            "coolify": "cs7nxvwhusacrlrsmolbqll9",
+            "setting": "CW_ALERT_RELAY_IMAGE"
+          }
         },
         {
           "name": "cw-grafana",

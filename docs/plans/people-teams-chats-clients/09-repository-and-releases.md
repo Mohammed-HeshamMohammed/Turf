@@ -82,8 +82,8 @@ callerwhale/
 | --- | --- | --- |
 | auth, authz, billing, notifications, gateway, crm-core, messaging, live, assistant, learning, mcp (`-backend-production`) | `Caller Whale CRM/services/<name>` | image `ghcr.io/<owner>/cw-<name>` from `services/<name>`; branch retired |
 | dialer-sms, importing-lists (`-backend-production`) | `…/services/features/<name>` | image from `services/<name>`; branch retired |
-| landing-web-production | `…/landing/site` | image from `apps/website`; branch retired |
-| landing-dashboard-web-production | `landing/dashboard-web` and `desktop/frontend/react` | image from `apps/crm-web` and `apps/crm`; branch retired |
+| website-production | `…/landing/site` | image from `apps/website`; branch retired |
+| crm-web-production | `landing/dashboard-web` and `desktop/frontend/react` | image from `apps/crm-web` and `apps/crm`; branch retired |
 | grafana-production | `deploy/grafana`, `services/grafana-proxy`, `services/alert-relay` | images for both services and the monitoring images; the Coolify compose uses `image:` lines; branch retired |
 | desktop-app-production | `desktop/`, the auth client, the Rust workspace | the desktop release workflow's installer and update feed; branch retired |
 | skip-engine-production | `service` | built inside the desktop release; branch retired |
@@ -127,13 +127,13 @@ Tag `before-reorganisation-2026-11-19` (pushed) marks `main` at `03304ae0c3`. Ea
 | `core-api-backend-production` | `0ffe142496` | 2026-11-03 |
 | `crm-core-backend-production` | `215766d67d` | 2026-11-18 |
 | `desktop-app-production` | `a883991aa1` | 2026-11-18 |
-| `dialer-sms-backend-production` | `f115964f4c` | 2026-11-18 |
+| `telnyx-backend-production` | `f115964f4c` | 2026-11-18 |
 | `gateway-backend-production` | `45d3a94ba4` | 2026-11-18 |
 | `grafana-production` | `f12c4ba556` | 2026-11-18 |
 | `importing-lists-backend-production` | `c11b4ca1b2` | 2026-11-18 |
 | `landing-backend-production` | `0ff83572a4` | 2026-11-03 |
-| `landing-dashboard-web-production` | `577f8ef729` | 2026-11-18 |
-| `landing-web-production` | `adc435473e` | 2026-11-18 |
+| `crm-web-production` | `577f8ef729` | 2026-11-18 |
+| `website-production` | `adc435473e` | 2026-11-18 |
 | `learning-backend-production` | `7fde7ad3a6` | 2026-11-10 |
 | `live-backend-production` | `281c6a0225` | 2026-11-18 |
 | `main` | `03304ae0c3` | 2026-11-18 |

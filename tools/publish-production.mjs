@@ -6,7 +6,7 @@
 //
 //   node tools/publish-production.mjs --list                 what each branch holds
 //   node tools/publish-production.mjs                        update every branch (locally)
-//   node tools/publish-production.mjs landing-web-production update one
+//   node tools/publish-production.mjs website-production update one
 //   node tools/publish-production.mjs --push                 also push what changed to origin
 //   node tools/publish-production.mjs --export <dir> [name]  write each branch's files to <dir>/<name> (for image builds), touch nothing
 //   CALLERWHALE_COMMIT_TRAILER="Co-Authored-By: ..." adds a line to the end of each commit message
@@ -103,17 +103,32 @@ function checkPassed(root, sha, name) {
 const NOTE = "readme.md";
 
 function note(component, { ref, short, date, files, content }) {
+  const images = (component.images ?? []).map(i => `| \`${i.name}\` | \`${i.dockerfile}\` | ${i.deploy?.coolify ? `Coolify app \`${i.deploy.coolify}\`${i.deploy.setting ? ` (setting \`${i.deploy.setting}\`)` : ""}` : "not deployed by itself yet"} |`);
   return `# ${component.title}
 
-This branch is a **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as in \`${component.base ?? "Caller Whale CRM"}/\` on \`main\`.
+A **production snapshot of one part of Caller Whale**: only the files this part needs, at the same paths as on \`main\`, so it can be
+deployed, handed over or reviewed on its own.
 
-- Last changed from \`${ref}\` at \`${short}\` (${date})
-- Content id: \`${content}\` (the branch is only refreshed when this changes)
-- Holds: ${component.paths.map(p => `\`${pathLabel(p)}\``).join(", ")}${component.rust ? ", and the Cargo workspace file and lock for it" : ""}
-- ${files} files
-- Build and test: ${component.build}
+| | |
+| --- | --- |
+| Made from | \`${ref}\` at \`${short}\` (${date}) |
+| Content id | \`${content}\` (the branch changes only when this does) |
+| Holds | ${component.paths.map(p => `\`${pathLabel(p)}\``).join(", ")}${component.rust ? ", and the Cargo workspace file and lock for it" : ""} (${files} files) |
+| Settings | ${component.envExample ? `\`.env.example\` at the root (from \`${component.envExample}\` on \`main\`): paste into Coolify's Developer View; secrets stay in Coolify` : "none of its own"} |
+| Build and test | ${component.build} |
+${images.length ? `
+## Images
 
-Do not edit it here. Change the code on \`main\`, then refresh the branch from a checkout of \`main\`:
+Built by GitHub Actions from this branch's files (\`.github/workflows/images.yml\`), tagged with the content id, and deployed after
+the "production" approval when they have a Coolify app.
+
+| Image | Dockerfile | Runs as |
+| --- | --- | --- |
+${images.join("\n")}
+` : ""}
+## Do not edit this branch
+
+Change the code on \`main\`; after its CI passes, refresh the branch from a checkout of \`main\`:
 
     node tools/publish-production.mjs ${component.name} --push
 `;

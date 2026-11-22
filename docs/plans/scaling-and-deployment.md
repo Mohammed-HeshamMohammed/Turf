@@ -8,7 +8,7 @@ Every `*-production` branch (`docs/plans/production-branches.md`) is one contain
 
 | Branch | Dockerfile | Build context | Port | Copies it can run |
 | --- | --- | --- | --- | --- |
-| `landing-web-production` | `landing/web/Dockerfile` | `landing/web` | 8080 | any number |
+| `website-production` | `landing/web/Dockerfile` | `landing/web` | 8080 | any number |
 | `auth-backend-production` | `Dockerfile` | `.` (the branch root) | 8101 | any number, on PostgreSQL |
 | `notifications-backend-production` | `services/notifications/Dockerfile` | `services/notifications` | 8102 | any number |
 | `gateway-backend-production` | `Dockerfile` | `.` (the branch root) | 8100 | any number |
