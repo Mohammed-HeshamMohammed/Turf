@@ -1,5 +1,5 @@
 // Gateway: the one public entry point for Caller Whale's servers. It routes by the host name to the service behind it
-// (the core API, the Grafana login proxy), and checks every request before it gets there: a path that must stay
+// (crm-core, the Grafana login proxy), and checks every request before it gets there: a path that must stay
 // private is not found, a request that needs a signed-in person must carry a valid Caller Whale token (signature, issuer,
 // audience and expiry, checked with the auth service's public keys), staff paths also need the authenticator step, and each
 // address and each person has a rate limit. The services behind it check again for themselves: the gateway narrows
@@ -32,7 +32,7 @@ const (
 type route struct {
 	host     string
 	upstream *url.URL
-	core     bool // the core API: its paths are classified and need tokens as the policy says
+	core     bool // crm-core: its paths are classified and need tokens as the policy says
 	proxy    *httputil.ReverseProxy
 }
 
@@ -87,7 +87,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 		c.routes[host] = &route{host: host, upstream: u, core: host == core}
 	}
 	if len(c.routes) == 0 {
-		return c, errors.New("set ROUTES, like app.example.com=http://core-api:8088")
+		return c, errors.New("set ROUTES, like gate.example.com=http://crm-core:8107")
 	}
 	if core != "" && c.routes[core] == nil {
 		return c, errors.New("CORE_HOST is not one of the ROUTES hosts")
@@ -168,7 +168,7 @@ func loadConfig(getenv func(string) string) (config, error) {
 	return c, nil
 }
 
-// need is what a path on the core API asks of the caller.
+// need is what a path on crm-core asks of the caller.
 type need int
 
 const (
@@ -178,7 +178,7 @@ const (
 	private              // never reachable from outside: answered as not found
 )
 
-// classify decides what a core API request needs. Paths nobody listed as open fall under /api/v1 or the sync and event
+// classify decides what a crm-core request needs. Paths nobody listed as open fall under /api/v1 or the sync and event
 // routes and need a token; the internal routes (worker jobs, imports) never leave the private network.
 func classify(method, path string) need {
 	// Classified case-blind: an upper-case spelling of a guarded path must not fall through to open.
@@ -196,7 +196,7 @@ func classify(method, path string) need {
 		return open
 	case method == http.MethodPost && (path == "/api/v1/public/waitlist" || path == "/api/v1/public/contact" || path == "/api/v1/public/remove-my-information"): // the website's public forms: no sign-in, the address limit still applies
 		return open
-	case method == http.MethodPost && path == "/api/v1/billing/webhook": // the payment provider's signature is checked by the core API
+	case method == http.MethodPost && path == "/api/v1/billing/webhook": // the payment provider's signature is checked by the service behind
 		return open
 	// Email to leads: a lead clicking a link or unsubscribing, and SNS delivering replies (its signature is checked by the CRM).
 	// Website forms: anyone may open and send one; the CRM limits sends per address and turns robots away.
@@ -408,7 +408,7 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	// The website's two forms are proven human the same way (the core API behind does not check it again).
+	// The website's two forms are proven human the same way (crm-core behind does not check it again).
 	if g.human != nil && rt.core {
 		if rule, guarded := formRuleFor(r.Method, r.URL.Path); guarded {
 			if !g.humanIPs.allow(g.clientIP(r), g.now()) {
@@ -424,7 +424,7 @@ func (g *gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, g.cfg.maxBody)
 	}
 	if rt.core {
-		// A browser's CORS preflight carries no bearer token. Let the core API's
+		// A browser's CORS preflight carries no bearer token. Let crm-core's
 		// origin policy answer it; the subsequent request still needs its token.
 		// Classify using the method the browser intends to send so private paths
 		// cannot be probed through an OPTIONS request.

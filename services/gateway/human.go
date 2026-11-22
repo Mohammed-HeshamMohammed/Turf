@@ -149,7 +149,7 @@ func ruleFor(method, path string) (humanRule, bool) {
 	return humanRule{}, false
 }
 
-// formRuleFor is the check the website's two public forms need on the core API: a waitlist sign-up or a contact message is proven
+// formRuleFor is the check the website's two public forms need on crm-core: a waitlist sign-up or a contact message is proven
 // human here, with a token the page asked Google for under the form's own name.
 func formRuleFor(method, path string) (humanRule, bool) {
 	if method != http.MethodPost {

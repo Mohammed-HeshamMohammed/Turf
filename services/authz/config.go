@@ -9,7 +9,7 @@ import (
 )
 
 // callerRights are the requests each calling service may make. Workers and the gateway only ask questions; only the core
-// API changes who belongs where, and only billing and the core API set a workspace's standing.
+// API changes who belongs where, and only billing and crm-core (caller name core-api) set a workspace's standing.
 var callerRights = map[string][]string{
 	"core-api": {"grant", "check", "read", "manage", "manage_members", "manage_staff", "open", "standing"},
 	// "open": an owner or cofounder gives a person a membership, which opens their workspace. "standing": while no billing service

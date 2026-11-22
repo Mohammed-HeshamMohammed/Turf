@@ -1,6 +1,6 @@
 package main
 
-// (database_setup/0033_help_support.sql): help and feedback.
+// Help and feedback (database_setup/0033_help_support.sql).
 //   - A support conversation between an agency's owner or admins and Caller Whale's staff; members ask their owner (D292).
 //   - "What's new" notes by role, each seen once; owners see every note; a note tied to a switch shows where it is on (D293, D309).
 //   - Early features the owner switches on for the agency, kept in authz with the other switches (D294).
