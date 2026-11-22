@@ -104,7 +104,7 @@ def get_job(conn, me, job_id):
 def reply(conn, me, job_id):
     job = get_job(conn, me, job_id)
     if job["status"] == "uploading":
-        folder = Path(os.environ.get("IMPORT_DIR", "/data/imports")) / job_id
+        folder = job_folder(job_id)
         # A database record alone is not proof the piece is still kept here.
         job["received"] = [r["n"] for r in conn.execute("SELECT n, size FROM importing.chunks WHERE job_id = %s ORDER BY n", (job_id,))
                            if (folder / f'{r["n"]}.part').is_file() and (folder / f'{r["n"]}.part').stat().st_size == r["size"]]
@@ -218,7 +218,7 @@ def start(handler, me):
             (me["organization_id"], me["user"]["id"], project, team, name, filename, size, CHUNK_SIZE,
              (size + CHUNK_SIZE - 1) // CHUNK_SIZE, header, kind, timezone, skip_tracing and kind == "lead_list")).fetchone()
         job_id = row["id"]
-        (Path(os.environ.get("IMPORT_DIR", "/data/imports")) / job_id).mkdir(parents=True, exist_ok=True)
+        job_folder(job_id).mkdir(parents=True, exist_ok=True)
         return reply(conn, me, job_id)
 
 
@@ -237,7 +237,7 @@ def chunk(handler, me, job_id, number):
         raise APIError(400, "Send the piece's SHA-256 in x-chunk-sha256.")
     if handler.headers.get("Content-Length") != str(want):
         raise APIError(400, "That piece has the wrong size; send it again.")
-    folder = import_dir() / job_id
+    folder = job_folder(job_id)
     folder.mkdir(parents=True, exist_ok=True)
     digest = hashlib.sha256()
     temp = None
@@ -276,7 +276,7 @@ def complete(me, job_id):
         job = get_job(conn, me, job_id)
         if job["status"] != "uploading":
             return job
-        folder = Path(os.environ.get("IMPORT_DIR", "/data/imports")) / job_id
+        folder = job_folder(job_id)
         pieces = conn.execute("SELECT n, size FROM importing.chunks WHERE job_id = %s ORDER BY n", (job_id,)).fetchall()
         if len(pieces) != job["total_chunks"] or sum(p["size"] for p in pieces) != job["size"] or any(
                 p["n"] != i or not (folder / f"{i}.part").is_file() or (folder / f"{i}.part").stat().st_size != p["size"]

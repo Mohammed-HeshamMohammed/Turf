@@ -4,7 +4,8 @@
 
 /** The code's places in a stack: script addresses with line and column, at most three. */
 export function framesOf(stack) {
-  const found = String(stack || "").match(/https?:\/\/[^\s()]+:\d+:\d+/g) || [];
+  // Capped: the pattern backtracks on a long hostile string, and three frames sit near the top anyway.
+  const found = String(stack || "").slice(0, 4000).match(/https?:\/\/[^\s()]+:\d+:\d+/g) || [];
   return found.slice(0, 3);
 }
 
