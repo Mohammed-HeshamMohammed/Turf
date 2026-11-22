@@ -1,4 +1,4 @@
-// The deployed images build the log wrapper from packages/go/runtimelog (step 50+51); --check makes sure each still starts
+// The deployed images build the log wrapper from packages/go/runtimelog; --check makes sure each still starts
 // through it. The scaffolds (scaffolds/*, D384, never deployed or built by CI) still get a generated copy of the wrapper and of
 // their request adapters.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";

@@ -1,4 +1,4 @@
-// Build step 42 (D303): errors in the CRM web app and the website are sent to the auth service's log with the error's kind, the
+// Errors in the CRM web app and the website (D303) are sent to the auth service's log with the error's kind, the
 // page's path, where in the code and the version. The error's text is never sent: it can hold names, numbers or message text.
 // Both apps import it as @callerwhale/error-report (D383).
 

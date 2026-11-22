@@ -1,4 +1,4 @@
-// Build step 40 (D292): the help pages, searchable on /help. Short answers in plain words; the in-app assistant answers the rest.
+// The help pages, searchable on /help. Short answers in plain words; the in-app assistant answers the rest.
 export type HelpArticle = { slug: string; title: string; topic: string; roles: string[]; body: string[] };
 
 export const helpArticles: HelpArticle[] = [

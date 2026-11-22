@@ -115,7 +115,7 @@ export function WorkspaceDashboard({ access, auth, authBase, me, onSaved }: { ac
   }, []);
   const space = spaces.find(item => item.org_id === orgId) || spaces[0];
   const owner = Boolean(space?.business_owner) || Boolean(space?.roles.includes("admin"));
-  // The owner and admins invite anyone; a team lead invites callers, closers and researchers into the teams they lead (step 3).
+  // The owner and admins invite anyone; a team lead invites callers, closers and researchers into the teams they lead.
   const canInvite = owner || Boolean(space?.roles.includes("manager"));
   const solo = Boolean(space?.roles.includes("solo"));
   const open = (next: View) => { window.history.replaceState(null, "", next === "overview" ? window.location.pathname : `#${next}`); setView(next); window.scrollTo(0, 0); };

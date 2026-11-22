@@ -172,7 +172,7 @@ def create_app(settings: Settings, store, now: Callable[[], datetime] = lambda: 
     def reserve(body: ReserveBody, _: str = caller("reserve")):
         return store.reserve(body.kind, body.account_id, body.amount, body.request_id, body.detail, now()).as_json()
 
-    # Budgets (step 22): the dialer checks, then charges, each call's minutes and each text.
+    # Budgets: the dialer checks, then charges, each call's minutes and each text.
     @app.post("/v1/usage")
     def usage(body: UsageBody, _: str = caller("usage")):
         return budgets.use(store, body.org_id, body.kind, body.amount, body.request_id, body.team_id, body.user_id, body.client_id, now(), body.check_only)
@@ -208,7 +208,7 @@ def create_app(settings: Settings, store, now: Callable[[], datetime] = lambda: 
     def entitlements(org_id: UUID, _: str = caller("standing")):
         return store.entitlements(org_id)
 
-    # Discounts a workspace earns (step 45, D325): crm-core gives and ends the shared-learning discount on AI features.
+    # Discounts a workspace earns (D325): crm-core gives and ends the shared-learning discount on AI features.
     @app.put("/v1/orgs/{org_id}/discounts/{reason}")
     def put_discount(org_id: UUID, reason: str, body: DiscountBody, _: str = caller("discounts")):
         return {"discounts": store.set_discount(org_id, reason, body.kind, body.percent)}

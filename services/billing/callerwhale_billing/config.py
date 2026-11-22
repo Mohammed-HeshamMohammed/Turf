@@ -9,11 +9,11 @@ CALLER_RIGHTS = {
     # The auth service reads a summary of revenue, plans and usage for the platform owner's dashboard.
     # ...and, for an owner or cofounder, gives a person a membership: a trial, a free plan, or one paid for outside Paddle.
     "auth": {"summary", "assign", "standing"},  # standing: a workspace's plan and usage, shown to its own members
-    # The dialer charges call minutes and texts to the lead's team, the person and the client, and keeps their budgets (step 22).
+    # The dialer charges call minutes and texts to the lead's team, the person and the client, and keeps their budgets.
     "dialer-sms": {"usage", "budgets"},
-    # The CRM charges the in-app assistant's use to the lead's team and client, within each person's daily cap (step 26), and reads
-    # a workspace's limits for its file storage (step 38).
-    "crm-core": {"usage", "standing", "discounts"},  # discounts: the shared-learning discount on AI features (step 45)
+    # The CRM charges the in-app assistant's use to the lead's team and client, within each person's daily cap, and reads
+    # a workspace's limits for its file storage.
+    "crm-core": {"usage", "standing", "discounts"},  # discounts: the shared-learning discount on AI features
 }
 
 

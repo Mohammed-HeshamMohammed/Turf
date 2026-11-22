@@ -1,5 +1,5 @@
 // Caller Whale's calendar and date field, shared by the CRM, the website and the desktop app. Plain React and CSS
-// (calendar.css): no animation, icon or class-name libraries. This app's own copy of packages/calendar, no longer synced (step 49).
+// (calendar.css): no animation, icon or class-name libraries. This app's own copy of packages/calendar, no longer synced.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 

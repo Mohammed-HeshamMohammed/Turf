@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Build step 41 (D296): the monthly restore test. Restores one backup into a scratch database with PostgreSQL's own tools and checks it
+// The monthly restore test (D296). Restores one backup into a scratch database with PostgreSQL's own tools and checks it
 // holds data, recent data, and the tables you name. Prints a report, appends it to a log, and exits non-zero when it fails.
 //
 //   node tools/restore-test.mjs --dump <file.dmp|.dump|.sql|.sql.gz> --scratch <postgres URL of an empty, throwaway database>

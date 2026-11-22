@@ -1,4 +1,4 @@
-"""Build step 22: budgets for teams, people and clients inside the agency's allowance (D120, D121, D122, D123, D135).
+"""Budgets for teams, people and clients inside the agency's allowance (D120, D121, D122, D123, D135).
 
 A use (call minutes, texts) is checked against every budget it falls under (the lead's team, the person who made it, the lead's client)
 and, for minutes, against the plan's allowance; then charged once per request id. A budget that would be passed refuses it with
@@ -11,7 +11,7 @@ from psycopg.rows import dict_row
 
 from .store import Refused, Store, month_of
 
-KINDS = ("minutes", "texts", "ai")  # ai: one use of the in-app assistant (step 26, D323)
+KINDS = ("minutes", "texts", "ai")  # ai: one use of the in-app assistant (D323)
 # The most assistant uses one person may make in a day, against runaway use (D323). Use about a lead is charged to its team and client;
 # use about nothing in particular (a "how do I" question) only to the person and the agency's allowance (D372).
 AI_DAILY_CAP = 200

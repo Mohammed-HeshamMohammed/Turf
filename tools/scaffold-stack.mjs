@@ -69,7 +69,7 @@ for (const s of stack.services) {
 
 // ---- desktop modules ----
 for (const m of stack.desktopModules) {
-  // Desktop modules are in the repository's root Rust workspace (step 52), outside this folder.
+  // Desktop modules are in the repository's root Rust workspace, outside this folder.
   const dir = `crates/desktop-features/${m.name}`;
   const vars = {
     NAME: m.name, SLUG: m.name, TITLE: m.title, DESC: m.desc, PORT: "", DIR: dir, PART: "Desktop backend module (runs on the person's computer)",
@@ -89,7 +89,7 @@ for (const m of stack.desktopModules) {
   );
 }
 
-// ---- the scaffolds' Cargo workspace: the Rust services here (the desktop modules are in the root workspace, step 52) ----
+// ---- the scaffolds' Cargo workspace: the Rust services here (the desktop modules are in the root workspace) ----
 const rustCrates = stack.services.filter(s => s.lang === "rust").map(s => s.dir.replace(/^scaffolds\//, ""));
 put(
   join(root, "scaffolds", "Cargo.toml"),
@@ -193,7 +193,7 @@ services:
   postgres:
     image: postgres:17
     environment:
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in env/compose.env}"
+      POSTGRES_PASSWORD: "\${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in env/compose.env}"
     volumes:
       - postgres-data:/var/lib/postgresql/data
   redis:

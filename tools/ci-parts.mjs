@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const S = "services/";
-// Shared Go modules (packages/go, step 50+51): a change runs every Go service that imports them.
+// Shared Go modules (packages/go): a change runs every Go service that imports them.
 const GO = "packages/go/";
 // The npm workspace (D383): the shared packages and the root lock file the web apps install from.
 const NPM = ["packages/", "package.json", "package-lock.json", ".npmrc"];

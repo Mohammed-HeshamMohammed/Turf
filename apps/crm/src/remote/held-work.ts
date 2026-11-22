@@ -1,4 +1,4 @@
-// The web cache keeps one agency in memory (build step 5). Switching to another drops the first one's records, but not the changes the
+// The web cache keeps one agency in memory. Switching to another drops the first one's records, but not the changes the
 // person made there and could not send yet: those wait here, per agency, for the life of the tab, and go out when the person comes
 // back to that agency. Nothing is written to the browser's storage (D194, D287).
 

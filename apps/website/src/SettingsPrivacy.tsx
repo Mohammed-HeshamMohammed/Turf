@@ -19,7 +19,7 @@ const MESSAGE: Choice[] = [
   { value: "nobody", label: "Nobody" },
 ];
 
-/** Settings, Privacy: the #tag after the person's name, and who can see their phone, find them and message them (step 4). */
+/** Settings, Privacy: the #tag after the person's name, and who can see their phone, find them and message them. */
 export function SettingsPrivacy({ me, auth, authBase, onSaved }: { me: Me; auth: Auth; authBase: string; onSaved: () => void }) {
   const savedTag = String(me.tag || "");
   const [tag, setTag] = useState(savedTag);
