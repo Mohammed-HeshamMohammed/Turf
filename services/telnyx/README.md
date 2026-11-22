@@ -14,6 +14,35 @@ Feature 3: calling and texting leads through **Telnyx** (Voice API / Call Contro
 
 Plan: `docs/plans/messaging-sms-voice.md`. Feature: `docs/features/03-dialer-auto-dialing-sms.md`.
 
+## The six containers
+
+`roles.go` decides what each runs; `cmd/<name>` starts it; each has its own image (`cw-<name>`), Dockerfile (`Dockerfile.<part>`),
+port, settings (`env/<name>.production.example`, the same on all six except `PORT`) and health (`/healthz`, `/version`, `/status`).
+
+| Container | Port | Answers | Timed work |
+| --- | --- | --- | --- |
+| `telnyx-phone-api` | 8113 | `/api/v1/calls`, `numbers`, `budgets`, `recording`, `voicemail-drops`, `status`, `leads/{id}/signals`; `/telnyx-sim` in simulate mode | none |
+| `telnyx-phone-webhooks` | 8122 | `/webhooks/telnyx` (Telnyx sends `call.*` here) | none |
+| `telnyx-phone-jobs` | 8123 | health only | settling calls (2 s), callbacks and old captions (1 min), erasures (10 min) |
+| `telnyx-sms-api` | 8124 | `/api/v1/sms...`; `/telnyx-sim` in simulate mode | none |
+| `telnyx-sms-webhooks` | 8125 | `/webhooks/telnyx` (the messaging profile sends `message.*` and `10dlc.*` here) | none |
+| `telnyx-sms-jobs` | 8126 | health only | scheduled texts (30 s), unanswered texts (1 min), 10DLC and standing (10 min) |
+
+- **Why calls and texts apart:** Telnyx sends a call's webhooks to the call's webhook URL and texts' to the messaging profile's, and
+  wants each answered within about two seconds. A texting burst, a bulk send or a slow CRM never delays a call's reaction (answer,
+  machine hang-up, the voicemail at the beep).
+- **Two copies of anything are safe:** settling and scheduled texts lock their rows (`SKIP LOCKED`); every other timed pass takes an
+  advisory lock for its length (`onlyOne`), so one copy does it and the other skips the round. Webhooks are stored once by event id.
+- **A webhook at the wrong address is not lost:** either webhooks container takes any Telnyx event with the same checks and code.
+- **Live mode addresses:** `TELNYX_WEBHOOK_URL` (sent with each call) is `telnyx-phone-webhooks`' public address; the messaging
+  profile's webhook in the Telnyx portal is `telnyx-sms-webhooks`' public address. Both reach them through the gateway (one host each).
+- **Simulate mode:** `telnyx-phone-api` and `telnyx-sms-api` each host their side's simulator and send its webhooks to their
+  webhooks container (`SIM_WEBHOOK_URL` overrides). The others call that simulator (`TELNYX_API_URL` overrides) and check its
+  signatures. So all six need the same `TELNYX_SIM_PRIVATE_KEY` and `TELNYX_API_KEY`.
+- **The switch:** the deployed app (`cmd/dialer-sms`, alias `dialer-sms`) keeps working until the six apps are healthy; then it is
+  stopped and `telnyx-phone-api` also takes the alias `dialer-sms`. Nothing else calls this service by name today (it has no domain
+  yet). Its caller name in authz's and billing's token lists stays `dialer-sms`.
+
 ## How it works
 
 ```

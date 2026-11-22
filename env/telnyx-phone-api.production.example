@@ -1,0 +1,55 @@
+# telnyx-phone-api on Coolify (port 8113, network alias telnyx-phone-api, no domain of its own): one of the six calls and texts containers (services/telnyx/roles.go).
+# The same settings on all six (the database, crm-core, authz, Telnyx); only PORT differs. Paste into Environment Variables -> Developer View; secrets stay in Coolify.
+# HTTP port; default 8113. Match Coolify's container port.
+PORT=8113
+# Secret PostgreSQL URI of the dialer database. The service creates its own tables (schema dialer_sms) at start.
+DATABASE_URL=<postgres://...:5432/postgres?sslmode=require>
+# The auth service's public keys at its private address (http://auth:8101/.well-known/jwks.json); sign-in tokens are checked with them locally.
+AUTH_JWKS_URL=http://auth:8101/.well-known/jwks.json
+# The authorization service's private address, like http://authz:8104.
+AUTHZ_URL=http://authz:8104
+# Secret: the value after dialer-sms= in authz's AUTHZ_TOKENS, 32+ characters.
+AUTHZ_TOKEN=<the dialer-sms token from authz's AUTHZ_TOKENS>
+# crm-core's private address, like http://crm-core:8107. Finished calls are logged there.
+CRM_URL=http://crm-core:8107
+# Secret: the same value as crm-core's DIALER_TOKEN, 32+ characters.
+CRM_TOKEN=<the same value as crm-core's DIALER_TOKEN>
+# Pages that may call this service from a browser. Keep it the same as the gateway's CORS_ORIGINS.
+CORS_ORIGINS=https://app.callerwhale.com
+# simulate (default: the built-in Telnyx simulator, nothing reaches a phone, no cost) or live (real Telnyx, costs money).
+TELNYX_MODE=simulate
+# Simulate mode: how many times faster than real time the simulator runs; default 1. 10 makes a 45-second call take 4.5 seconds.
+SIM_SPEED=1
+# Secret Telnyx API key; in simulate mode any value, the same on all six telnyx containers (the simulator checks it).
+TELNYX_API_KEY=<simulate: any long random value; live: the Telnyx API key>
+# Live: the Call Control application (Voice API) that outbound calls use.
+TELNYX_CONNECTION_ID=
+# Live: the base64 Ed25519 public key from the Telnyx portal; webhooks not signed with it are refused.
+TELNYX_PUBLIC_KEY=
+# Live: where Telnyx sends events, like https://voice.callerwhale.com/webhooks/telnyx. Empty: the application's own setting on the portal.
+TELNYX_WEBHOOK_URL=
+# Live: the messaging profile texts go out on (its webhook must point at /webhooks/telnyx too).
+TELNYX_MESSAGING_PROFILE_ID=
+# Live: the credential SIP connection the browser's calling kit signs in to (WebRTC). Empty turns browser calling tokens off.
+TELNYX_SIP_CONNECTION_ID=
+# A number calls and texts go out from when the workspace has none set up (E.164, like +15125550100).
+TELNYX_FROM_NUMBER=+15125550100
+# Answering machine detection: detect (default), detect_beep, premium or off. Telnyx charges per answered call for it.
+TELNYX_AMD=detect
+# true records every answered call (Telnyx charges per minute); otherwise only calls placed with record set.
+RECORD_CALLS=false
+# Step 39: calls wait until the carriers verify the agency's brand and texts until its 10DLC campaign is provisioned. On unless set to off; off only for local work and tests.
+CARRIER_CHECK=on
+# Budgets (build step 22): billing's private address and the dialer-sms token from its BILLING_TOKENS. Empty: calls and texts are not limited.
+# Billing's private address, like http://billing:8103, for budgets on calls, texts and assistant use (step 22). Empty: nothing is limited.
+BILLING_URL=http://billing:8103
+# Secret: the value after dialer-sms= in billing's BILLING_TOKENS, 32+ characters.
+BILLING_TOKEN=<the dialer-sms token from billing's BILLING_TOKENS>
+
+# The call summary (build step 26): the assistant service and its AGENT_TOKEN (secret, Coolify only). Empty: no summaries.
+# The assistant service's private address, like http://assistant:8109, for call summaries (step 26). Empty: no summaries.
+ASSISTANT_URL=http://assistant:8109
+# Secret: the same value as the assistant's AGENT_TOKEN, 32+ characters.
+ASSISTANT_TOKEN=<the same value as the assistant's AGENT_TOKEN>
+# Simulate mode: one base64 Ed25519 seed (32 bytes), the same on all six telnyx containers; it signs and checks the simulated webhooks. Make it once (openssl rand -base64 32). Not used in live mode.
+TELNYX_SIM_PRIVATE_KEY=<the same seed on all six>
