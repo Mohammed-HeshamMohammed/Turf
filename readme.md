@@ -5,9 +5,9 @@ deployed, handed over or reviewed on its own.
 
 | | |
 | --- | --- |
-| Made from | `main` at `6f1dfdc` (2026-11-22) |
-| Content id | `f413ceec2ef6e7f1731393509dd322217a48c130` (the branch changes only when this does) |
-| Holds | `deploy/monitoring (as deploy/grafana)`, `services/grafana-proxy`, `services/alert-relay`, `packages/go`, `docs/plans/grafana-access.md`, `env/grafana.production.example` (52 files) |
+| Made from | `dcc58305` at `dcc5830` (2026-11-22) |
+| Content id | `e74b8d58ea95190c4ee3aab8bf514d2a5660978e` (the branch changes only when this does) |
+| Holds | `deploy/monitoring (as deploy/grafana)`, `services/grafana-proxy`, `services/alert-relay`, `packages/go`, `docs/operations/grafana-access.md`, `env/grafana.production.example` (52 files) |
 | Settings | `.env.example` at the root (from `env/grafana.production.example` on `main`): paste into Coolify's Developer View; secrets stay in Coolify |
 | Build and test | go test ./... in services/grafana-proxy; in Coolify: a Docker Compose resource from this branch with deploy/grafana/compose.yml (deploy/grafana/README.md) |
 

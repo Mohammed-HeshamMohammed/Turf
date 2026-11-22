@@ -1,7 +1,7 @@
 // Grafana login proxy. Lets only Caller Whale's platform owner, cofounder, and system administrators who passed the
 // authenticator step into Grafana: it asks Auth for the current account and platform role, then tells
 // Grafana in its auth-proxy headers. Grafana trusts those headers only from this proxy's address.
-// Plan: docs/plans/grafana-access.md.
+// Plan: docs/operations/grafana-access.md.
 //
 // Sign-in: a visit without a session goes to the website's /admin/grafana, which posts the person's Caller Whale token to
 // /_callerwhale/session. The token stays in this process's memory, never in the cookie (a random session id) or a URL, and is
