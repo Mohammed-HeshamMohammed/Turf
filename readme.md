@@ -5,7 +5,7 @@ deployed, handed over or reviewed on its own.
 
 | | |
 | --- | --- |
-| Made from | `main` at `0caadc6` (2026-11-22) |
+| Made from | `main` at `6f1dfdc` (2026-11-22) |
 | Content id | `f413ceec2ef6e7f1731393509dd322217a48c130` (the branch changes only when this does) |
 | Holds | `deploy/monitoring (as deploy/grafana)`, `services/grafana-proxy`, `services/alert-relay`, `packages/go`, `docs/plans/grafana-access.md`, `env/grafana.production.example` (52 files) |
 | Settings | `.env.example` at the root (from `env/grafana.production.example` on `main`): paste into Coolify's Developer View; secrets stay in Coolify |
