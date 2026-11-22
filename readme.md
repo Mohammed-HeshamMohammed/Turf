@@ -5,7 +5,7 @@ deployed, handed over or reviewed on its own.
 
 | | |
 | --- | --- |
-| Made from | `main` at `0caadc6` (2026-11-22) |
+| Made from | `main` at `6f1dfdc` (2026-11-22) |
 | Content id | `158e62b5fa2670f94ac49282b755f0245e46ed36` (the branch changes only when this does) |
 | Holds | `.` (100 files) |
 | Settings | none of its own |
