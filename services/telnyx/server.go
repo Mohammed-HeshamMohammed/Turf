@@ -96,13 +96,17 @@ func (s *server) handler() http.Handler {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()
 		if s.st.ping(ctx) != nil {
-			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"ok": false, "service": "dialer-sms"})
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"ok": false, "service": s.name()})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": "dialer-sms", "carrier": s.route()})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": s.name(), "carrier": s.route()})
 	})
 	mux.HandleFunc("GET /version", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"service": "dialer-sms", "version": version, "carrier": s.route()})
+		writeJSON(w, http.StatusOK, map[string]any{"service": s.name(), "version": version, "carrier": s.route()})
+	})
+	mux.HandleFunc("GET /status", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"service": s.name(), "version": version, "carrier": s.route(),
+			"simulator_here": s.sim != nil, "timed_work": s.cfg.role.loops()})
 	})
 	mux.HandleFunc("POST /webhooks/telnyx", s.webhook)
 
@@ -512,7 +516,15 @@ func (s *server) handler() http.Handler {
 	if s.sim != nil {
 		mux.Handle("/telnyx-sim/", http.StripPrefix("/telnyx-sim", s.sim.handler()))
 	}
-	return runtimelog.LogHTTP(withCORS(s.cfg.origins, mux))
+	return runtimelog.LogHTTP(withCORS(s.cfg.origins, roleFilter(s.cfg.role, mux)))
+}
+
+// name is the container's name in health answers ("dialer-sms" for every part in one).
+func (s *server) name() string {
+	if s.cfg.role == "" {
+		return string(roleAll)
+	}
+	return string(s.cfg.role)
 }
 
 // webhook takes one Telnyx webhook. Anything not signed by Telnyx (or, in simulate mode, by the simulator) is refused. A

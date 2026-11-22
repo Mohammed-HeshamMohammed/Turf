@@ -1,0 +1,26 @@
+# telnyx-sms-webhooks (services/telnyx/roles.go), port 8125.
+# Build from the repository root: docker build -f services/telnyx/Dockerfile.sms-webhooks .
+FROM golang:1 AS runtime-log-build
+COPY packages/go/runtimelog /src
+RUN cd /src && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log ./cmd/callerwhale-log
+
+FROM golang:1 AS build
+WORKDIR /repo/services/telnyx
+COPY packages/go /repo/packages/go
+COPY services/telnyx/go.mod services/telnyx/go.sum ./
+RUN go mod download
+COPY services/telnyx/*.go ./
+COPY services/telnyx/cmd ./cmd
+COPY services/telnyx/migrations ./migrations
+# The database tests need a PostgreSQL and are skipped here; they run in .github/workflows/check-backend.yml.
+RUN go vet ./... && go test ./... && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/service ./cmd/telnyx-sms-webhooks
+
+FROM gcr.io/distroless/static-debian12
+COPY --from=runtime-log-build /runtime-log /usr/local/bin/callerwhale-log
+ENV CALLERWHALE_LOG_SERVICE="Telnyx SMS webhooks"
+COPY --from=build /out/service /service
+ENV PORT=8125
+EXPOSE 8125
+USER nonroot
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=6 CMD ["/service", "health"]
+ENTRYPOINT ["/usr/local/bin/callerwhale-log","/service"]

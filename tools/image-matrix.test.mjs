@@ -11,7 +11,7 @@ test("every deployed branch has its images; the desktop branches have none", () 
   assert.equal(new Set(names).size, names.length, "image names are unique");
   for (const name of ["cw-gateway", "cw-crm-core", "cw-dialer-sms", "cw-website", "cw-crm-web", "cw-grafana-proxy", "cw-alert-relay", "cw-loki"]) assert.ok(names.includes(name), name);
   assert.ok(!list.some(i => i.branch === "desktop-app-production" || i.branch === "skip-engine-production"));
-  for (const i of list) assert.match(i.dockerfile, /(^|\/)Dockerfile(\.(merge|outbox))?$/); // crm-core's job containers have their own (split 2)
+  for (const i of list) assert.match(i.dockerfile, /(^|\/)Dockerfile(\.(merge|outbox|phone-api|phone-webhooks|phone-jobs|sms-api|sms-webhooks|sms-jobs))?$/); // crm-core's job containers have their own (split 2)
 });
 
 test("moved images name their Coolify application and setting; the rest have none (step 48)", () => {
