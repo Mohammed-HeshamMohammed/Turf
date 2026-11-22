@@ -119,7 +119,6 @@ func TestSplitContainersInSimulateModeShareOneSimulatorPerSide(t *testing.T) {
 // separate webhooks container, and the jobs' settling logs it in the CRM. The calls API no longer takes webhooks or texts.
 func TestACallPlaysThroughTheSplitContainers(t *testing.T) {
 	e := newEnv(t)
-	e.s.cfg.role = rolePhoneAPI
 	hooks := *e.s
 	hooks.cfg.role, hooks.sim = rolePhoneWebhooks, nil
 	hts := httptest.NewServer(hooks.handler())
@@ -136,12 +135,16 @@ func TestACallPlaysThroughTheSplitContainers(t *testing.T) {
 			t.Fatalf("%s: %s %s, logged %v", sc.Name, c.ReportState, c.Outcome, e.crm.logged[c.ID] != nil)
 		}
 	}
-	if status, _ := e.call("POST", "/api/v1/sms", map[string]any{"lead_id": e.addLead("+15125552222"), "text": "Hi"}); status != 404 {
-		t.Fatalf("texting through the calls API: %d", status)
+	// The calls API as its own container: no texts, no webhooks.
+	api := *e.s
+	api.cfg.role = rolePhoneAPI
+	ats := httptest.NewServer(api.handler())
+	t.Cleanup(ats.Close)
+	for _, path := range []string{"/api/v1/sms", "/webhooks/telnyx"} {
+		res, err := http.Post(ats.URL+path, "application/json", strings.NewReader("{}"))
+		if err != nil || res.StatusCode != 404 {
+			t.Fatalf("%s on the calls API: %v %v", path, err, res.StatusCode)
+		}
+		res.Body.Close()
 	}
-	res, err := http.Post(e.ts.URL+"/webhooks/telnyx", "application/json", strings.NewReader("{}"))
-	if err != nil || res.StatusCode != 404 {
-		t.Fatalf("a webhook to the calls API: %v %v", err, res.StatusCode)
-	}
-	res.Body.Close()
 }
