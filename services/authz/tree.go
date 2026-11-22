@@ -553,7 +553,7 @@ func (s *server) checkRelation(w http.ResponseWriter, r *http.Request) error {
 		Role     string `json:"role"`
 		TeamID   string `json:"team_id"`
 		Pending  int    `json:"pending"` // invitations already waiting, which hold a seat each
-		// An invitation that carries everything (step 3, D45): several roles, several teams, and for a team lead the teams they
+		// An invitation that carries everything (D45): several roles, several teams, and for a team lead the teams they
 		// will lead. Left out, role and team_id are the whole invitation.
 		Roles       []string `json:"roles"`
 		TeamIDs     []string `json:"team_ids"`
@@ -616,8 +616,8 @@ func (s *server) checkRelation(w http.ResponseWriter, r *http.Request) error {
 type standingChange struct {
 	Suspended       *bool
 	PaymentRequired *bool
-	Paused          *bool // staff own it, like Suspended (step 13)
-	// Step 18: when the plan went unpaid (billing may say; otherwise the first "payment_required: true" sets it to now), and an
+	Paused          *bool // staff own it, like Suspended
+	// When the plan went unpaid (billing may say; otherwise the first "payment_required: true" sets it to now), and an
 	// agency its owner closed (auth only).
 	UnpaidSinceSet bool
 	UnpaidSince    *int64

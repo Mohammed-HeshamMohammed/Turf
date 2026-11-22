@@ -1,6 +1,6 @@
 package main
 
-// Build step 35, D243: an agency's owner can limit its members to chosen countries and office networks. The gateway is the one place
+// D243: an agency's owner can limit its members to chosen countries and office networks. The gateway is the one place
 // that sees every request's real address and country (Cloudflare's CF-IPCountry) with the agency it is made in (x-callerwhale-org), so
 // it checks them here. The rules come from authz (AUTHZ_URL, AUTHZ_TOKEN: the gateway's token, which may read only these), kept for a
 // minute. The owner is never limited, so the agency can always be reached to change them. When authz cannot be asked, requests go on

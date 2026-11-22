@@ -1,6 +1,6 @@
 package main
 
-// Build step 42 (D303): errors in people's browsers (the website and the CRM web app) are written to this service's log, where Loki
+// Errors in people's browsers (the website and the CRM web app) are written to this service's log, where Loki
 // keeps them beside every other runtime log. Only the error's kind, the page's path without ids, where in the code it happened and
 // the app's version are kept: never the error's text (it can hold names, numbers or message text), never who it was.
 

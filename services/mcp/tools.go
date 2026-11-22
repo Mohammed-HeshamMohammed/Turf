@@ -8,7 +8,7 @@ import (
 )
 
 // The tools an assistant may use. Every tool names the scope it needs; a tool the person did not allow is not even listed. With
-// team:manage (build step 24) an assistant reads the agency's people and teams and asks for changes, which wait for the person to
+// team:manage an assistant reads the agency's people and teams and asks for changes, which wait for the person to
 // confirm inside Caller Whale (D130). No tool spends money, and none can (D131).
 
 type tool struct {

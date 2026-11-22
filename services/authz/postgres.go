@@ -73,7 +73,7 @@ func (p *postgres) setup(ctx context.Context) error {
 		`UPDATE authz_roles SET second_step = false WHERE role_key IN ('owner', 'solo') AND second_step`,
 		// The agency's name, copied from the CRM, so an invitation can name the agency it comes from.
 		`ALTER TABLE authz_workspaces ADD COLUMN IF NOT EXISTS name text NOT NULL DEFAULT ''`,
-		// Step 11 (the new team rules). A team's leads and deputies, several each (D43); authz_teams.manager_id stays the first
+		// A team's leads and deputies, several each (D43); authz_teams.manager_id stays the first
 		// lead for the services that know one. Every existing team keeps its manager as its lead (D181).
 		`CREATE TABLE IF NOT EXISTS authz_team_leads (org_id text NOT NULL, team_id text NOT NULL, user_id text NOT NULL, kind text NOT NULL CHECK (kind IN ('lead', 'deputy')), pos integer NOT NULL DEFAULT 0, PRIMARY KEY (org_id, team_id, user_id))`,
 		`CREATE INDEX IF NOT EXISTS authz_team_leads_user_idx ON authz_team_leads (org_id, user_id)`,
@@ -81,14 +81,14 @@ func (p *postgres) setup(ctx context.Context) error {
 		// Each workspace's switches (D104), and the number of admins staff allow it (D179; null: the default).
 		`ALTER TABLE authz_workspaces ADD COLUMN IF NOT EXISTS features text[] NOT NULL DEFAULT '{}'`,
 		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS admins integer`,
-		// Paused (step 13, D27): the owner is gone; members read, nobody works, until Caller Whale hands the agency on.
+		// Paused (D27): the owner is gone; members read, nobody works, until Caller Whale hands the agency on.
 		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS paused boolean NOT NULL DEFAULT false`,
-		// Step 18: since when the plan is unpaid (grace, then read-only, then closed), and when the owner closed the agency.
+		// Since when the plan is unpaid (grace, then read-only, then closed), and when the owner closed the agency.
 		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS unpaid_since bigint`,
 		`ALTER TABLE authz_standing ADD COLUMN IF NOT EXISTS closed_at bigint`,
-		// Step 19: support access the owner granted, until a time.
+		// Support access the owner granted, until a time.
 		`CREATE TABLE IF NOT EXISTS authz_support (org_id text PRIMARY KEY, until bigint NOT NULL, granted_by text NOT NULL)`,
-		// Step 35: the countries and office networks an agency's members may work from (D243).
+		// The countries and office networks an agency's members may work from (D243).
 		`CREATE TABLE IF NOT EXISTS authz_access_limits (org_id text PRIMARY KEY, countries text[] NOT NULL DEFAULT '{}', networks text[] NOT NULL DEFAULT '{}')`,
 		`UPDATE authz_standing SET unpaid_since = extract(epoch FROM now())::bigint WHERE payment_required AND unpaid_since IS NULL`,
 		// The record of people changes (D58, D184): kept 2 years. team_ids are the teams the change touched, so a team's leads see

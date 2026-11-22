@@ -47,7 +47,7 @@ type engine interface {
 	removeMember(ctx context.Context, org, user string) error
 	setRole(ctx context.Context, org string, r role) error
 	openWorkspace(ctx context.Context, org, owner, ownerRole string) error
-	// setOwner records a new owner of an open workspace (a handover, step 13); their roles are set with setMembership.
+	// setOwner records a new owner of an open workspace (a handover); their roles are set with setMembership.
 	setOwner(ctx context.Context, org, owner string) error
 	// setWorkspaceName keeps the agency's name as the CRM shows it, so invitations can say which agency they come from.
 	setWorkspaceName(ctx context.Context, org, name string) error
@@ -56,7 +56,7 @@ type engine interface {
 	// features are the workspace's switches that are on (D104); setFeature turns one on or off.
 	features(ctx context.Context, org string) ([]string, error)
 	setFeature(ctx context.Context, org, name string, on bool) error
-	// accessLimits are the countries and networks the agency's members may work from (step 35, D243); empty: anywhere.
+	// accessLimits are the countries and networks the agency's members may work from (D243); empty: anywhere.
 	accessLimits(ctx context.Context, org string) (countries, networks []string, err error)
 	setAccessLimits(ctx context.Context, org string, countries, networks []string) error
 	// logPeople records one change to people; peopleLog reads the newest first, older entries than two years are dropped.
@@ -65,9 +65,9 @@ type engine interface {
 	// adminLimit is how many admins the workspace may have when staff changed it (nil: the default).
 	adminLimit(ctx context.Context, org string) (*int, error)
 	setStanding(ctx context.Context, org string, change standingChange) error
-	// standingOf is the agency's plan stage and pause (step 18).
+	// standingOf is the agency's plan stage and pause.
 	standingOf(ctx context.Context, org string) (standingView, error)
-	// Support access (step 19): until when staff may come in (0: not open), set or ended (nil) by the owner, and every agency open now.
+	// Support access: until when staff may come in (0: not open), set or ended (nil) by the owner, and every agency open now.
 	supportUntil(ctx context.Context, org string) (int64, error)
 	setSupport(ctx context.Context, org string, until *int64, by string) error
 	supportOpen(ctx context.Context, now int64) (map[string]int64, error)

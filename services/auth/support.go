@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Build step 19: the owner lets Caller Whale's staff into the agency for a set time, and can end it early (D83). authz decides what
+// The owner lets Caller Whale's staff into the agency for a set time, and can end it early (D83). authz decides what
 // staff may do there (see services/authz/support.go) and records each visit in the agency's record of people changes.
 
 // support answers GET, POST {hours} and DELETE /v1/orgs/{org}/support for the agency's owner; allowing it needs their second step.

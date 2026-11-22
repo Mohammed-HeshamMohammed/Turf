@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Build step 16, part B. Each team has one chat that follows the team: its leads, deputy leads and the people placed in it join
+// Part B. Each team has one chat that follows the team: its leads, deputy leads and the people placed in it join
 // and leave as authz changes them, and nobody leaves it while they are in the team; they can mute it (D52, D185). The agency has
 // one announcements channel with everyone in it; only the owner, admins and team leads post there, and they can mark a post
 // important (D74, D350). The service keeps both in step with authz's roster whenever someone in the workspace uses chat.

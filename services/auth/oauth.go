@@ -116,7 +116,7 @@ func (s *server) providerFor(name string) (*provider, error) {
 	case "apple":
 		return &s.cfg.apple, nil
 	case "microsoft":
-		// Step 35 (D237): no client of its own here; Firebase's authorization flow runs it, once turned on in Firebase.
+		// No client of its own here (D237); Firebase's authorization flow runs it, once turned on in Firebase.
 		return &provider{}, nil
 	}
 	return nil, bad("That sign-in provider does not exist.")
@@ -619,7 +619,7 @@ func (s *server) handoff(ctx context.Context, userID, kind, provider string, mfa
 
 type exchangeBody struct {
 	Code   string `json:"code"`
-	Device string `json:"device"` // "shared": a browser on a shared device (step 15, D38)
+	Device string `json:"device"` // "shared": a browser on a shared device (D38)
 }
 
 // exchange trades the one-time code from a provider sign-in for tokens. One statement uses it up, so it works once.

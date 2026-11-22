@@ -1,6 +1,6 @@
 package main
 
-// Build step 35 (database_setup/0032_sign_in_security.sql): sign-in security.
+// (database_setup/0032_sign_in_security.sql): sign-in security.
 //
 //   - Devices: each session keeps its device (from the browser's description), rough place (Cloudflare's country) and network (the
 //     address cut to its first parts). A sign-in from a device the person never used emails them, with a "This wasn't me" link that

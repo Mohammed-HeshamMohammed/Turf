@@ -271,7 +271,7 @@ func Render(template, to string, data map[string]any) (Message, error) {
 			`<p style="color:#666;font-size:13px">Reply to this email to answer them.</p></div>`
 		return Message{To: to, ReplyTo: writer.Address, Subject: "Contact form: " + subjectOf(name, writer.Address), Text: text, HTML: page}, nil
 	case "report":
-		// A scheduled report from the CRM (step 32): totals only; the details open in Caller Whale (D227). No lead is named here.
+		// A scheduled report from the CRM: totals only; the details open in Caller Whale (D227). No lead is named here.
 		agency, period, link := str("agency"), str("period"), str("link")
 		lines, _ := data["lines"].([]any)
 		if agency == "" || period == "" || !strings.HasPrefix(link, "https://") || len(lines) == 0 || len(lines) > 20 ||
@@ -300,7 +300,7 @@ func Render(template, to string, data map[string]any) (Message, error) {
 			`<p style="color:#666;font-size:13px">You get this because a report was scheduled for you in Caller Whale.</p></div>`
 		return Message{To: to, Subject: agency + ": " + period, Text: body, HTML: page}, nil
 	case "status":
-		// Something is down, or back (step 34, D235): to the people who chose these emails.
+		// Something is down, or back (D235): to the people who chose these emails.
 		title, message, link := str("title"), str("message"), str("link")
 		if title == "" || len(title) > 160 || strings.ContainsAny(title, "\r\n") || len(message) > 2000 || !strings.HasPrefix(link, "https://") {
 			return Message{}, errors.New("status needs a title and an https link")
@@ -312,7 +312,7 @@ func Render(template, to string, data map[string]any) (Message, error) {
 			`<p style="color:#666;font-size:13px">You get this because you chose status emails in Caller Whale.</p></div>`
 		return Message{To: to, Subject: title, Text: text, HTML: page}, nil
 	case "support_reply":
-		// Caller Whale's staff answered an agency's support conversation (step 40, D292).
+		// Caller Whale's staff answered an agency's support conversation (D292).
 		title, message, link := str("title"), str("message"), str("link")
 		if title == "" || len(title) > 160 || strings.ContainsAny(title, "\r\n") || message == "" || len(message) > 2000 || !strings.HasPrefix(link, "https://") {
 			return Message{}, errors.New("support_reply needs a title, the message and an https link")
@@ -324,7 +324,7 @@ func Render(template, to string, data map[string]any) (Message, error) {
 			`<p style="color:#666;font-size:13px">You get this because you wrote to Caller Whale support.</p></div>`
 		return Message{To: to, Subject: title, Text: text, HTML: page}, nil
 	case "breach_notice":
-		// A security breach affecting the agency's data, to its owner within 72 hours (step 34, D236). The words are staff's; the
+		// A security breach affecting the agency's data, to its owner within 72 hours (D236). The words are staff's; the
 		// lawyer sets what else must be said.
 		what, toDo, discovered := str("what"), str("to_do"), str("discovered")
 		if what == "" || toDo == "" || discovered == "" || len(what) > 5000 || len(toDo) > 5000 {
@@ -339,7 +339,7 @@ func Render(template, to string, data map[string]any) (Message, error) {
 			`</p><p><strong>What you should do</strong></p><p style="white-space:pre-wrap">` + e(toDo) + `</p><p>Reply to this email with any question. We will tell you of anything new we learn.</p></div>`
 		return Message{To: to, Subject: "Important: a security incident affecting your Caller Whale data", Text: text, HTML: page}, nil
 	case "new_sign_in":
-		// A sign-in from a device the person never used (step 35, D242), with a way to end it.
+		// A sign-in from a device the person never used (D242), with a way to end it.
 		device, place, at, link := str("device"), str("place"), str("at"), str("link")
 		if device == "" || at == "" || !strings.HasPrefix(link, "http") || len(device) > 80 || len(place) > 80 || strings.ContainsAny(device+place, "\r\n") {
 			return Message{}, errors.New("new_sign_in needs the device, the time and a link")

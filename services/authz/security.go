@@ -1,6 +1,6 @@
 package main
 
-// Build step 35, D238: the owner can require the second step (an authenticator) of everyone in the agency. It is the workspace's
+// D238: the owner can require the second step (an authenticator) of everyone in the agency. It is the workspace's
 // "mfa_everyone" switch; with it on, every member's grant asks for the second step, as owners' and admins' always do. A member without an
 // authenticator is asked to set one up at their next sign-in before they can work.
 

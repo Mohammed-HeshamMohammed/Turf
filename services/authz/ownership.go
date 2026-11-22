@@ -5,7 +5,7 @@ import (
 	"slices"
 )
 
-// Build step 13. Handing an agency to a new owner (D28, D200) and an agency paused while it has no owner who can act (D27, D201). The
+// Handing an agency to a new owner (D28, D200) and an agency paused while it has no owner who can act (D27, D201). The
 // auth service runs the handover (both people confirm with their second step, the new owner's payment) and asks for the change here
 // once it may happen; this file makes it.
 
@@ -94,8 +94,8 @@ func (s *server) handOver(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// upgrade answers POST /v1/orgs/{org}/upgrade {user_id, team_id, team_name}: a solo workspace becomes an agency in place (step 17,
-// D59, D203). The solo operator becomes its owner and the lead of a first team, which the CRM names after them and moves their leads
+// upgrade answers POST /v1/orgs/{org}/upgrade {user_id, team_id, team_name}: a solo workspace becomes an agency in place
+// (D59, D203). The solo operator becomes its owner and the lead of a first team, which the CRM names after them and moves their leads
 // into. Their clients stay the agency's clients. Only the CRM asks.
 func (s *server) upgrade(w http.ResponseWriter, r *http.Request) error {
 	org, err := s.workspace(r)

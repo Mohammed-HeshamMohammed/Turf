@@ -43,7 +43,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /v1/sessions/refresh", serve(s.refresh))
 	mux.Handle("POST /v1/sessions/sign-out", serve(s.signOut))
 	mux.Handle("POST /v1/sessions/revoke", serve(s.revoke))
-	// Step 35: sign-in security.
+	// Sign-in security.
 	mux.Handle("POST /v1/sessions/not-me", serve(s.notMe))
 	mux.Handle("POST /v1/orgs/{org}/members/{user}/sign-out", serve(s.signOutMember))
 	mux.Handle("GET /v1/orgs/{org}/security", serve(s.orgSecurity))
@@ -91,9 +91,9 @@ func (s *server) handler() http.Handler {
 	mux.Handle("GET /v1/admin/members", serve(s.adminMembers))
 	mux.Handle("GET /v1/admin/overview", serve(s.adminOverview))
 	mux.Handle("GET /v1/announcement", serve(s.getAnnouncement))
-	mux.Handle("POST /v1/client-errors", serve(s.clientErrors)) // step 42: browser errors, without personal data
-	s.helpRoutes(mux)                                           // step 40: support conversations, what's new, early features, feedback
-	// The status page, the outage banner and owners' emails, and breach notices (step 34).
+	mux.Handle("POST /v1/client-errors", serve(s.clientErrors)) // Browser errors, without personal data
+	s.helpRoutes(mux)                                           // Support conversations, what's new, early features, feedback
+	// The status page, the outage banner and owners' emails, and breach notices.
 	mux.Handle("GET /v1/status", serve(s.getStatus))
 	mux.Handle("POST /v1/admin/status/incidents", serve(s.openIncident))
 	mux.Handle("POST /v1/admin/status/incidents/{id}", serve(s.updateIncident))
@@ -193,7 +193,7 @@ func kindOf(kind string) (string, error) {
 		return "browser", nil
 	case "desktop":
 		return "desktop", nil
-	case "shared": // a browser on a shared device (step 15, D38)
+	case "shared": // a browser on a shared device (D38)
 		return "shared", nil
 	}
 	return "", bad("kind is browser or desktop.")
@@ -210,7 +210,7 @@ type signUpBody struct {
 	BirthDate string `json:"birth_date"`
 	// The version of the terms and privacy notice they ticked. Required, and must be the current one.
 	TermsVersion string `json:"terms_version"`
-	// Signing up inside an emailed invitation (step 15): its id and the link's key. The address must be the one invited, and is
+	// Signing up inside an emailed invitation: its id and the link's key. The address must be the one invited, and is
 	// then confirmed by the link itself (D47).
 	InvitationID  string `json:"invitation_id"`
 	InvitationKey string `json:"invitation_key"`
@@ -418,7 +418,7 @@ func (s *server) finishSignIn(ctx context.Context, w http.ResponseWriter, u *use
 
 type refreshBody struct {
 	RefreshToken string `json:"refresh_token"`
-	// How long nobody touched the app, and whether a call is in progress (step 35, D244): past the agencies' idle limit the session
+	// How long nobody touched the app, and whether a call is in progress (D244): past the agencies' idle limit the session
 	// ends, except during a call.
 	IdleSeconds int64 `json:"idle_seconds"`
 	OnCall      bool  `json:"on_call"`
@@ -445,7 +445,7 @@ func (s *server) refresh(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	// Idle past the agencies' limit: signed out (step 35, D244).
+	// Idle past the agencies' limit: signed out (D244).
 	if s.tooIdle(ctx, userID, lastSeen, body.IdleSeconds, body.OnCall) {
 		if _, err := s.db.Exec(ctx, "UPDATE sessions SET revoked_at = $1 WHERE id = $2", t, sid); err != nil {
 			return err

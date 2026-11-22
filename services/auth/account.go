@@ -127,7 +127,7 @@ func (s *server) forgotPassword(w http.ResponseWriter, r *http.Request) error {
 type resetBody struct {
 	Token string `json:"token"`
 	New   string `json:"new"`
-	// A code from the authenticator app, or a recovery code, for someone who has either (step 35, D239).
+	// A code from the authenticator app, or a recovery code, for someone who has either (D239).
 	Code string `json:"code"`
 }
 
@@ -141,7 +141,7 @@ func (s *server) resetPassword(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	ctx := r.Context()
-	// The link alone is not enough for someone with an authenticator or recovery codes: one of them too (step 35, D239). Firebase
+	// The link alone is not enough for someone with an authenticator or recovery codes: one of them too (D239). Firebase
 	// checks the link's code without using it first.
 	who, err := s.fb.resetPassword(ctx, strings.TrimSpace(body.Token), "")
 	if err != nil {

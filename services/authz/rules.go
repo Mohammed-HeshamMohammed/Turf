@@ -77,9 +77,9 @@ type facts struct {
 	memberSuspended bool     // this person is suspended in the workspace
 	suspended       bool
 	paymentRequired bool
-	paused          bool  // the owner is gone (step 13, D27): members read, nobody works
-	unpaidFor       int64 // seconds since the plan went unpaid (step 18)
-	closed          bool  // the owner closed the agency (step 18, D82)
+	paused          bool  // the owner is gone (D27): members read, nobody works
+	unpaidFor       int64 // seconds since the plan went unpaid
+	closed          bool  // the owner closed the agency (D82)
 }
 
 // grantRequest is what a service asks before doing something for a person.
@@ -189,7 +189,7 @@ func decide(f facts, req grantRequest, requireSecondStep bool) decision {
 		DeputyTeamIDs:  sortedCopy(f.deputyOf),
 		TeamScopeIDs:   sortedCopy(f.teamScope),
 	}
-	// An unpaid plan: a grace period when everything works, then read-only, then closed (step 18).
+	// An unpaid plan: a grace period when everything works, then read-only, then closed.
 	if refused := planStageRefusal(f, req.Action); refused != nil {
 		return *refused
 	}

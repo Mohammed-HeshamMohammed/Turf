@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// Build step 4, with the change limits of step 15. Every person has a #tag after their name (Alex Morgan#K7P2), so two people never
+// Every person has a #tag after their name (Alex Morgan#K7P2), so two people never
 // look the same in a search (D5, D14, D186); the screens show it only when two names on screen are the same (D187). The database
 // gives tags and keeps name and tag unique (database_setup/0027_name_tags.sql); this file lets the person change theirs, sets
 // the three privacy settings (D3, D30), and finds people by name or exact Name#tag.

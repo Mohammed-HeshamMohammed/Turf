@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Build step 15: sign-up inside the invitation link (D47, D368), "this is my device" or "shared device" at sign-in (D38, D188),
+// Sign-up inside the invitation link (D47, D368), "this is my device" or "shared device" at sign-in (D38, D188),
 // the My access page's list of agencies (D91), and a copy of the person's own data (D99).
 
 const (

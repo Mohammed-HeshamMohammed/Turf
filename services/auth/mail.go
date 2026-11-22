@@ -15,7 +15,7 @@ type mailer interface {
 	sendConfirmation(ctx context.Context, to, name, link string) error
 	sendCode(ctx context.Context, to, code string) error
 	sendInvitation(ctx context.Context, to, inviter, agency, role, roleName, expires, link string) error
-	// sendTemplate sends any other template the notification service keeps (status, breach_notice: step 34).
+	// sendTemplate sends any other template the notification service keeps (status, breach_notice).
 	sendTemplate(ctx context.Context, template, to string, data map[string]any) error
 }
 
