@@ -2,7 +2,7 @@ FROM golang:1 AS runtime-log-build
 COPY packages/go/runtimelog /src
 RUN cd /src && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /runtime-log ./cmd/callerwhale-log
 
-FROM python:3.13-slim
+FROM python:3.15-slim
 COPY --from=runtime-log-build /runtime-log /usr/local/bin/callerwhale-log
 ENV CALLERWHALE_LOG_SERVICE="Importing lists"
 WORKDIR /app
