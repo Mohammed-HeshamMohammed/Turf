@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// capabilities are the things a role can allow in a workspace, with the same names the core API uses (access.rs).
+// capabilities are the things a role can allow in a workspace, with the same names crm-core and the apps use.
 var capabilities = []string{
 	"edit", "assign", "handoff", "accept", "call", "message", "export", "finance", "import", "rules", "admin", "review", "publicComment",
 }

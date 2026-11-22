@@ -5,7 +5,7 @@ import (
 	"errors"
 )
 
-// role is a role's definition in one workspace. Display names stay with the core API's pages; the rules need only the key.
+// role is a role's definition in one workspace. Display names stay with the CRM; the rules need only the key.
 type role struct {
 	Key          string   `json:"key"`
 	Capabilities []string `json:"capabilities"`
