@@ -141,12 +141,14 @@
         {
           "name": "cw-crm-merge",
           "context": ".",
-          "dockerfile": "services/crm-core/Dockerfile.merge"
+          "dockerfile": "services/crm-core/Dockerfile.merge",
+          "deploy": { "coolify": "kzxlerxee9uluexd06py5ek1" }
         },
         {
           "name": "cw-crm-outbox",
           "context": ".",
-          "dockerfile": "services/crm-core/Dockerfile.outbox"
+          "dockerfile": "services/crm-core/Dockerfile.outbox",
+          "deploy": { "coolify": "vvjjxyny0na44pjeekn0xmrh" }
         }
       ]
     },
@@ -245,7 +247,8 @@
         {
           "name": "cw-importing-worker",
           "context": ".",
-          "dockerfile": "services/importing-worker/Dockerfile"
+          "dockerfile": "services/importing-worker/Dockerfile",
+          "deploy": { "coolify": "lqnkpvxxsjyiuixmll23kjrp" }
         }
       ]
     },
