@@ -1,5 +1,5 @@
 # What the billing service needs at run time. Pinned; upgrade on purpose, then run the tests.
-fastapi==0.163.2
+fastapi==0.165.0
 uvicorn==0.54.0
 pydantic==2.14.3
 psycopg[binary]==3.3.9
