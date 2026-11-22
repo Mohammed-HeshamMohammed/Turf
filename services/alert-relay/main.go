@@ -1,4 +1,4 @@
-// alert-relay passes Grafana's alerts to people's phones (build step 42, D300, D301). Grafana sends each alert here by webhook; an
+// alert-relay passes Grafana's alerts to people's phones (D300, D301). Grafana sends each alert here by webhook; an
 // urgent one (calls, texts or sign-in down) goes to whoever is on call this week, and to the other person too when that push fails;
 // a routine one goes to everyone (Grafana holds routine alerts at night). Pushes go to ntfy topics (ntfy is open source: the ntfy
 // app on each phone subscribes to its person's secret topic). It runs on the monitoring resource's private network only.

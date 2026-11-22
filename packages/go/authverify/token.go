@@ -34,7 +34,7 @@ type Claims struct {
 	Sub           string // the person's id, the same in every service
 	Email         string
 	Name          string
-	Tag           string // the #tag after the name (auth, step 4); absent in older tokens: empty
+	Tag           string // the #tag after the name (auth); absent in older tokens: empty
 	SessionID     string // the session the token belongs to; revoking it stops new tokens
 	SecondFactor  bool   // the person confirmed an authenticator code (or a recovery code) when they signed in
 	EmailVerified bool   // absent in older tokens: false

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Writes grafana/provisioning/alerting/alerts.yml: Grafana's alert rules, where alerts go and when routine ones wait (build step 42,
-// D300-D302). Edit the lists here, run `node deploy/monitoring/alerts.mjs`, push, and redeploy the monitoring resource.
+// Writes grafana/provisioning/alerting/alerts.yml: Grafana's alert rules, where alerts go and when routine ones wait
+// (D300-D302). Edit the lists here, run `node deploy/monitoring/alerts.mjs`, push, and redeploy the monitoring resource.
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
