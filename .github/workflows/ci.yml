@@ -104,12 +104,12 @@ jobs:
         --- PASS: TestUpdatesAreQueuedForTheLiveServerInOrder
         --- PASS: TestARealLiveServerDeliversTheOutbox
 
-  dialer-sms:
+  telnyx:
     needs: changes
-    if: contains(fromJSON(needs.changes.outputs.parts), 'dialer-sms')
+    if: contains(fromJSON(needs.changes.outputs.parts), 'telnyx')
     uses: ./.github/workflows/service-check.yml
     with:
-      dir: services/dialer-sms
+      dir: services/telnyx
       language: go
       race: true
       # The tests remake the dialer_sms schema and play every call and text against the built-in Telnyx simulator.
@@ -340,7 +340,7 @@ jobs:
     # The check `main` requires. Passing means every part that had to run passed.
     name: CI summary
     if: always()
-    needs: [changes, authverify, runtimelog, crm-core, messaging, dialer-sms, auth, authz, learning, notifications, mcp, assistant, gateway, grafana-proxy, alert-relay, billing, importing-lists, importing-worker, tools, crm-app, website]
+    needs: [changes, authverify, runtimelog, crm-core, messaging, telnyx, auth, authz, learning, notifications, mcp, assistant, gateway, grafana-proxy, alert-relay, billing, importing-lists, importing-worker, tools, crm-app, website]
     runs-on: ubuntu-latest
     steps:
       - name: Every part that ran passed

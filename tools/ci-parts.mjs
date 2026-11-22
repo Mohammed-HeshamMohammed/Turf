@@ -17,7 +17,7 @@ export const PARTS = {
   "crm-core": [S + "crm-core/", GO],
   // Its tests run the live server as services/live sets it up, reading the outbox.
   messaging: [S + "messaging/", S + "live/", GO],
-  "dialer-sms": [S + "dialer-sms/", GO],
+  telnyx: [S + "telnyx/", GO],
   auth: [S + "auth/", GO],
   authz: [S + "authz/", GO],
   learning: [S + "learning/"],

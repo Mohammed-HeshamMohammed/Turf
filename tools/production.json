@@ -198,7 +198,7 @@
       "title": "Dialer and SMS (Telnyx, with a built-in simulator)",
       "base": "",
       "paths": [
-        "services/dialer-sms",
+        "services/telnyx",
         "packages/go"
       ],
       "build": "go test ./... (the database tests are skipped without DIALER_TEST_DATABASE_URL); docker build . Coolify: base directory /, Dockerfile /Dockerfile, port 8113, network alias dialer-sms, no domain of its own",
@@ -207,7 +207,7 @@
         {
           "name": "cw-dialer-sms",
           "context": ".",
-          "dockerfile": "services/dialer-sms/Dockerfile",
+          "dockerfile": "services/telnyx/Dockerfile",
           "deploy": { "coolify": "hnro3xava3rvdwa5g3why6as" }
         }
       ]

@@ -186,7 +186,7 @@ services:
   dialer-sms:
     build:
       context: ../..
-      dockerfile: services/dialer-sms/Dockerfile
+      dockerfile: services/telnyx/Dockerfile
     environment:
       PORT: "8113"
     restart: unless-stopped
