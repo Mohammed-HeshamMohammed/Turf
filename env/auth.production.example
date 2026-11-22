@@ -63,5 +63,7 @@ AUTH_TELEGRAM_WEBHOOK_SECRET=<a long random string, or empty>
 # Secret shared with the MCP service (its MCP_AUTH_TOKEN), 32+ characters, to ask who an assistant's token belongs to. Empty turns connectors off. To rotate, list new,old; update MCP; drop the old.
 AUTH_MCP_TOKEN=<32+ random characters>
 
-# Parts the status page checks every minute (step 34): part=private health address, comma-separated; parts sign_in, crm, calls, texts, chats, email. Empty: incidents only.
+# Parts the status page shows down from the monitoring stack's own checks (step 34): part=health address as prometheus.yml lists it, comma-separated; parts sign_in, crm, calls, texts, chats, email. Empty: incidents only.
 STATUS_PROBES=
+# Where the status page reads those checks: alert-relay's private address; default http://alert-relay:8121. Unreachable: incidents only.
+STATUS_SOURCE_URL=http://alert-relay:8121

@@ -32,8 +32,10 @@ type server struct {
 	db   *pgxpool.Pool
 	keys *keys
 	fb   *firebase
-	mail mailer    // nil: no notification service, Firebase sends its own emails
-	tg   *telegram // nil: Telegram is not offered
+	// probes is where the status page reads which parts answer their health check; nil: incidents only.
+	probes *probeSource
+	mail   mailer    // nil: no notification service, Firebase sends its own emails
+	tg     *telegram // nil: Telegram is not offered
 
 	verifiers sync.Map // provider name -> *oidc.IDTokenVerifier, keys cached by the library
 	seen      sync.Map // Firebase-owned provider availability, for a minute
