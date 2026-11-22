@@ -232,7 +232,7 @@ The owner's latest explicit decision takes precedence. For current behavior, che
 | [Shared experience](../../plans/web-rebuild/01-experience.md) | Layout, interactions, accessibility and section-by-section review. |
 | [Content and assets](../../plans/web-rebuild/08-content-assets-communications.md) | Claims, imagery, messages, consent and readiness vocabulary. |
 | [Feature index](../../features/README.md) | Feature scope, decisions and unresolved work; follow each feature's status. |
-| [Positioning proposal](../../plans/positioning.md) | Historical commercial thinking; prices/comparisons require fresh review. |
+| [Positioning proposal](../../pricing-and-market/positioning.md) | Historical commercial thinking; prices/comparisons require fresh review. |
 | [Future scope](../../plans/web-rebuild/13-future-scope.md) | Boundaries for browser CRM, mobile and other extensions. |
 | [Dashboard foundation](../../../apps/crm-web/README.md) | Actual standalone web-dashboard scope and integration limits. |
 | [Runtime log standard](Runtime%20logs.md) | Shared operational presentation and service coverage. |

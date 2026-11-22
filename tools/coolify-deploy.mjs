@@ -7,7 +7,7 @@
 // Each application is then redeployed once.
 // GitHub cannot reach Coolify: Cloudflare's bot protection (Bot Fight Mode, which the owner keeps on) stops scripts from datacenters.
 // So after the approval the job only records the plan as a GitHub deployment (--record), and tools/coolify-pull.mjs on the server
-// reads it and applies it to Coolify on localhost (docs/plans/coolify-image-swap.md, "Deploys from GitHub").
+// reads it and applies it to Coolify on localhost (docs/history/plans/coolify-image-swap.md, "Deploys from GitHub").
 //   node tools/coolify-deploy.mjs --plan <records dir>     prints apps=[...] for the workflow (no network)
 //   node tools/coolify-deploy.mjs --record <records dir>   creates the GitHub deployment (GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_SHA)
 //   node tools/coolify-deploy.mjs <records dir>            applies it now: COOLIFY_URL and COOLIFY_TOKEN (on the server only)

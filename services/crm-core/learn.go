@@ -1,6 +1,6 @@
 package crm
 
-// The learning copy of a finished import (docs/plans/learning-store-compliance.md). When a list has been added to the leads, its rows go
+// The learning copy of a finished import (docs/legal/research/learning-store-compliance.md). When a list has been added to the leads, its rows go
 // to the separate learning service, which keeps keyed hashes and shapes of them and never the values. crm-core sends the rows once, over
 // the private network, and never reads them back. Off until LEARNING_URL is set: nothing leaves this service without it.
 

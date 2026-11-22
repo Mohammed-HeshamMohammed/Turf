@@ -1,5 +1,5 @@
 // The pricing page's content: the plans, the price of each feature per plan, and the questions people ask. The prices are
-// drafts (docs/plans/README.md): each feature is priced alone and a plan is their sum. src/pricing/plan.js does the arithmetic.
+// drafts (docs/pricing-and-market/README.md): each feature is priced alone and a plan is their sum. src/pricing/plan.js does the arithmetic.
 export const tiers = [
   { id: "trial", name: "Free trial", who: "Anyone, 7 days", text: "Try everything at small limits." },
   { id: "solo", name: "Solo", who: "1 person", text: "You do everything: lists, skip tracing, calls and deals.", unit: "month" },
@@ -20,7 +20,7 @@ export const tiers = [
 ];
 
 
-// Prices are drafts (docs/plans/README.md): each feature is priced alone and a plan is their sum.
+// Prices are drafts (docs/pricing-and-market/README.md): each feature is priced alone and a plan is their sum.
 export const priceRows = [
   { feature: "Importing lists", values: ["Free", "$49", "$69", "$39", "$59"], limits: ["25,000 leads", "1,000,000 leads", "2,000,000 shared", "1,000,000 per seat", "2,500,000 per seat"] },
   { feature: "Skip tracing", values: ["Free", "$79", "$119", "$59", "$89"], limits: ["25,000 rows", "1,000,000 rows", "2,000,000 shared", "1,000,000 per seat", "3,000,000 per seat"] },

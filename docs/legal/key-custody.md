@@ -7,7 +7,7 @@ The learning store's `LEARNING_HASH_KEY` (64 hex characters = 32 bytes) makes th
 1. **Two owners** each hold a copy. Neither stores it in Coolify only, in chat, in email, in the repository or on a shared drive.
 2. **Where:** a password manager's secure note with two-person access, plus one **printed sealed envelope** in a safe place, dated, signed over the flap. Write on the envelope: "Caller Whale learning key, version 1, made YYYY-MM-DD".
 3. **Never typed into a form by anyone but an owner.** The Coolify environment variable `LEARNING_HASH_KEY` is set by an owner from the sealed copy.
-4. **Make it** with the PowerShell in docs/plans/coolify-setup-crm-core.md or any cryptographic random source: 32 random bytes written as 64 hex characters.
+4. **Make it** with the PowerShell in docs/operations/coolify-setup-crm-core.md or any cryptographic random source: 32 random bytes written as 64 hex characters.
 5. **Test the backup:** once a quarter, an owner reads the backup copy and checks it against the first and last four characters of the running one (shown by the owner in Coolify, never in chat).
 
 ## Rotation (change of key)

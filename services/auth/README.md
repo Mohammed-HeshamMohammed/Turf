@@ -1,6 +1,6 @@
 # Auth
 
-The authentication service, in Go. It replaced the Rust service that used to live here. Plan, decisions, phases and what is left: [docs/plans/go-auth.md](../../docs/plans/go-auth.md).
+The authentication service, in Go. It replaced the Rust service that used to live here. Plan, decisions, phases and what is left: [docs/history/plans/go-auth.md](../../docs/history/plans/go-auth.md).
 
 | | |
 | --- | --- |

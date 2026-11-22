@@ -1,6 +1,6 @@
 # Learning store
 
-A separate service and database for what Caller Whale learns from imported lists. It keeps keyed hashes and shapes of leads, never the leads. Read `docs/plans/learning-store-compliance.md` first: it says what is kept, what is not, and what must be true before it is switched on.
+A separate service and database for what Caller Whale learns from imported lists. It keeps keyed hashes and shapes of leads, never the leads. Read `docs/legal/research/learning-store-compliance.md` first: it says what is kept, what is not, and what must be true before it is switched on.
 
 - Port 8112, no public address. crm-core sends it finished imports (`LEARNING_URL`, `LEARNING_TOKEN`).
 - Its own PostgreSQL database; tables are created at start.

@@ -135,7 +135,7 @@ The auth URL observed during provisioning still pointed at `6oj2ccetdgr1jgn6h7lu
 
 ### 3. Bot verification now lives in the gateway (updated 2026-11-03)
 
-The human check (Google reCAPTCHA v3) is no longer auth's job: it runs in the Go gateway in front of auth (`services/gateway/human.go`, plan in `docs/plans/bot-protection.md`). Google accepts a token once, so only one of them may check.
+The human check (Google reCAPTCHA v3) is no longer auth's job: it runs in the Go gateway in front of auth (`services/gateway/human.go`, plan in `docs/operations/bot-protection.md`). Google accepts a token once, so only one of them may check.
 
 - **Auth:** set `AUTH_BOT_PROTECTION=false` and leave `AUTH_RECAPTCHA_*` empty. Auth then starts without keys. Delete any `AUTH_TURNSTILE_*` variables: nothing reads them.
 - **Gateway:** set `HUMAN_CHECK=true`, `AUTH_HOST`, `RECAPTCHA_SITE_KEY` (the key's ID), `RECAPTCHA_SECRET_KEY` (its legacy secret key, entered privately in Coolify), `RECAPTCHA_HOSTNAMES` (`callerwhale.com,auth.callerwhale.com`) and optionally `RECAPTCHA_MIN_SCORE` and `HUMAN_PER_MINUTE`. Missing values stop the gateway from starting.

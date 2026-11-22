@@ -1,4 +1,4 @@
-// The plan builder's arithmetic. Prices are the draft per-feature prices in content.js (docs/plans/README.md).
+// The plan builder's arithmetic. Prices are the draft per-feature prices in content.js (docs/pricing-and-market/README.md).
 import { priceRows } from "./content.ts";
 
 // priceRows[i].values are [Free trial, Solo, Duo, Team, Pro]. Solo is 1 person, Duo is exactly 2 (one price for both),

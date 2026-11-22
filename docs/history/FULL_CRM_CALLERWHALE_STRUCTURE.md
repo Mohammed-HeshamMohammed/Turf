@@ -366,5 +366,5 @@ A is chosen because what hurts today is not the toolchains but not knowing where
 5. [ ] Break the 1,000+ line screens (`Work.jsx`, `Leads.jsx`, `ui.jsx`, `DataPages.jsx`) into one folder per page with small files, and move every colour, spacing and type value into `styles/` tokens. This is the step that fixes most of "doesn't look good".
 6. [ ] Move `backend/` to `server/`, `backend/rust/database updates` to `server/sql/database updates`, and `website/` to `server/website`. Update `run-api.sh`, `db.rs`'s `migrate!` path, the contract test and the Python worker's path to `service/`.
 7. [ ] Write `contracts/local-commands.md` (today: `service_call`, `google_sign_in_listen`, `open_in_browser`, `save_download`) and a test that compares it with the commands the container registers.
-8. [ ] Add `server/deploy/` with the VPS setup now described in `docs/saas/README.md`.
+8. [ ] Add `server/deploy/` with the VPS setup now described in `docs/history/plans/saas-README.md`.
 9. [ ] Update `Caller Whale CRM/README.md`, `server/README.md`, the root `README.md` and `.claude/launch.json` to the new paths. Run every part's tests: `npm test`, `cargo test --workspace`, `go test ./...`, pytest.

@@ -1,4 +1,4 @@
-// Runs on the VPS (a systemd timer, every two minutes; docs/plans/coolify-image-swap.md, "Deploys from GitHub"). GitHub cannot
+// Runs on the VPS (a systemd timer, every two minutes; docs/history/plans/coolify-image-swap.md, "Deploys from GitHub"). GitHub cannot
 // reach Coolify through Cloudflare's bot protection, which stays on, so this pulls instead: it reads the deployments the Images
 // workflow records after the owner approves the "production" environment (tools/coolify-deploy.mjs --record), checks each again,
 // and applies it to Coolify on localhost. Reading a public repository's deployments needs no GitHub token. It remembers the last

@@ -4,7 +4,7 @@
 
 ## Deploying: one branch, one container
 
-Every `*-production` branch (`docs/plans/production-branches.md`) is one container on the VPS. Each carries its own `Dockerfile` and its own `deploy/k8s/<part>/` folder.
+Every `*-production` branch (`docs/operations/production-branches.md`) is one container on the VPS. Each carries its own `Dockerfile` and its own `deploy/k8s/<part>/` folder.
 
 | Branch | Dockerfile | Build context | Port | Copies it can run |
 | --- | --- | --- | --- | --- |
@@ -26,7 +26,7 @@ Caller Whale runs on Coolify at `187.7.72.171`, in the project "Caller Whale". T
 | Container (Coolify) | Address | Port | What it is |
 | --- | --- | --- | --- |
 | landing-web | `https://callerwhale.com` | 8080 | The public site (static). Build and runtime settings: `env/landing-web.production.example` |
-| gateway | `https://gate.callerwhale.com` | 8100 | The front door for the CRM's API and the staff monitoring page (`/staff/monitoring`); routes to core-api (docs/plans/gateway.md) |
+| gateway | `https://gate.callerwhale.com` | 8100 | The front door for the CRM's API and the staff monitoring page (`/staff/monitoring`); routes to core-api (docs/history/plans/gateway.md) |
 | core-api | `https://appapi.callerwhale.com` | 8088 | The CRM's API: sign-in checks, invitations, credits, the download. Needs PostgreSQL |
 | core-api-worker | `https://appapiw.callerwhale.com` | 8090 | The job worker; the address only serves its health page |
 | auth | `https://auth.callerwhale.com` | 8101 | Sign-in and the second step; the only part that talks to Firebase |

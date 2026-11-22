@@ -8,7 +8,7 @@ one is a new app beside the old one; the secrets are copied by you, because Clau
 
 ## Before the first app
 
-1. **Done 2026-11-20:** CD1 (the `production` environment: you approve, admins cannot skip it, `main` only) and the variables `COOLIFY_URL` and `CALLERWHALE_MESSAGING_URL`. **Still yours:** CD2 and CD3, the Coolify API token and its `COOLIFY_TOKEN` secret. Was: CD1 to CD3 in [checks-by-hand](people-teams-chats-clients/checks-by-hand.md#step-48-coolify-runs-the-images-part-1-grafana-proxy-and-alert-relay): the `production`
+1. **Done 2026-11-20:** CD1 (the `production` environment: you approve, admins cannot skip it, `main` only) and the variables `COOLIFY_URL` and `CALLERWHALE_MESSAGING_URL`. **Still yours:** CD2 and CD3, the Coolify API token and its `COOLIFY_TOKEN` secret. Was: CD1 to CD3 in [checks-by-hand](../../plans/people-teams-chats-clients/checks-by-hand.md#step-48-coolify-runs-the-images-part-1-grafana-proxy-and-alert-relay): the `production`
    environment, the Coolify API token (`write` and `deploy`, give it access to each new app as you create it) and `COOLIFY_URL`.
 2. While the packages are public nothing else is needed. Once they are private (IM1), log the server in to ghcr.io first (CD5).
 3. (Done) The repository variable `CALLERWHALE_MESSAGING_URL` = `https://chat.callerwhale.com` (the CRM web app's team chat; the

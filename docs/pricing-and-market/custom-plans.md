@@ -109,7 +109,7 @@ subscription ──< entitlement(feature or module, level, limit overrides)
 
 ## Documents that still show the old CRM price
 
-The CRM's selling price ($49 / $79 / $45 / $59) is still in `docs/features/05-crm.md` and in the plan totals of `docs/plans/README.md` (Solo $344, Duo $554, Team $286, Pro $554). They are the source documents, so they are not changed here. Update them to match this decision, and re-check the margins: the CRM was a high-margin feature (about 87-95%), so removing its price lowers the blended margin of every plan.
+The CRM's selling price ($49 / $79 / $45 / $59) is still in `docs/features/05-crm.md` and in the plan totals of `docs/pricing-and-market/README.md` (Solo $344, Duo $554, Team $286, Pro $554). They are the source documents, so they are not changed here. Update them to match this decision, and re-check the margins: the CRM was a high-margin feature (about 87-95%), so removing its price lowers the blended margin of every plan.
 
 ## Open questions
 

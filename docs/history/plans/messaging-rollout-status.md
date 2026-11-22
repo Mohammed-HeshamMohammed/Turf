@@ -2,7 +2,7 @@
 
 **Written:** 2026-11-14. Continue from any machine: everything needed is in this file and in the files it links. **No secret is written here.** The three secrets are in the owner's password manager (see "Secrets").
 
-Background: [messaging-sms-voice.md](messaging-sms-voice.md) (decisions), [messaging-sms-voice-detail.md](messaging-sms-voice-detail.md) (research, costs, risks), [coolify-setup-messaging.md](coolify-setup-messaging.md) (the setup steps this file tracks), `services/messaging/README.md` (the service).
+Background: [messaging-sms-voice.md](../../plans/messaging-sms-voice.md) (decisions), [messaging-sms-voice-detail.md](../../plans/messaging-sms-voice-detail.md) (research, costs, risks), [coolify-setup-messaging.md](../../operations/coolify-setup-messaging.md) (the setup steps this file tracks), `services/messaging/README.md` (the service).
 
 ## What exists
 
@@ -105,7 +105,7 @@ Sign in at `https://app.callerwhale.com` as two people of one workspace (two bro
 ## How to continue on another machine
 
 1. Clone the repository and read this file, then `services/messaging/README.md`.
-2. In Claude Code, say: "continue the team chat rollout from `docs/plans/messaging-rollout-status.md`, starting at step 1". Browser steps (Cloudflare, Coolify) need the Claude in Chrome extension signed in to both.
+2. In Claude Code, say: "continue the team chat rollout from `docs/history/plans/messaging-rollout-status.md`, starting at step 1". Browser steps (Cloudflare, Coolify) need the Claude in Chrome extension signed in to both.
 3. Secrets come from the owner's password manager. Never ask for them in chat, and never write them in a file.
 4. After each step, update the "What exists" table here and push.
 

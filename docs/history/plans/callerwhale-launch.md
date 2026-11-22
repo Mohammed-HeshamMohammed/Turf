@@ -18,7 +18,7 @@ Everything (invitations, people, credits, usage) is stored in the core API's Pos
 | Container (Coolify) | Address | Port | What it is |
 | --- | --- | --- | --- |
 | landing-web | `https://callerwhale.com` | 8080 | The public site (static). Build and runtime settings: `env/landing-web.production.example` |
-| gateway | `https://gate.callerwhale.com` | 8100 | The front door for the CRM's API and the staff monitoring page (`/staff/monitoring`); routes to core-api (docs/plans/gateway.md) |
+| gateway | `https://gate.callerwhale.com` | 8100 | The front door for the CRM's API and the staff monitoring page (`/staff/monitoring`); routes to core-api (docs/history/plans/gateway.md) |
 | core-api | `https://appapi.callerwhale.com` | 8088 | The CRM's API: sign-in checks, invitations, credits, the download. Needs PostgreSQL |
 | core-api-worker | `https://appapiw.callerwhale.com` | 8090 | The job worker; the address only serves its health page |
 | auth | `https://auth.callerwhale.com` | 8101 | Sign-in and the second step; the only part that talks to Firebase |
@@ -44,7 +44,7 @@ DNS (Cloudflare, zone `callerwhale.com`): exactly seven A records, `@`, `api`, `
 
 ### Firebase console
 
-Only the auth service uses it. The one-time setup and where each setting goes are in `docs/plans/firebase-auth.md`: Email/Password and Google on, Identity Platform with authenticator codes, the Web API key into `AUTH_FIREBASE_API_KEY`, and the Google redirect `https://auth.callerwhale.com/v1/oauth/google/callback`.
+Only the auth service uses it. The one-time setup and where each setting goes are in `docs/history/plans/firebase-auth.md`: Email/Password and Google on, Identity Platform with authenticator codes, the Web API key into `AUTH_FIREBASE_API_KEY`, and the Google redirect `https://auth.callerwhale.com/v1/oauth/google/callback`.
 
 ### GitHub (Settings → Secrets and variables → Actions → Variables), for the installer
 

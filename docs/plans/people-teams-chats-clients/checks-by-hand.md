@@ -551,7 +551,7 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | H4 | As staff, publish a What's new note for callers, and one for the switch teams_v2 | A caller sees the first once on their dashboard; after the owner switches on "New team rules" under Settings → Early features, the second shows too. |
 | H5 | Press "Send feedback" on a dashboard page and send a note | Staff see it with the page's path and version, no ids. |
 
-# Step 41: backups and recovery (docs/plans/backups-and-recovery.md)
+# Step 41: backups and recovery (docs/operations/backups-and-recovery.md)
 
 | # | Do | Expect |
 |---|---|---|
@@ -569,7 +569,7 @@ Use throwaway agencies and the dialer's simulator (not yet deployed: run it loca
 | M4 | On the website, open the browser console and run `setTimeout(() => { throw new TypeError("test") })` | In Grafana Explore, `{container=~".+"} |= "client_error"` shows the line with the page and kind, without "test". |
 | M5 | Contact points → urgent-on-call → Test | The on-call phone gets a test push. |
 
-# Step 43: security upkeep (docs/plans/security-upkeep.md)
+# Step 43: security upkeep (docs/operations/security-upkeep.md)
 
 | # | Do | Expect |
 |---|---|---|

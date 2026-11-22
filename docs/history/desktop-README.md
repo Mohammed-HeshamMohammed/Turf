@@ -1,6 +1,6 @@
 # Desktop
 
-The part of Caller Whale CRM that runs on the person's computer. Three folders, matching [the plan](../plans/service-architecture.md):
+The part of Caller Whale CRM that runs on the person's computer. Three folders, matching [the plan](plans/service-architecture.md):
 
 | Folder | What | Where the code is today |
 | --- | --- | --- |
