@@ -4,7 +4,7 @@ The same CRM as the desktop app, in the browser. There is no separate code: the 
 
 ## Coolify
 
-Branch `landing-dashboard-web-production`, base directory `/`, build pack **Dockerfile**, Dockerfile location `/apps/crm-web/Dockerfile`, container port **8080**, health path `/healthz`, domain `app.callerwhale.com`.
+Branch `crm-web-production`, base directory `/`, build pack **Dockerfile**, Dockerfile location `/apps/crm-web/Dockerfile`, container port **8080**, health path `/healthz`, domain `app.callerwhale.com`.
 
 Build arguments (compiled into the page, so never secrets). The build stops if either of the first two is missing:
 
@@ -19,7 +19,7 @@ Local check: from the repository root (`Caller Whale CRM`), `docker build -f app
 ## Publication
 
 ```sh
-node tools/publish-production.mjs landing-dashboard-web-production --push
+node tools/publish-production.mjs crm-web-production --push
 ```
 
 Do not edit the generated production branch directly.

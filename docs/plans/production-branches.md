@@ -1,65 +1,76 @@
 # Production branches
 
-One branch per part of Caller Whale, each holding **only that part's code**, so a part can be deployed, handed over or reviewed on its own. They are named `<part>-production`:
+One branch per part of Caller Whale, each holding **only that part's files, at the same paths as on `main`**, so a part can be
+deployed, handed over or reviewed on its own. `tools/production.json` lists them; `tools/publish-production.mjs` makes them.
 
-| Branch | What it holds |
-| --- | --- |
-| `landing-web-production` | The website (`apps/website`), in the repository layout with the npm workspace (root `package.json`, its lock file and `packages/`, step 49) |
-| `landing-dashboard-web-production` | The CRM web app: the desktop frontend built for the browser, packaged by `apps/crm-web`, in the repository layout with the npm workspace (step 49) |
-| `auth-backend-production` | The authentication service (`services/auth`) |
-| `notifications-backend-production` | The notification service (`services/notifications`, Go) at the branch root |
-| `gateway-backend-production` | The gateway: the one public entry point (it only answers its health check so far) |
-| `messaging-backend-production` | The messaging service (`services/messaging`, Go) at the branch root: team chats and groups. No domain of its own |
-| `dialer-sms-backend-production` | The dialer (`services/telnyx`, Go) at the branch root: Telnyx calls and texts, with a built-in Telnyx simulator (`TELNYX_MODE=simulate`). No domain of its own |
-| `authz-backend-production` | The authorization service (`services/authz`, Go) at the branch root: decides what each person may do and which database rights each request gets. No domain |
-| `billing-backend-production` | The billing service (`services/billing`, Python) at the branch root. No domain; the gateway routes its public paths |
-| `desktop-app-production` | The whole desktop app: the frontend (`apps/crm`, also the CRM in a browser), the window container (Tauri) and the feature modules (`desktop/backend`) |
-| `grafana-production` | Grafana for Caller Whale's staff and its login proxy (`deploy/grafana`, `services/grafana-proxy`), deployed on Coolify as one Docker Compose resource |
-| `skip-engine-production` | The Skip Tracing engine (`service/`, Python) that the desktop app runs |
+**Names follow `main`'s folders** (restructured 2026-11-22): `services/<name>` → `<name>-backend-production`, `apps/<name>` →
+`<name>-production`, `engines/skip-engine` → `skip-engine-production`. The Monitoring branch keeps `grafana-production`, because
+Coolify reads its compose file from that branch.
 
-A part gets a branch when it runs as its own container on the VPS. The billing service and the eight server-side feature services are scaffolds that are not deployed yet, so they have none; the compose file and the original `apps/lists-desktop/` app have none either. When one needs its own, add it to `tools/production.json` and run the script.
+## The branches
 
-Each server branch also carries its container file and its Kubernetes files (`deploy/k8s/<part>/`): see `docs/plans/scaling-and-deployment.md`.
+| Branch | Holds (paths as on `main`) | Images built from it | How it runs |
+| --- | --- | --- | --- |
+| `website-production` | `apps/website` and the npm workspace | `cw-website` | Coolify image app (callerwhale.com) |
+| `crm-web-production` | `apps/crm-web`, `apps/crm` and the npm workspace | `cw-crm-web` | Coolify image app (app.callerwhale.com) |
+| `auth-backend-production` | `services/auth`, `packages/go` | `cw-auth` | Coolify image app, alias `auth`, 8101 |
+| `authz-backend-production` | `services/authz`, `packages/go` | `cw-authz` | Coolify image app, alias `authz`, 8104 |
+| `notifications-backend-production` | `services/notifications`, `packages/go` | `cw-notifications` | Coolify image app, alias `notifications`, 8102 |
+| `gateway-backend-production` | `services/gateway`, `packages/go` | `cw-gateway` | Coolify image app, the one public entry, 8100 |
+| `crm-core-backend-production` | `services/crm-core`, `packages/go` (not `bench/`) | `cw-crm-core`, `cw-crm-merge`, `cw-crm-outbox` | three Coolify image apps: 8107, 8120, 8121 |
+| `messaging-backend-production` | `services/messaging`, `packages/go` | `cw-messaging` | Coolify image app, alias `messaging`, 8108 |
+| `live-backend-production` | `services/live`, `packages/go` | `cw-live` | Coolify image app, alias `centrifugo`, 8000 |
+| `telnyx-backend-production` | `services/telnyx`, `packages/go` | `cw-dialer-sms` (every part in one, until the switch) and the six `cw-telnyx-phone-*` / `cw-telnyx-sms-*` | Coolify image app `dialer-sms` (8113) now; six apps (8113, 8122-8126) after the switch |
+| `importing-lists-backend-production` | `services/importing-lists`, `packages/go` | `cw-importing-lists` | Coolify image app, alias `importing-lists`, 8111 |
+| `importing-worker-backend-production` | `services/importing-worker`, `packages/go` | `cw-importing-worker` | Coolify image app, alias `importing-worker`, 8119 |
+| `assistant-backend-production` | `services/assistant`, `packages/go` | `cw-assistant` | Coolify image app, 8109 |
+| `learning-backend-production` | `services/learning`, `packages/go` | `cw-learning` | Coolify image app |
+| `mcp-backend-production` | `services/mcp`, `packages/go` | `cw-mcp` | Coolify image app |
+| `billing-backend-production` | `services/billing`, `packages/go` | `cw-billing` | Coolify image app, 8103 (parked) |
+| `grafana-production` | `deploy/grafana` (from `deploy/monitoring`), `services/grafana-proxy`, `services/alert-relay`, `packages/go` | `cw-grafana-proxy`, `cw-alert-relay`, `cw-grafana`, `cw-prometheus`, `cw-blackbox`, `cw-loki`, `cw-alloy` | Coolify Docker Compose resource read from this branch |
+| `desktop-app-production` | `apps/crm`, `apps/crm-desktop`, `crates/desktop-features`, the npm and Cargo workspaces | none (the desktop installers) | built by `desktop.yml` |
+| `skip-engine-production` | `engines/skip-engine` at the branch root | none | run by the desktop app |
+
+Before 2026-11-22 the website was `landing-web-production`, the CRM web app `landing-dashboard-web-production` and Telnyx
+`dialer-sms-backend-production`; those old branches stop changing and can be deleted once nothing reads them (the owner decides).
 
 ## What is in a branch
 
-- A branch keeps the repository layout by default (`base` is the repository root since step 54). A component can set `base` and `paths: ["."]` to export one folder at the branch root (the engine does), or give a path as `{"from": ..., "to": ...}` to put it elsewhere in the branch (the Monitoring branch keeps `deploy/grafana`, where Coolify reads its compose file).
-- The website, CRM web app and desktop branches (`base: ""`) keep the repository layout and carry the npm workspace: the root `package.json`, `package-lock.json`, `.npmrc`, `packages/` and the other web app's `package.json` (npm checks the lock file against every workspace). Their Dockerfiles build with the branch root as the context (step 49, D383). Landing Kubernetes manifests and the environment example remain on `main`; configure the landing build/runtime variables using `landing/web/COOLIFY.md`.
-- For a Rust service: the Cargo workspace file cut down to the members present, and `Cargo.lock`. Dockerfile lines that copy a folder the branch does not have are removed.
-- A generated `readme.md`: what it is, which `main` commit it was made from, how to build and test it.
-
-`tools/production.json` lists each part and its files.
+- **The part's files at `main`'s paths**, plus `LICENSE`, `.gitignore` and the part's settings example as `.env.example` (from
+  `env/<part>.production.example`). Web branches carry the npm workspace (root `package.json`, lock file, `.npmrc`, `packages/` and
+  the other web app's `package.json`, which npm needs to check the lock file); Go services carry `packages/go`; the desktop branch
+  carries the Cargo workspace cut down to the members present. `exclude` in `production.json` leaves out files that belong on `main`
+  only (crm-core's `bench/`, crm-web's README).
+- **A generated `readme.md`** on every branch (GitHub shows it on the branch's page): what it is, the `main` commit it was made from,
+  its content id, what it holds, its settings file, how to build and test it, and the images built from it with their Coolify apps.
 
 ## How they are made
 
-`node tools/publish-production.mjs` builds every branch from `main`, as a new commit on top of the branch's last one: a branch's history is the list of snapshots of `main` it was made from. Nothing is rewritten, the working copy is not touched, and a branch that would not change is left alone. It refuses a commit whose **CI summary** check (`.github/workflows/ci.yml`) has not passed on GitHub (step 46), so a branch Coolify deploys from never gets code that failed its tests; it asks GitHub with `gh`. `desktop-app-production` and `skip-engine-production` also wait for **Desktop summary** (`.github/workflows/desktop.yml`, the `checks` field in `tools/production.json`): if it has not passed on the commit, those two are held back, the others are refreshed, and the script ends with an error naming them. Desktop summary runs when desktop files change; for a commit where it did not, run the Desktop app workflow on `main` by hand.
+`node tools/publish-production.mjs` builds every branch from `main`, as a new commit on top of the branch's last one: a branch's
+history is the list of snapshots of `main` it was made from. Nothing is rewritten or force-pushed, the working copy is not touched,
+and a branch whose files did not change is left alone (its **content id**, the tree of its files without the readme, decides). It
+refuses a commit whose **CI summary** has not passed on GitHub. `desktop-app-production` and `skip-engine-production` also wait for
+**Desktop summary** (`desktop.yml`). It reads the local `main`, so update it first (`git switch main && git pull`).
 
 ```bash
 node tools/publish-production.mjs --list                    # what each branch holds
 node tools/publish-production.mjs                           # refresh every branch
-node tools/publish-production.mjs landing-web-production    # one
+node tools/publish-production.mjs website-production        # one
 node tools/publish-production.mjs --push                    # and push what changed (never forced)
-node tools/publish-production.mjs --without-checks          # emergency only: skip the CI check below
+node tools/publish-production.mjs --without-checks          # emergency only: skip the CI check
 node tools/publish-production.mjs --export <dir> [name]     # write a branch's files to <dir>/<name>, touch no branch (image builds)
 ```
 
-**Never edit a production branch.** Change `main`, then refresh the branch. A change made on a branch would be lost, or be in the way, the next time it is refreshed.
+**Never edit a production branch.** Change `main`, then refresh the branch.
+
+## Images
+
+`.github/workflows/images.yml` builds each image from its branch's files (`--export`, the readme left out), tags it with the content
+id, and builds only images whose content changed. An image with a `deploy` entry in `production.json` is then put into its Coolify
+app by digest, after the "production" environment's approval (`tools/coolify-deploy.mjs`). So a readme or a branch rename never
+rebuilds an image; a change to a part's files does.
 
 ## Things a single-part branch cannot do alone
 
-- `desktop-app-production` starts the Skip Tracing engine at run time and in its tests: check out `skip-engine-production` beside it and set `CALLERWHALE_SERVICE_ROOT` to it.
-
-## Coolify frontend settings
-
-| Branch | Base directory | Dockerfile location | Container port | Health path |
-| --- | --- | --- | --- | --- |
-| `landing-web-production` | `/` | `/apps/website/Dockerfile` (image built in GitHub Actions since step 48) | `8080` | `/healthz` |
-| `landing-dashboard-web-production` | `/` | `/apps/crm-web/Dockerfile` (image built in GitHub Actions since step 48) | `8080` | `/healthz` |
-| `auth-backend-production` | `/` | `/Dockerfile` | `8101` | `/healthz` |
-| `notifications-backend-production` | `/` | `/Dockerfile` | `8102` | `/healthz`; no domain |
-| `gateway-backend-production` | `/` | `/Dockerfile` | `8100` | its own health check (inside the private network only) |
-| `authz-backend-production` | `/` | `/Dockerfile` | `8104` | its own health check; no domain |
-| `billing-backend-production` | `/` | `/Dockerfile` | `8103` | `/healthz`; no domain |
-| `dialer-sms-backend-production` | `/` | `/Dockerfile` | `8113` | `/healthz`; no domain |
-
-Choose the **Dockerfile** build pack. After refreshing a source scan, replace any saved `landing/web/Dockerfile` path with `/Dockerfile`. Both paths in Coolify must start with `/`. Each Dockerfile uses its branch root as the build context. These generated branches are the release sources; do not point these applications at `main` with base directory `/`.
+- `desktop-app-production` starts the Skip Tracing engine at run time and in its tests: check out `skip-engine-production` beside it
+  and set `CALLERWHALE_SERVICE_ROOT` to it.

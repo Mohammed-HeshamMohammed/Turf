@@ -35,7 +35,7 @@ New resource → Database → PostgreSQL 17, in the **database** environment, na
 Add `DIALER_TOKEN=<F>`. Redeploy. (Empty or missing keeps the door shut; the rest of crm-core is unchanged.)
 
 ## 4. dialer-sms
-- New application from this repository, branch `dialer-sms-backend-production`, **backend** environment. Build pack Dockerfile, base directory `/`, Dockerfile `/Dockerfile`.
+- New application from this repository, branch `telnyx-backend-production`, **backend** environment. Build pack Dockerfile, base directory `/`, Dockerfile `/Dockerfile`.
 - If **Continue** does nothing, Coolify is hiding the error "The docker compose location field format is invalid": loading the repository scans `main` and keeps its compose path (with spaces) even after the branch changes. Switch the build pack to Docker Compose, set the location to `/docker-compose.yaml`, switch back to Dockerfile, then Continue.
 - Port `8113`. Network alias `dialer-sms`. **No domain** (delete the sslip address Coolify adds). Leave Coolify's Healthcheck tab off: the image is distroless (no curl or wget), and its own `HEALTHCHECK` already runs `/service health`, which checks `/healthz`.
 - Done 2026-11-15: application `Caller Whale Dialer` created with the alias, no domain, and the plain variables; secrets filled by the owner; deployed and healthy (`dialer-sms:8113/healthz` answers `"carrier":"telnyx-sim"`). authz has `dialer-sms=` in `AUTHZ_TOKENS`; crm-core has `DIALER_TOKEN` (its `/internal/v1/dialer/*` answers 401 without the token, so the door is open).

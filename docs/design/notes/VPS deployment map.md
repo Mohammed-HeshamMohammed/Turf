@@ -10,8 +10,8 @@ The owner added dedicated gateway/network and monitoring environments during pro
 
 | Environment | Resource | State at this check | Release source |
 | --- | --- | --- | --- |
-| frontend | Caller Whale Landing Web | Existing running service; unchanged by provisioning | `landing-web-production` |
-| frontend | Caller Whale Dashboard Web | Existing running foundation; unchanged by provisioning | `landing-dashboard-web-production` |
+| frontend | Caller Whale Landing Web | Existing running service; unchanged by provisioning | `website-production` |
+| frontend | Caller Whale Dashboard Web | Existing running foundation; unchanged by provisioning | `crm-web-production` |
 | backend | Caller Whale Landing API | Existing running service, moved here from frontend | `landing-backend-production` |
 | backend | Auth Backend | Created; build succeeded, startup failed because required reCAPTCHA keys are missing. Owner requested it stay staged | `auth-backend-production` |
 | backend | Caller Whale Core API | Created and configured; stopped pending database credentials | `core-api-backend-production` |

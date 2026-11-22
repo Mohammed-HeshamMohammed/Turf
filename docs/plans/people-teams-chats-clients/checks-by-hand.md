@@ -75,7 +75,7 @@ container's network alias (`http://<alias>:<port>`), as the existing settings do
 
 | # | Do | Then set | Turns on |
 |---|---|---|---|
-| S1 | Deploy the dialer (`dialer-sms-backend-production`) in Coolify, simulator first (`TELNYX_MODE=simulate`) | The rows of T1 to T3, T5 | Calls, texts, captions, opt-outs (steps 10, 21, 25, 26) |
+| S1 | Deploy the dialer (`telnyx-backend-production`) in Coolify, simulator first (`TELNYX_MODE=simulate`) | The rows of T1 to T3, T5 | Calls, texts, captions, opt-outs (steps 10, 21, 25, 26) |
 | S2 | Telnyx: account, numbers, a messaging profile; each agency's 10DLC brand and campaign are now submitted from Caller Whale (step 39), so set `TELNYX_WEBHOOK_URL` to the dialer's public `/webhooks/telnyx` | dialer-sms `TELNYX_*` (see its example), then `TELNYX_MODE=live` | Real calls and texts. Check that STOP gets the carrier's own confirmation (D9) |
 | S3 | OpenRouter account and key | assistant `OPENROUTER_API_KEY` | The website helper's AI and the in-app assistant |
 | S4 | Google Cloud: a web OAuth client with the Calendar API, asking only `calendar.freebusy` and `calendar.app.created`; submit it for Google's verification | crm-core `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URL`, `GOOGLE_TOKEN_KEY` (`openssl rand -base64 32`), `APP_URL` | Google Calendar per person (step 28) |
