@@ -118,7 +118,7 @@ func (s *server) me(q *req) error {
 			return err
 		}
 		body["organization_id"], body["roles"] = current.OrgID, current.Roles
-		body["carrier"] = s.carrierFor(ctx, current.OrgID) // step 39: calling, texting and importing wait for the carriers (D314)
+		body["carrier"] = s.carrierFor(ctx, current.OrgID) // Calling, texting and importing wait for the carriers (D314)
 		switch {
 		case g.Allowed:
 			body["capabilities"], body["scopes"], body["team_ids"] = nonNil(g.Capabilities), nonNil(g.Scopes), nonNil(g.TeamIDs)
@@ -261,7 +261,7 @@ func (s *server) teams(q *req) error {
 type named struct {
 	Name                string   `json:"name"`
 	QualificationFields []string `json:"qualification_fields"`
-	// A list's client and who supplied it (step 23, D126); none: the agency's own business, supplied by the agency.
+	// A list's client and who supplied it (D126); none: the agency's own business, supplied by the agency.
 	ClientID   string `json:"client_id"`
 	SuppliedBy string `json:"supplied_by"`
 }

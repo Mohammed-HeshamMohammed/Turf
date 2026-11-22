@@ -1,6 +1,6 @@
 package crm
 
-// Build step 45 (migrations/0048_shared_learning.sql): shared learning by agreement (D324-D327, D146, D349).
+// Shared learning by agreement (D324-D327, D146, D349).
 //
 // What is learned: how often calls reach people by hour of the week and by attempt, as counts. Nothing else, and never a name,
 // number, address, client or text. An agency's month of counts is shared only while every gate holds:

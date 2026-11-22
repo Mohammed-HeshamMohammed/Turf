@@ -1,6 +1,6 @@
 package crm
 
-// Build step 33 (migrations/0041_keys_hooks.sql): keys for outside tools (D233) and outgoing events (D234).
+// Keys for outside tools (D233) and outgoing events (D234).
 //
 // A key reads "cwk_<agency>.<random>": the agency part lets the CRM enter that agency's rows, the rest is checked against a hash. The
 // routes a key reaches are under /api/v1/tools/, which the gateway lets through to the CRM, and nothing there calls, texts or spends.
@@ -23,8 +23,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"syscall"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -561,4 +561,3 @@ func (s *server) deliverEvent(ctx context.Context, org, id string) error {
 	}
 	return tx.Commit(ctx)
 }
-

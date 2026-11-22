@@ -1,6 +1,6 @@
 package crm
 
-// Build step 28, part A (migrations/0035_pipeline_booking_credit.sql): the agency's and a client's deal stages (D154), closers' hours
+// The agency's and a client's deal stages (D154), closers' hours
 // and the range their managers allow (D156), free slots and booking by the team's callers (D155), and who is credited with a won deal
 // (D157, with ops.go's dealUpdate).
 
@@ -460,7 +460,7 @@ func (s *server) bookAppointment(q *req) error {
 		ID string `json:"id"`
 	}
 	_ = json.Unmarshal(rows[0], &made)
-	// The owner's event address hears "a lead booked", with ids only (step 33, D234).
+	// The owner's event address hears "a lead booked", with ids only (D234).
 	if err := emitEvent(ctx, tx, s, "lead.booked", made.ID, body.LeadID); err != nil {
 		return err
 	}
@@ -566,7 +566,7 @@ func (r *run) creditDeal(deal map[string]any, won bool) error {
 		ON CONFLICT (deal_id, role) DO UPDATE SET user_id = EXCLUDED.user_id, at = now()`, id, lead, r.sc.userID); err != nil {
 		return err
 	}
-	// The owner's event address hears "a deal won", with ids only (step 33, D234).
+	// The owner's event address hears "a deal won", with ids only (D234).
 	if err := emitEvent(r.ctx, r.tx, r.s, "deal.won", id, lead); err != nil {
 		return err
 	}

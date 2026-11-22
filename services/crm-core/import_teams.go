@@ -1,6 +1,6 @@
 package crm
 
-// Imports and teams (build step 20, part B): a list's rows that match another team's leads (D112), and removing a whole list that
+// Imports and teams: a list's rows that match another team's leads (D112), and removing a whole list that
 // nobody has worked yet (D219).
 
 import (

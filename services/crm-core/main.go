@@ -30,22 +30,22 @@ type config struct {
 	learningURL   string // the learning service (private); empty turns the learning copy off
 	learningToken string
 	dialerToken   string // the dialer service's token for /internal/v1/dialer (DIALER_TOKEN); empty turns those routes off
-	// The in-app assistant (step 26): the assistant service and its AGENT_TOKEN; billing and crm-core's token there, to charge its use.
+	// The in-app assistant: the assistant service and its AGENT_TOKEN; billing and crm-core's token there, to charge its use.
 	assistantURL, assistantToken string
 	billingURL, billingToken     string
-	// Google Calendar (step 28): the Google Cloud app, the key that encrypts stored tokens, and the CRM web app for links and returns.
+	// Google Calendar: the Google Cloud app, the key that encrypts stored tokens, and the CRM web app for links and returns.
 	googleClientID, googleSecret, googleRedirect string
 	googleKey                                    []byte
 	appURL                                       string
-	// Email to leads (step 29): Amazon SES's region (its login from AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY), this API's public
+	// Email to leads: Amazon SES's region (its login from AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY), this API's public
 	// address, the domain replies go to, and the SNS topic SES puts them on.
 	emailRegion, emailPublicURL, emailReplyDomain, emailTopic string
-	// Scheduled report emails (step 32): the notification service and crm-core's token in its NOTIFY_TOKENS.
+	// Scheduled report emails: the notification service and crm-core's token in its NOTIFY_TOKENS.
 	notifyMailURL, notifyMailToken string
-	sharedLearning                 bool   // step 45: SHARED_LEARNING=on once the lawyer approved the agreement
-	restoreCopyURL                 string // step 41: the database a backup was restored into, to restore one agency from
-	carrierCheck                   bool   // step 39: imports wait for the carriers to verify the agency (CARRIER_CHECK=on)
-	clamdAddr                      string // ClamAV's daemon, like clamav:3310 (step 38)
+	sharedLearning                 bool   // SHARED_LEARNING=on once the lawyer approved the agreement
+	restoreCopyURL                 string // The database a backup was restored into, to restore one agency from
+	carrierCheck                   bool   // Imports wait for the carriers to verify the agency (CARRIER_CHECK=on)
+	clamdAddr                      string // ClamAV's daemon, like clamav:3310
 	runJobs                        bool   // CRM_RUN_JOBS (default on): this process also works the job queue (split 2)
 }
 

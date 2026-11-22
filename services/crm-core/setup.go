@@ -1,6 +1,6 @@
 package crm
 
-// Build step 31 (migrations/0039_setup_material.sql): the new agency's setup checklist (D170), the data processing agreement (D308),
+// The new agency's setup checklist (D170), the data processing agreement (D308),
 // walk-throughs per role (D173), and the agency's own material that managers assign (D173).
 
 import (

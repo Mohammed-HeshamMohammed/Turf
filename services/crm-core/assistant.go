@@ -1,6 +1,6 @@
 package crm
 
-// Build step 26, part C: the in-app assistant for the agency's people (D320-D323, D372).
+// The in-app assistant for the agency's people (D320-D323, D372).
 //
 //   - A lead's history summarised, a text or email drafted for the agent to edit and send (it never sends on its own), and answers to
 //     "how do I" questions. The AI itself is in the assistant service (ASSISTANT_URL, ASSISTANT_TOKEN), which keeps nothing.

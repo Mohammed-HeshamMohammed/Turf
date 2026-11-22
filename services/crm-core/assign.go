@@ -439,4 +439,3 @@ func (s *server) assignBatch(ctx context.Context, sc scope, id string, sel assig
 	}
 	return int64(len(ids)), ids[len(ids)-1], tx.Commit(ctx)
 }
-

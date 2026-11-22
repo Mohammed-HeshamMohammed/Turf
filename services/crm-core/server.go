@@ -74,9 +74,9 @@ type server struct {
 	hub   *hub
 	jobs  *river.Client[pgx.Tx] // the job queue (queue.go)
 	now   func() time.Time
-	// Google Calendar (step 28, part B); nil when not set up.
+	// Google Calendar; nil when not set up.
 	calendar calendarAPI
-	// Email to leads (step 29); nil when not set up. fetchCert reads SNS signing certificates (a stand-in in tests).
+	// Email to leads; nil when not set up. fetchCert reads SNS signing certificates (a stand-in in tests).
 	mail      emailProvider
 	fetchCert func(context.Context, string) ([]byte, error)
 	// reportMailer sends a report email (the notification service; a stand-in in tests).
@@ -86,9 +86,9 @@ type server struct {
 
 	seenPeople sync.Map // user -> last time their name was stored
 	seenOrgs   sync.Map // workspace ids that have a row
-	seenDays   sync.Map // org|user|day already written to member_days (step 32)
+	seenDays   sync.Map // org|user|day already written to member_days
 	sharedName sync.Map // workspace id -> the agency name authz was last told
-	// Files on leads (step 38): the virus scanner (nil when CLAMD_ADDR is not set: files wait unopened), the plan's storage per
+	// Files on leads: the virus scanner (nil when CLAMD_ADDR is not set: files wait unopened), the plan's storage per
 	// agency kept a minute, and a stand-in for billing in tests.
 	scanner        fileScanner
 	storageLimits  sync.Map
@@ -155,7 +155,7 @@ func (s *server) handler() http.Handler {
 	mux.Handle("POST /api/v1/retention/keep", s.member(s.keepLeads))
 	mux.Handle("POST /api/v1/retention/remove", s.member(s.removeDue))
 	mux.Handle("POST /api/v1/admin/teams", s.member(s.createTeam))
-	// Clients (step 23).
+	// Clients.
 	mux.Handle("GET /api/v1/clients", s.member(s.listClients))
 	mux.Handle("POST /api/v1/clients", s.member(s.saveClient))
 	mux.Handle("PATCH /api/v1/clients/{id}", s.member(s.saveClient))
@@ -312,7 +312,7 @@ func (s *server) enter(ctx context.Context, q *req, org string) error {
 	if len(peek) > 0 {
 		q.sc.peekTeams, q.rev = peek, accessRevision(g, peek...)
 	}
-	// Agents see lead numbers masked unless the owner shows their team full numbers (step 30, D163).
+	// Agents see lead numbers masked unless the owner shows their team full numbers (D163).
 	if !seesFullNumbers(q.sc, g) {
 		q.sc.maskPhones = true
 		if q.sc.fullTeams, err = s.fullNumberTeams(ctx, q.sc); err != nil {
@@ -370,7 +370,7 @@ func label(c authverify.Claims) string {
 
 // remember keeps the person's display name and the workspace row, at most once in a while.
 func (s *server) remember(ctx context.Context, c authverify.Claims, org string) {
-	s.noteMemberDay(ctx, org, c.Sub) // days active, for the owner (step 32, D267)
+	s.noteMemberDay(ctx, org, c.Sub) // days active, for the owner (D267)
 	if _, ok := s.seenOrgs.Load(org); !ok {
 		if _, err := s.st.db.Exec(ctx, `INSERT INTO orgs (id, name) VALUES ($1, 'Workspace') ON CONFLICT DO NOTHING`, org); err == nil {
 			s.seenOrgs.Store(org, true)

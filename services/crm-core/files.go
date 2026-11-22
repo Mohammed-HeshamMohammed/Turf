@@ -18,7 +18,7 @@ import (
 )
 
 // Files on a lead: the Documents tab. Anyone who sees the lead sees its files (a client only the shared ones); whoever can edit the
-// lead uploads them; the uploader or an editor removes them. Build step 38 (D256-D258): up to 25 MB, PDF, Word, Excel or common
+// lead uploads them; the uploader or an editor removes them. Limits (D256-D258): up to 25 MB, PDF, Word, Excel or common
 // images whose content matches, each scanned before anyone can open it, and stored against the plan; sharing is for team leads,
 // admins and the owner (files_share.go).
 

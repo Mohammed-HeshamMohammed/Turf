@@ -26,7 +26,7 @@ type rules interface {
 	putTeam(ctx context.Context, org, id, name, actor string, secondStep bool) error
 	// nameOrg tells authz the agency's name, so an invitation can say which agency it comes from.
 	nameOrg(ctx context.Context, org, name string) error
-	// upgrade makes a solo workspace an agency (step 17).
+	// upgrade makes a solo workspace an agency.
 	upgrade(ctx context.Context, org, user, teamID, teamName string) error
 }
 
@@ -245,8 +245,8 @@ type scope struct {
 	peekTeams            []string // the person's teams that let agents see the whole team, read-only (D124)
 	caps                 []string
 	secondStep           bool
-	managed, deputyOf    []string // the teams they lead and deputise (the dialer's lead threads, step 10)
-	// Step 30: whether lead numbers are masked for this person, and their teams whose numbers the owner shows in full (D163).
+	managed, deputyOf    []string // the teams they lead and deputise (the dialer's lead threads)
+	// Whether lead numbers are masked for this person, and their teams whose numbers the owner shows in full (D163).
 	maskPhones bool
 	fullTeams  []string
 }

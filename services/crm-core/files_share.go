@@ -1,6 +1,6 @@
 package crm
 
-// Build step 38 (migrations/0044_file_sharing.sql): sharing a lead's files outside the agency. Team leads, admins and the owner share
+// Sharing a lead's files outside the agency. Team leads, admins and the owner share
 // a file with the lead's clients or by a link that expires; every share is recorded and can be withdrawn; every opening of a shared
 // file is recorded with who or which network and when (D256, D258).
 

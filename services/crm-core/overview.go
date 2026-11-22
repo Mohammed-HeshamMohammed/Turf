@@ -1,6 +1,6 @@
 package crm
 
-// Build step 32 (migrations/0040_overviews_reports.sql): the owner's overview opens with what needs them today (D225), a team lead's with
+// The owner's overview opens with what needs them today (D225), a team lead's with
 // their team right now (D226), the owner's view of members' activity (D267), and weekly or monthly report emails with totals only
 // (D227), every day counted in the agency's time zone (D228). Who is available or on a call, and unanswered texts, come from the dialer
 // (GET /api/v1/status, GET /api/v1/sms/waiting); budgets, seats and invitations from the dashboard's own cards.
@@ -85,7 +85,7 @@ func (s *server) ownerOverview(q *req) error {
 	}
 	defer tx.Rollback(ctx)
 	var waiting, emails, alerts, approvals int
-	// Work waiting to be handed on: leads of people suspended or no longer in the agency (D225, step 12).
+	// Work waiting to be handed on: leads of people suspended or no longer in the agency (D225).
 	if err := tx.QueryRow(ctx, `SELECT
 			(SELECT count(*) FROM leads WHERE deleted_at IS NULL AND assignee_id IS NOT NULL AND NOT (assignee_id = ANY($1::uuid[]))),
 			(SELECT count(*) FROM lead_emails WHERE waiting),
@@ -416,4 +416,3 @@ func (s *server) sendReport(ctx context.Context, org, id string) error {
 	}
 	return tx.Commit(ctx)
 }
-

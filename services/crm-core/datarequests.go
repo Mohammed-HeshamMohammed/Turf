@@ -1,6 +1,6 @@
 package crm
 
-// Build step 44 (migrations/0047_data_requests.sql): a lead's request about their data (D310, D367, D370). The owner or an admin
+// A lead's request about their data (D310, D367, D370). The owner or an admin
 // enters it with the person's number and email; every record of the agency about them is found; it is exported, or deleted by the
 // owner with their second step. A deletion leaves only the number and email on the agency's block lists ("deleted on request"),
 // so the person is never contacted again; the dialer removes its calls and texts with that number; the request and its dates stay.
@@ -355,7 +355,7 @@ func (s *server) deleteDataRequest(q *req) error {
 		AND NOT EXISTS (SELECT 1 FROM deals x WHERE x.property_id = p.id)`, properties); err != nil {
 		return err
 	}
-	// A lead sent to or from another agency keeps the referral's dates, without the person (step 37).
+	// A lead sent to or from another agency keeps the referral's dates, without the person.
 	if _, err := tx.Exec(ctx, `UPDATE lead_referrals SET name = '', phone = '', email = '', address = '', note = ''
 		WHERE (from_org = cw_org() AND from_lead_id = ANY($1::uuid[])) OR (to_org = cw_org() AND to_lead_id = ANY($1::uuid[]))`, leads); err != nil {
 		return err

@@ -1,6 +1,6 @@
 package crm
 
-// Build step 27: commission tracking, optional per agency (migrations/0034_commissions.sql, D144, D149). Only the owner switches it on,
+// Commission tracking, optional per agency (migrations/0034_commissions.sql, D144, D149). Only the owner switches it on,
 // sets the rules and overrides a figure; the owner and admins see everyone's earnings, each person their own. Nothing is paid here.
 
 import (
@@ -224,7 +224,7 @@ func (s *server) commissions(q *req) error {
 		return err
 	}
 	var items []earning
-	// Appointments: each one booked (step 28) for whoever booked it, and each call logged "Transfer" by someone who did not also book
+	// Appointments: each one booked for whoever booked it, and each call logged "Transfer" by someone who did not also book
 	// an appointment for that lead within a day of it.
 	rows, err := tx.Query(ctx, `SELECT id::text, lead_id::text, booked_by::text, created_at FROM appointments
 			WHERE status <> 'cancelled' AND created_at >= $1 AND created_at < $2
@@ -249,7 +249,7 @@ func (s *server) commissions(q *req) error {
 	}
 	rows.Close()
 	// Won deals: the closer's percentage of the fee (else the amount), part of it to the caller who set the lead's appointment.
-	// Who is credited with each won deal comes from its credit records (step 28, D157).
+	// Who is credited with each won deal comes from its credit records (D157).
 	rows, err = tx.Query(ctx, `SELECT d.id::text, d.lead_id::text,
 			coalesce((SELECT user_id FROM deal_credits WHERE deal_id = d.id AND role = 'closer'), d.closed_by, l.assignee_id)::text,
 			d.closed_at, coalesce(d.fee, d.amount)::float8, d.currency,

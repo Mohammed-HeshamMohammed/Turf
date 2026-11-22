@@ -102,7 +102,7 @@ func (s *server) dialerLead(w http.ResponseWriter, r *http.Request, ask dialerAs
 		return notFound("The lead was not found, was deleted, or is outside this person's access.")
 	}
 	reply := dialerLeadReply(lead, sc)
-	// The number's blocks (step 25): calls and texts each, with why; and whether its list carries the agency's consent to text (D355).
+	// The number's blocks: calls and texts each, with why; and whether its list carries the agency's consent to text (D355).
 	b, err := numberBlocked(ctx, tx, asString(lead["phone"]))
 	if err != nil {
 		return err
@@ -118,17 +118,17 @@ func (s *server) dialerLead(w http.ResponseWriter, r *http.Request, ask dialerAs
 	if project := asString(lead["project_id"]); project != "" {
 		_ = tx.QueryRow(ctx, `SELECT text_consent_at IS NOT NULL FROM projects WHERE id = $1`, project).Scan(&listConsent)
 	}
-	// A website form the person agreed on, for this client's work, counts the same (step 36, D247).
+	// A website form the person agreed on, for this client's work, counts the same (D247).
 	reply["list_consent"] = listConsent || formConsent(ctx, tx, asString(lead["phone"]), asString(lead["client_id"]))
-	// The AI's call suggestions for this person on this lead's team, and whether captions must run (step 26, D148).
+	// The AI's call suggestions for this person on this lead's team, and whether captions must run (D148).
 	if suggest, captions, err := callAI(ctx, tx, sc.userID, asString(lead["team_id"])); err == nil {
 		reply["ai_suggestions"], reply["captions_required"] = suggest, captions
 	}
-	// A list waiting for its client's approval is not worked yet (step 23, D138).
+	// A list waiting for its client's approval is not worked yet (D138).
 	if waiting, err := waitingApproval(ctx, tx, asString(lead["id"])); err == nil && waiting {
 		reply["may_call"], reply["reason"], reply["waiting_approval"] = false, "This list is waiting for its client's approval.", true
 	}
-	// For the lead's text thread (step 10): who works the lead, its team's leads and deputies (told when a text waits too long), and
+	// For the lead's text thread: who works the lead, its team's leads and deputies (told when a text waits too long), and
 	// the asker's rank toward it, for who may send and take over.
 	reply["assignee_id"], reply["team_id"], reply["client_id"] = lead["assignee_id"], lead["team_id"], lead["client_id"]
 	reply["rank"] = threadRank(sc, lead)
@@ -151,7 +151,7 @@ func (s *server) dialerLead(w http.ResponseWriter, r *http.Request, ask dialerAs
 			}
 		}
 	}
-	// The team's agents, for an incoming call that its own agent cannot take (step 21, D150).
+	// The team's agents, for an incoming call that its own agent cannot take (D150).
 	agents := []string{}
 	if team := asString(lead["team_id"]); team != "" {
 		if members, err := s.rules.members(ctx, sc.orgID); err == nil {
@@ -282,7 +282,7 @@ func (r *run) callRecording(p map[string]any) (any, error) {
 	return event, r.record(change{entity: "call", kind: "call.recording_added", id: asString(event["id"]), leadID: leadID, after: event})
 }
 
-// dialerBlock is a lead's own opt-out reply (step 25, D207, D209): payload {calls, texts, note} blocks the number for the agency, as
+// dialerBlock is a lead's own opt-out reply (D207, D209): payload {calls, texts, note} blocks the number for the agency, as
 // the lead's doing (no person marked it); {lift: true} is the lead texting START, which lifts only a block their own reply made.
 func (s *server) dialerBlock(w http.ResponseWriter, r *http.Request, ask dialerAsk, sc scope) error {
 	if phoneKey(ask.Phone) == "" {

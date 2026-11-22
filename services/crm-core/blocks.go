@@ -1,6 +1,6 @@
 package crm
 
-// Build step 25: "do not call" by number (migrations/0032_do_not_call.sql).
+// "do not call" by number (migrations/0032_do_not_call.sql).
 //
 //   - The agency's block list: a number that asked this agency to stop is blocked for every client, team and later import. A block says
 //     what it stops, calls, texts or both (D209, D351). Anyone who calls or texts may add one; only the owner or an admin lifts it, with a

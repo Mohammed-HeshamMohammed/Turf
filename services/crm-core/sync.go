@@ -131,7 +131,7 @@ func (s *server) pull(q *req) error {
 	if err = tx.QueryRow(ctx, `SELECT count(*) FROM (SELECT 1 FROM change_log WHERE seq > $1 LIMIT $2) t`, cursor, maxPullBehind+1).Scan(&behind); err != nil {
 		return err
 	}
-	// The agency was restored from a backup since this cursor (step 41): the device starts over.
+	// The agency was restored from a backup since this cursor: the device starts over.
 	var restored bool
 	if err = tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM org_resets WHERE seq > $1)`, cursor).Scan(&restored); err != nil {
 		return err
@@ -239,7 +239,7 @@ func leadVisible(sc scope, alias string, args []any) (string, []any) {
 		case "shared":
 			if sc.userID != "" && !slices.Contains(branches, "TRUE") {
 				me := add(sc.userID)
-				// Shared with them one by one, or shared with their client (step 23, D127).
+				// Shared with them one by one, or shared with their client (D127).
 				branches = append(branches, "(EXISTS (SELECT 1 FROM lead_shares s WHERE s.lead_id = "+alias+".id AND s.user_id = "+me+"::uuid) OR ("+alias+".shared_with_client AND EXISTS (SELECT 1 FROM client_members cm WHERE cm.client_id = "+alias+".client_id AND cm.user_id = "+me+"::uuid)))")
 			}
 		}

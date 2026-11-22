@@ -1,6 +1,6 @@
 package crm
 
-// Build step 28, part B: Google Calendar per person (migrations/0036_google_calendar.sql, D158-D160).
+// Google Calendar per person (migrations/0036_google_calendar.sql, D158-D160).
 //
 // Set up with GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URL (this service's /api/v1/google/callback, as the gateway
 // serves it), GOOGLE_TOKEN_KEY (32 random bytes in base64, to encrypt the stored tokens) and APP_URL (the CRM web app, for the link in
