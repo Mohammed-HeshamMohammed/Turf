@@ -10,6 +10,7 @@
 package telnyx
 
 import (
+	"slices"
 	"callerwhale/authverify"
 	"context"
 	"crypto/ed25519"
@@ -28,6 +29,8 @@ import (
 )
 
 type config struct {
+	role                                             role // which of the containers this is (roles.go)
+	simWebhookURL                                    string
 	port, databaseURL, jwksURL, authzURL, authzToken string
 	origins                                          map[string]bool
 	grantTTL                                         time.Duration
@@ -55,7 +58,11 @@ type config struct {
 	carrierCheck    bool // step 39: calls and texts wait for the agency's carrier registration (CARRIER_CHECK, on unless "off")
 }
 
-func loadConfig(getenv func(string) string) (config, error) {
+func loadConfig(getenv func(string) string) (config, error) { return loadConfigFor(roleAll, getenv) }
+
+// loadConfigFor reads one container's settings. The split containers in simulate mode share one simulator per side, so they all
+// need the same TELNYX_SIM_PRIVATE_KEY (it signs the simulated webhooks) and TELNYX_API_KEY (the simulator checks it).
+func loadConfigFor(r role, getenv func(string) string) (config, error) {
 	trim := func(v string) string { return strings.TrimRight(strings.TrimSpace(getenv(v)), "/") }
 	seconds := func(name string, fallback int) (int, error) {
 		v := strings.TrimSpace(getenv(name))
@@ -79,8 +86,9 @@ func loadConfig(getenv func(string) string) (config, error) {
 		recordCalls: trim("RECORD_CALLS") == "true", simPrivateKey: trim("TELNYX_SIM_PRIVATE_KEY"),
 		carrierCheck: !strings.EqualFold(trim("CARRIER_CHECK"), "off"),
 	}
+	c.role = r
 	if c.port == "" {
-		c.port = "8113"
+		c.port = r.defaultPort()
 	}
 	var err error
 	if c.origins, err = parseOrigins(getenv("CORS_ORIGINS")); err != nil {
@@ -116,6 +124,27 @@ func loadConfig(getenv func(string) string) (config, error) {
 		return c, err
 	}
 	c.ringSeconds, c.settleDelay, c.wrapup = ring, time.Duration(settle)*time.Second, time.Duration(wrap)*time.Second
+	if c.simulate && r != roleAll {
+		if c.simPrivateKey == "" || c.apiKey == "" {
+			return c, errors.New("in simulate mode the split containers need the same TELNYX_SIM_PRIVATE_KEY and TELNYX_API_KEY on all six")
+		}
+		if r.hostsSimulator() {
+			if c.simWebhookURL = trim("SIM_WEBHOOK_URL"); c.simWebhookURL == "" {
+				c.simWebhookURL = r.simulatorWebhookURL()
+			}
+		} else {
+			if c.apiURL == "" {
+				c.apiURL = r.simulatorURL()
+			}
+			if c.publicKey == "" {
+				key, err := simKey(c.simPrivateKey)
+				if err != nil {
+					return c, err
+				}
+				c.publicKey = base64.StdEncoding.EncodeToString(key.Public().(ed25519.PublicKey))
+			}
+		}
+	}
 	c.simSpeed = 1
 	if v := trim("SIM_SPEED"); v != "" {
 		if c.simSpeed, err = strconv.ParseFloat(v, 64); err != nil || c.simSpeed <= 0 {
@@ -162,7 +191,11 @@ func newServer(cfg config, st *store, keys *authverify.Keyset, r rules, c crm) (
 			t.connectionID = "sim-connection"
 		}
 		local := "http://127.0.0.1:" + cfg.port
-		s.sim = newSimulator(key, t.key, local+"/webhooks/telnyx", cfg.simSpeed)
+		hook := local + "/webhooks/telnyx"
+		if cfg.simWebhookURL != "" {
+			hook = cfg.simWebhookURL // split: the simulator's webhooks go to this side's webhooks container
+		}
+		s.sim = newSimulator(key, t.key, hook, cfg.simSpeed)
 		t.base, t.webhookURL = local+"/telnyx-sim/v2", ""
 		s.webhookKey = key.Public().(ed25519.PublicKey)
 	} else {
@@ -188,12 +221,19 @@ func simKey(text string) (ed25519.PrivateKey, error) {
 	return ed25519.NewKeyFromSeed(seed), nil
 }
 
-// Main runs the service (cmd/dialer-sms runs it; until the split it is every part in one).
-func Main() {
+// Main runs every part in one program (cmd/dialer-sms), as deployed before the split.
+func Main() { MainRole(string(roleAll)) }
+
+// MainRole runs one of the containers (roles.go); each cmd/<name> calls it with its own name.
+func MainRole(name string) {
+	r := role(name)
+	if !slices.Contains(roles, r) {
+		log.Fatalf("unknown role %q", name)
+	}
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "health":
-			port := envOr("PORT", "8113")
+			port := envOr("PORT", r.defaultPort())
 			res, err := (&http.Client{Timeout: 3 * time.Second}).Get("http://127.0.0.1:" + port + "/healthz")
 			if err != nil || res.StatusCode != http.StatusOK {
 				log.Printf("health probe failed: %v", err)
@@ -206,7 +246,7 @@ func Main() {
 			os.Exit(runSim())
 		}
 	}
-	cfg, err := loadConfig(os.Getenv)
+	cfg, err := loadConfigFor(r, os.Getenv)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -227,11 +267,7 @@ func Main() {
 	} else {
 		log.Print("INFO TELNYX_MODE=live: calls and texts go to Telnyx and cost money")
 	}
-	go s.settlePeriodically(ctx)
-	go s.checkWaitingPeriodically(ctx)
-	go s.sendDuePeriodically(ctx)
-	go s.checkCallbacksPeriodically(ctx)
-	go s.carrierPeriodically(ctx)
+	s.startLoops(ctx, r)
 	srv := &http.Server{Addr: ":" + cfg.port, Handler: s.handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: time.Minute, WriteTimeout: time.Minute, IdleTimeout: 2 * time.Minute}
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)

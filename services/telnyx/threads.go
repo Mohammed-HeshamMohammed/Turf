@@ -325,9 +325,11 @@ func (s *server) checkWaitingPeriodically(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if err := s.checkWaiting(ctx); err != nil {
-				log.Printf("WARN unanswered texts: %v", err)
-			}
+			s.onlyOne(ctx, "unanswered_texts", func(ctx context.Context) {
+				if err := s.checkWaiting(ctx); err != nil {
+					log.Printf("WARN unanswered texts: %v", err)
+				}
+			})
 		}
 	}
 }

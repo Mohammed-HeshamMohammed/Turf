@@ -209,6 +209,36 @@
           "context": ".",
           "dockerfile": "services/telnyx/Dockerfile",
           "deploy": { "coolify": "hnro3xava3rvdwa5g3why6as" }
+        },
+        {
+          "name": "cw-telnyx-phone-api",
+          "context": ".",
+          "dockerfile": "services/telnyx/Dockerfile.phone-api"
+        },
+        {
+          "name": "cw-telnyx-phone-webhooks",
+          "context": ".",
+          "dockerfile": "services/telnyx/Dockerfile.phone-webhooks"
+        },
+        {
+          "name": "cw-telnyx-phone-jobs",
+          "context": ".",
+          "dockerfile": "services/telnyx/Dockerfile.phone-jobs"
+        },
+        {
+          "name": "cw-telnyx-sms-api",
+          "context": ".",
+          "dockerfile": "services/telnyx/Dockerfile.sms-api"
+        },
+        {
+          "name": "cw-telnyx-sms-webhooks",
+          "context": ".",
+          "dockerfile": "services/telnyx/Dockerfile.sms-webhooks"
+        },
+        {
+          "name": "cw-telnyx-sms-jobs",
+          "context": ".",
+          "dockerfile": "services/telnyx/Dockerfile.sms-jobs"
         }
       ]
     },

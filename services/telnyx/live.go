@@ -307,12 +307,14 @@ func (s *server) checkCallbacksPeriodically(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if err := s.checkCallbacks(ctx); err != nil {
-				log.Printf("WARN callbacks due: %v", err)
-			}
-			if err := s.forgetOldCalls(ctx); err != nil {
-				log.Printf("WARN removing old captions: %v", err)
-			}
+			s.onlyOne(ctx, "callbacks", func(ctx context.Context) {
+				if err := s.checkCallbacks(ctx); err != nil {
+					log.Printf("WARN callbacks due: %v", err)
+				}
+				if err := s.forgetOldCalls(ctx); err != nil {
+					log.Printf("WARN removing old captions: %v", err)
+				}
+			})
 		}
 	}
 }

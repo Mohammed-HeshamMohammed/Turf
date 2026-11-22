@@ -117,6 +117,7 @@ jobs:
       must_pass: |
         --- PASS: TestEveryCallScenarioLogsTheRightOutcomeOnceWhateverTheWebhookOrder
         --- PASS: TestTextsAreConversationsDeliveryMovesForwardAndStopIsObeyed
+        --- PASS: TestACallPlaysThroughTheSplitContainers
 
   auth:
     needs: changes

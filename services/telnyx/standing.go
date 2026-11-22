@@ -171,9 +171,24 @@ func (s *server) carrierPeriodically(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			s.advanceAll(ctx)
-			s.judgeAll(ctx)
-			s.eraseRequested(ctx) // step 44: numbers deleted on a person's request
+			s.onlyOne(ctx, "carrier", func(ctx context.Context) {
+				s.advanceAll(ctx)
+				s.judgeAll(ctx)
+			})
+		}
+	}
+}
+
+// erasePeriodically removes, every ten minutes, the numbers the CRM lists as deleted on a person's request (step 44).
+func (s *server) erasePeriodically(ctx context.Context) {
+	t := time.NewTicker(10 * time.Minute)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			s.onlyOne(ctx, "erasures", s.eraseRequested)
 		}
 	}
 }

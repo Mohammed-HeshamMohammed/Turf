@@ -11,7 +11,7 @@ export const images = [
  ["services/gateway", "Gateway"], ["services/mcp", "MCP"], ["services/crm-core", "CRM core"], ["services/assistant", "Assistant"],
  ["services/grafana-proxy", "Grafana proxy"], ["services/alert-relay", "Alert relay"], ["services/notifications", "Notifications"],
  ["services/live", "Live server"], ["services/telnyx", "Dialer SMS"], ["services/importing-lists", "Importing lists"],
- ["services/importing-worker", "Importing worker"], ["services/crm-core", "CRM merge", "Dockerfile.merge"], ["services/crm-core", "CRM outbox", "Dockerfile.outbox"],
+ ["services/importing-worker", "Importing worker"], ["services/crm-core", "CRM merge", "Dockerfile.merge"], ["services/crm-core", "CRM outbox", "Dockerfile.outbox"], ["services/telnyx", "Telnyx phone API", "Dockerfile.phone-api"], ["services/telnyx", "Telnyx phone webhooks", "Dockerfile.phone-webhooks"], ["services/telnyx", "Telnyx phone jobs", "Dockerfile.phone-jobs"], ["services/telnyx", "Telnyx SMS API", "Dockerfile.sms-api"], ["services/telnyx", "Telnyx SMS webhooks", "Dockerfile.sms-webhooks"], ["services/telnyx", "Telnyx SMS jobs", "Dockerfile.sms-jobs"],
  ["services/messaging", "Messaging"], ["services/learning", "Learning"],
 ];
 export const containers = [
