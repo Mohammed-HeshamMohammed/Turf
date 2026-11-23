@@ -321,7 +321,10 @@ func TestTheChallengeOpensAFreshSessionOnce(t *testing.T) {
 	w := newWorld(t)
 	// The same right code sent several times at once opens exactly one session. The race is run many times, each with its own
 	// account and challenge, so a test that passes by luck of timing fails here instead.
-	const rounds, answers = 30, 6
+	//
+	// As many answers as a challenge allows tries, no more: an answer over the limit ends the challenge (429), and when it lands
+	// before the right one completes, nobody signs in. That is the safe outcome for the server, but it is not what this test checks.
+	const rounds, answers = 30, maxTries
 	var code string
 	for round := 0; round < rounds; round++ {
 		email := fmt.Sprintf("sami%d@example.com", round)
