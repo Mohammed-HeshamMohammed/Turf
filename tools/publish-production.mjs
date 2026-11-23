@@ -102,7 +102,15 @@ function checkPassed(root, sha, name) {
 /** The note at the root of each branch. Named readme.md so GitHub shows it on the branch's page. */
 const NOTE = "readme.md";
 
-function note(component, { ref, short, date, files, content }) {
+/**
+ * The content id a branch was last made with, from its readme's table row (`| Content id | \`<id>\` |`) or, for a branch without a
+ * readme, its commit message (`Content id: <id>`). "" when there is none, so the branch is made again.
+ */
+export function contentIdIn(text) {
+  return String(text ?? "").match(/Content id(?::|\s*\|)\s*`?([0-9a-f]{40})/)?.[1] ?? "";
+}
+
+export function note(component, { ref, short, date, files, content }) {
   const images = (component.images ?? []).map(i => `| \`${i.name}\` | \`${i.dockerfile}\` | ${i.deploy?.coolify ? `Coolify app \`${i.deploy.coolify}\`${i.deploy.setting ? ` (setting \`${i.deploy.setting}\`)` : ""}` : "not deployed by itself yet"} |`);
   return `# ${component.title}
 
@@ -258,7 +266,7 @@ function run() {
     let before = "";
     try {
       // A branch with "note": false has no readme.md; its content id is kept in the commit message instead.
-      before = (component.note === false ? git(["log", "-1", "--format=%B", parent]) : git(["show", `${parent}:${NOTE}`])).match(/Content id: `?([0-9a-f]{40})/)?.[1] ?? "";
+      before = contentIdIn(component.note === false ? git(["log", "-1", "--format=%B", parent]) : git(["show", `${parent}:${NOTE}`]));
     } catch {
       before = "";
     }
