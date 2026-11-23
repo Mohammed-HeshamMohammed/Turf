@@ -38,6 +38,8 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
+          # A push to main that changed only docs runs no part (tools/ci-parts.mjs, docsOnly).
+          BEFORE: ${{ github.event.before }}
         run: node "tools/ci-parts.mjs" >> "$GITHUB_OUTPUT"
 
   # Go and Python services, each through service-check.yml.

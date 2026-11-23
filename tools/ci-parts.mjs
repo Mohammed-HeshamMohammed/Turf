@@ -45,12 +45,49 @@ export function partsFor(files, { all = false } = {}) {
   return Object.keys(PARTS).filter(part => PARTS[part].some(prefix => files.some(f => f === prefix || f.startsWith(prefix))));
 }
 
+/**
+ * True when a change is only documentation: files under docs/ and Markdown files at the repository root (README, AGENTS,
+ * SECURITY). Nothing builds from these, so they run no tests and build no image. Markdown elsewhere is not counted: the website
+ * builds its legal pages from .md files, and services keep READMEs their tests and tools read.
+ */
+export function docsOnly(files) {
+  return files.length > 0 && files.every(f => f.startsWith("docs/") || (!f.includes("/") && f.endsWith(".md")));
+}
+
+const NO_COMMIT = /^0+$/;
+const changedFiles = range =>
+  execFileSync("git", ["diff", "--name-only", "--no-renames", range], { encoding: "utf8", maxBuffer: 1 << 26 }).split("\n").filter(Boolean);
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const { EVENT = "", BASE = "" } = process.env;
-  let parts;
-  if (EVENT === "pull_request" && BASE) {
-    const files = execFileSync("git", ["diff", "--name-only", "--no-renames", `${BASE}...HEAD`], { encoding: "utf8", maxBuffer: 1 << 26 }).split("\n").filter(Boolean);
-    parts = partsFor(files);
-  } else parts = partsFor([], { all: true });
-  console.log(`parts=${JSON.stringify(parts)}`);
+  const { EVENT = "", BASE = "", BEFORE = "" } = process.env;
+  // --docs-only <commit>: whether that commit (against its first parent, the previous main for a merge) changed only docs
+  // (.github/workflows/images.yml builds no image then). Prints docs_only=true|false.
+  const at = process.argv.indexOf("--docs-only");
+  if (at > 0) {
+    const commit = process.argv[at + 1];
+    let only = false;
+    try {
+      only = docsOnly(changedFiles(`${commit}^1..${commit}`));
+    } catch {
+      only = false;
+    }
+    console.log(`docs_only=${only}`);
+  } else {
+    let parts;
+    if (EVENT === "pull_request" && BASE) parts = partsFor(changedFiles(`${BASE}...HEAD`));
+    else {
+      // A push to main runs everything, unless the push changed only docs. Without the previous commit (a new branch, a
+      // history that cannot be read) it runs everything.
+      let only = false;
+      if (EVENT === "push" && BEFORE && !NO_COMMIT.test(BEFORE)) {
+        try {
+          only = docsOnly(changedFiles(`${BEFORE}..HEAD`));
+        } catch {
+          only = false;
+        }
+      }
+      parts = only ? [] : partsFor([], { all: true });
+    }
+    console.log(`parts=${JSON.stringify(parts)}`);
+  }
 }

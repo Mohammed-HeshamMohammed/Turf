@@ -52,6 +52,11 @@ and a branch whose files did not change is left alone (its **content id**, the t
 refuses a commit whose **CI summary** has not passed on GitHub. `desktop-app-production` and `skip-engine-production` also wait for
 **Desktop summary** (`desktop.yml`). It reads the local `main`, so update it first (`git switch main && git pull`).
 
+**Docs never build or release anything.** A change of only `docs/` and the Markdown files at the repository root (README, AGENTS,
+SECURITY) runs no tests on `main` (CI summary still passes) and builds no image (`tools/ci-parts.mjs`, `docsOnly`). Images never
+hold `docs/`: a branch that carries a guide (Grafana's) still gets it, but the image's content id leaves it out, so editing a doc
+never rebuilds or redeploys an image. Markdown elsewhere is not docs: the website builds its legal pages from `.md` files.
+
 ```bash
 node tools/publish-production.mjs --list                    # what each branch holds
 node tools/publish-production.mjs                           # refresh every branch
