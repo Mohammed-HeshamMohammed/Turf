@@ -22,6 +22,7 @@ browser / desktop app ──► gateway (the one public entry) ──► auth ·
 
 | You want to | Read |
 | --- | --- |
+| Know who does what, and find work to take | [team/](team/README.md) (the people, the diagram, and unassigned [tasks](team/tasks/README.md)) |
 | Find your way around the code | [README.md](../README.md) (the folders) and each service's own `README.md` |
 | Know why things are the way they are | [The decision list (D-numbers)](plans/people-teams-chats-clients/09-repository-and-releases.md) |
 | Change code and get it to `main` | [AGENTS.md](../AGENTS.md): branch, pull request, CI summary, merge commit |
@@ -47,6 +48,7 @@ browser / desktop app ──► gateway (the one public entry) ──► auth ·
   runtime logs, secrets and security upkeep.
 - `docs/pricing-and-market/` holds the subscription side: tiers and seats, each feature's value, cost and price
   (`features/`), currencies, payment methods, usage credits, custom plans and the competitor research behind them.
+- `docs/team/` holds the team: who owns what, who decides what, and the task lists waiting to be taken.
 - `docs/product/` says what Caller Whale is, for whom and why.
 - `docs/design/` holds the website's look (theme, layout sheets, mockup); `docs/assets/screenshots/` the app screenshots.
 - `docs/legal/` holds the legal package, with the law research in `legal/research/`.
