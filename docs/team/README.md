@@ -17,7 +17,7 @@ flowchart TB
         direction TB
         COO["<b>Magdy</b><br/>Co-founder · COO and Chief of Staff<br/><i>Project manager</i>"]
         CFO["<b>Malaa</b><br/>CFO · Head of US Operations<br/><i>Finance and operations</i>"]
-        CPO["<b>Rana</b><br/>Product and Research Lead<br/><i>Research analyst · Compliance</i>"]
+        CPO["<b>Rana</b><br/>Product and Research Lead<br/><i>Technical product manager · AI · Compliance</i>"]
         CRO["<b>JooJoo</b><br/>CRO · Head of Customer Success<br/><i>Sales and support</i>"]
         CHRO["<b>Geeha</b><br/>CHRO · Head of Brand and Community<br/><i>People, hiring, marketing</i>"]
     end
@@ -88,7 +88,7 @@ flowchart TB
         T2["Code review, technical guidance<br/><b>Reem</b>"]
         T3["Infrastructure decisions<br/><b>Eslam</b>"]
         T4["Security decisions<br/><b>Joe</b>"]
-        T5["Tool and supplier research<br/><b>Rana</b>"]
+        T5["Feature specs, the API contract,<br/>the AI assistant, tool research<br/><b>Rana</b>"]
         T6["Technology bill<br/><b>Malaa</b>"]
     end
 
@@ -111,20 +111,21 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    MO["<b>Mohammed</b><br/>until Reem knows Go"] --> G1["crm-core · crm-merge · crm-outbox<br/>auth · authz · messaging<br/>assistant · mcp"]
+    MO["<b>Mohammed</b><br/>until Reem knows Go"] --> G1["crm-core · crm-merge · crm-outbox<br/>auth · authz · messaging<br/>assistant · mcp (the Go code)"]
     RE["<b>Reem</b>"] --> G2["apps/crm (CRM web app)<br/>apps/website"]
     IS["<b>Islam</b>"] --> G3["dialer-sms · six telnyx-*<br/>centrifugo (live)"]
     OM["<b>Omar</b>"] --> G4["skip-engine · importing-lists<br/>importing-worker · learning"]
     ES["<b>Eslam</b>"] --> G5["Coolify and the VPS · CI and images<br/>production branches · monitoring<br/>alert-relay · backups · databases"]
     JO["<b>Joe</b>"] --> G6["reviews gateway · auth · authz<br/>grafana-proxy · Cloudflare · secrets"]
     HU["<b>Hussein</b>"] --> G7["checks by hand · test cases<br/>release sign-off"]
+    RA["<b>Rana</b>"] --> G9["assistant · mcp: prompts, tools, AI tests<br/>contracts/ (API and events)<br/>feature specs · product numbers (SQL)"]
     NO["<b>No owner yet</b>"] --> G8["billing (parked)<br/>desktop app (parked)<br/>mobile app (Geeha, later)"]
 
     classDef person fill:#1f3a5f,stroke:#1f3a5f,color:#ffffff
     classDef owned fill:#eaf6ee,stroke:#5aa36f,color:#12301c
     classDef none fill:#f4f4f4,stroke:#9a9a9a,color:#333333,stroke-dasharray:4 3
-    class MO,RE,IS,OM,ES,JO,HU person
-    class G1,G2,G3,G4,G5,G6,G7 owned
+    class MO,RE,IS,OM,ES,JO,HU,RA person
+    class G1,G2,G3,G4,G5,G6,G7,G9 owned
     class NO,G8 none
 ```
 
@@ -154,7 +155,7 @@ flowchart LR
 | **Mohammed** | Founder · CEO · CTO | CEO (CTO passes to Reem) | Built everything so far | Direction, final decisions, architecture and the D-numbers, approving `production`, secrets in Coolify, the Go backend until Reem takes it |
 | **Magdy** | Co-founder · COO and Chief of Staff | — | Carries out Mohammed's direction faithfully | The task board, weekly plan and status, chasing blockers, release checks, keeping `docs/plans/` and the decision list current, admin and contracts |
 | **Malaa** | CFO and Head of US Operations | — | Finance; contacts in the US | Budget and runway, the US company, bank, taxes and accountant, Paddle and Stripe accounts, supplier deals, investors and partnerships |
-| **Rana** | Product and Research Lead (and Compliance Lead) | CPO | Researches anything fast and precisely; fresh graduate | Research before each decision, tool and supplier comparisons, competitors and pricing proposals, `docs/legal/research/`, the lawyer's questions |
+| **Rana** | Product and Research Lead (and Compliance Lead) · technical product manager | CPO | Researches anything fast and precisely; fresh graduate who has taken in a great deal of technical material | Research before each decision, tool and supplier comparisons, competitors and pricing proposals, `docs/legal/research/`, the lawyer's questions; **technical:** the feature specs with their acceptance checks, the API contract (`contracts/api-v1.yaml`, `contracts/events.md`), the AI assistant's prompts, tools and tests (`assistant`, `mcp`; the Go with Mohammed), product numbers in SQL with Omar, the anti-cloning work with Joe |
 | **JooJoo** | CRO and Head of Customer Success | — | Has dealt with customers the most | First agencies and beta testers, demos and sales, onboarding and support, customer feedback to Rana |
 | **Geeha** | CHRO and Head of Brand and Community | Head of Mobile | Talks well, convinces, good with people; started with Dart | Hiring and onboarding, culture, marketing and social, events and demos with JooJoo; learns Flutter for the mobile app |
 
@@ -195,6 +196,8 @@ The CEO's and CTO's work is shared out so that Mohammed decides and the others c
 | Hiring, onboarding, culture, marketing, the brand | **Geeha** |
 | Code review and technical guidance | **Reem** (frontend, Python), **Joe** (security), **Eslam** (infrastructure) |
 | Technology and supplier comparisons before building | **Rana** |
+| Feature specs and acceptance checks; the API contract; the AI assistant's behaviour | **Rana**, with Reem (code) and Hussein (tests) |
+| Protecting the app from being copied: the licence terms (with the lawyer) and the technical measures (with Joe) | **Rana** + **Joe** |
 | Finding engineers; the technical interview | **Geeha**; **Reem** or **Mohammed** |
 
 ## Not covered yet

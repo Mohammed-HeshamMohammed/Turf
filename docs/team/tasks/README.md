@@ -12,9 +12,10 @@ takes one writes their name in **Taken by**, and the task moves through the stat
 | Web screens | [web-frontend.md](web-frontend.md) | Reem |
 | Data and imports | [data.md](data.md) | Omar |
 | Infrastructure | [infrastructure.md](infrastructure.md) | Eslam |
-| Security | [security.md](security.md) | Joe |
+| Security | [security.md](security.md) | Joe (anti-cloning with Rana) |
 | Testing | [testing.md](testing.md) | Hussein |
-| AI and connections | [ai-and-connections.md](ai-and-connections.md) | Mohammed, Reem |
+| AI and connections | [ai-and-connections.md](ai-and-connections.md) | Rana (prompts, tools, tests), Mohammed (Go) |
+| Product specs and the API contract | [product-specs.md](product-specs.md) | Rana |
 | Mobile and desktop (parked) | [mobile-and-desktop.md](mobile-and-desktop.md) | Geeha later |
 
 ## How a task is written
