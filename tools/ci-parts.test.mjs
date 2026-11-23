@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { PARTS, partsFor } from "./ci-parts.mjs";
+import { PARTS, docsOnly, partsFor } from "./ci-parts.mjs";
 
 test("a change runs its part and what depends on it", () => {
   assert.deepEqual(partsFor(["services/crm-core/main.go"]), ["crm-core", "tools"]);
@@ -17,4 +17,13 @@ test("docs alone run nothing; CI files, main and manual runs run everything", ()
   assert.deepEqual(partsFor(["docs/plans/x.md", "README.md"]), []);
   assert.deepEqual(partsFor([".github/workflows/ci.yml"]), Object.keys(PARTS));
   assert.deepEqual(partsFor([], { all: true }), Object.keys(PARTS));
+});
+
+test("only docs/ and root Markdown count as docs; Markdown the apps build from does not", () => {
+  assert.equal(docsOnly(["docs/team/README.md", "docs/legal/research/state-operating-rules.xlsx", "AGENTS.md"]), true);
+  assert.equal(docsOnly(["docs/plans/x.md", "services/auth/main.go"]), false);
+  // The website builds its legal pages from these, and services' READMEs sit beside their code.
+  assert.equal(docsOnly(["apps/website/src/legal/terms.md"]), false);
+  assert.equal(docsOnly(["services/billing/README.md"]), false);
+  assert.equal(docsOnly([]), false);
 });

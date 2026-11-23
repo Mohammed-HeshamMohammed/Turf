@@ -2,7 +2,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { pruneWorkspace, rewriteDockerfile, checksVerdict, pathLabel } from "./publish-production.mjs";
+import { pruneWorkspace, rewriteDockerfile, checksVerdict, pathLabel, contentIdIn, note } from "./publish-production.mjs";
+
+test("the content id is read back from the branch's own readme and from a commit message, so an unchanged branch is left alone", () => {
+  const id = "073d87413114f8b88460cdb29925fcfa1d3d51a4";
+  const readme = note({ title: "Website", paths: ["apps/website"], build: "npm test" }, { ref: "main", short: "e8966c3", date: "2026-11-23", files: 3, content: id });
+  assert.equal(contentIdIn(readme), id);
+  assert.equal(contentIdIn(`Desktop app: production snapshot of main e8966c3\n\nContent id: ${id}`), id);
+  assert.equal(contentIdIn(`Content id: \`${id}\``), id);
+  assert.equal(contentIdIn("no id here"), "");
+  assert.equal(contentIdIn(undefined), "");
+});
 
 const cargo = `# One workspace.
 [workspace]
