@@ -234,14 +234,18 @@ function run() {
     // --export: write the branch's files (without the note) to <dir>/<name> for an image build, and <dir>/<name>.content with the
     // content id; no branch is touched (.github/workflows/images.yml).
     if (exportDir) {
+      // An image never holds docs/ (a branch may carry a guide for whoever reads it, e.g. Grafana's), so editing a doc never
+      // changes an image's content id and never rebuilds or redeploys it.
+      git(["rm", "--cached", "-r", "-q", "--ignore-unmatch", "docs"], { env });
+      const imageContent = git(["write-tree"], { env }).trim();
       const out = resolve(exportDir, component.name);
       rmSync(out, { recursive: true, force: true });
       mkdirSync(out, { recursive: true });
       // Piped, with the folder as tar's working directory: GNU tar reads "X:\..." as a remote host.
-      const archive = execFileSync("git", ["archive", "--format=tar", content], { cwd: root, maxBuffer: 1 << 30 });
+      const archive = execFileSync("git", ["archive", "--format=tar", imageContent], { cwd: root, maxBuffer: 1 << 30 });
       execFileSync("tar", ["-xf", "-"], { cwd: out, input: archive, maxBuffer: 1 << 30 });
-      writeFileSync(join(out, "..", `${component.name}.content`), content + "\n");
-      console.log(`${component.name}: exported ${content}`);
+      writeFileSync(join(out, "..", `${component.name}.content`), imageContent + "\n");
+      console.log(`${component.name}: exported ${imageContent}`);
       continue;
     }
     const ref = `refs/heads/${component.name}`;
