@@ -319,38 +319,50 @@ func TestParallelGuessesCannotGetMoreThanFiveTries(t *testing.T) {
 
 func TestTheChallengeOpensAFreshSessionOnce(t *testing.T) {
 	w := newWorld(t)
-	account := w.signUp("sami@example.com")
-	secret, _ := w.addDevice(account.access(), "Phone")
-	challenge, _ := w.challengeFor("sami@example.com")
-	code := current(t, secret)
-	results := make(chan answer, 6)
-	var wg sync.WaitGroup
-	for i := 0; i < 6; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			results <- w.answerChallenge(challenge, "totp", code)
-		}()
-	}
-	wg.Wait()
-	close(results)
-	ok := 0
-	for a := range results {
-		if a.status == 200 {
-			ok++
-			if c := w.claimsOf(a); !c.MFA || c.Provider != "password" {
-				t.Fatalf("%+v", c)
+	// The same right code sent several times at once opens exactly one session. The race is run many times, each with its own
+	// account and challenge, so a test that passes by luck of timing fails here instead.
+	//
+	// As many answers as a challenge allows tries, no more: an answer over the limit ends the challenge (429), and when it lands
+	// before the right one completes, nobody signs in. That is the safe outcome for the server, but it is not what this test checks.
+	const rounds, answers = 30, maxTries
+	var code string
+	for round := 0; round < rounds; round++ {
+		email := fmt.Sprintf("sami%d@example.com", round)
+		account := w.signUp(email)
+		secret, _ := w.addDevice(account.access(), "Phone")
+		challenge, _ := w.challengeFor(email)
+		code = current(t, secret)
+		results := make(chan answer, answers)
+		var wg sync.WaitGroup
+		for i := 0; i < answers; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				results <- w.answerChallenge(challenge, "totp", code)
+			}()
+		}
+		wg.Wait()
+		close(results)
+		ok := 0
+		var statuses []int
+		for a := range results {
+			statuses = append(statuses, a.status)
+			if a.status == 200 {
+				ok++
+				if c := w.claimsOf(a); !c.MFA || c.Provider != "password" {
+					t.Fatalf("%+v", c)
+				}
 			}
 		}
-	}
-	if ok != 1 {
-		t.Fatalf("%d sessions opened from one challenge", ok)
+		if ok != 1 {
+			t.Fatalf("round %d: %d sessions opened from one challenge (answers: %v)", round, ok, statuses)
+		}
 	}
 	// A challenge that never existed, or has run out.
 	if a := w.answerChallenge("nonsense", "totp", code); a.status != 403 {
 		t.Fatalf("unknown: %d", a.status)
 	}
-	c2, _ := w.challengeFor("sami@example.com")
+	c2, _ := w.challengeFor("sami0@example.com")
 	clock = func() time.Time { return time.Now().Add(11 * time.Minute) }
 	if a := w.answerChallenge(c2, "totp", code); a.status != 403 || !strings.Contains(a.str("error"), "expired") {
 		t.Fatalf("expired: %d %v", a.status, a.body)

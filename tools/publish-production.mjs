@@ -102,7 +102,15 @@ function checkPassed(root, sha, name) {
 /** The note at the root of each branch. Named readme.md so GitHub shows it on the branch's page. */
 const NOTE = "readme.md";
 
-function note(component, { ref, short, date, files, content }) {
+/**
+ * The content id a branch was last made with, from its readme's table row (`| Content id | \`<id>\` |`) or, for a branch without a
+ * readme, its commit message (`Content id: <id>`). "" when there is none, so the branch is made again.
+ */
+export function contentIdIn(text) {
+  return String(text ?? "").match(/Content id(?::|\s*\|)\s*`?([0-9a-f]{40})/)?.[1] ?? "";
+}
+
+export function note(component, { ref, short, date, files, content }) {
   const images = (component.images ?? []).map(i => `| \`${i.name}\` | \`${i.dockerfile}\` | ${i.deploy?.coolify ? `Coolify app \`${i.deploy.coolify}\`${i.deploy.setting ? ` (setting \`${i.deploy.setting}\`)` : ""}` : "not deployed by itself yet"} |`);
   return `# ${component.title}
 
@@ -234,14 +242,18 @@ function run() {
     // --export: write the branch's files (without the note) to <dir>/<name> for an image build, and <dir>/<name>.content with the
     // content id; no branch is touched (.github/workflows/images.yml).
     if (exportDir) {
+      // An image never holds docs/ (a branch may carry a guide for whoever reads it, e.g. Grafana's), so editing a doc never
+      // changes an image's content id and never rebuilds or redeploys it.
+      git(["rm", "--cached", "-r", "-q", "--ignore-unmatch", "docs"], { env });
+      const imageContent = git(["write-tree"], { env }).trim();
       const out = resolve(exportDir, component.name);
       rmSync(out, { recursive: true, force: true });
       mkdirSync(out, { recursive: true });
       // Piped, with the folder as tar's working directory: GNU tar reads "X:\..." as a remote host.
-      const archive = execFileSync("git", ["archive", "--format=tar", content], { cwd: root, maxBuffer: 1 << 30 });
+      const archive = execFileSync("git", ["archive", "--format=tar", imageContent], { cwd: root, maxBuffer: 1 << 30 });
       execFileSync("tar", ["-xf", "-"], { cwd: out, input: archive, maxBuffer: 1 << 30 });
-      writeFileSync(join(out, "..", `${component.name}.content`), content + "\n");
-      console.log(`${component.name}: exported ${content}`);
+      writeFileSync(join(out, "..", `${component.name}.content`), imageContent + "\n");
+      console.log(`${component.name}: exported ${imageContent}`);
       continue;
     }
     const ref = `refs/heads/${component.name}`;
@@ -254,7 +266,7 @@ function run() {
     let before = "";
     try {
       // A branch with "note": false has no readme.md; its content id is kept in the commit message instead.
-      before = (component.note === false ? git(["log", "-1", "--format=%B", parent]) : git(["show", `${parent}:${NOTE}`])).match(/Content id: `?([0-9a-f]{40})/)?.[1] ?? "";
+      before = contentIdIn(component.note === false ? git(["log", "-1", "--format=%B", parent]) : git(["show", `${parent}:${NOTE}`]));
     } catch {
       before = "";
     }
