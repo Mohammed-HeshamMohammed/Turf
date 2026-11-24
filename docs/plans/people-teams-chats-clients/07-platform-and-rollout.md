@@ -9,7 +9,7 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | # | Decision | Step |
 | --- | --- | --- |
 | D4 | The web cache refreshes automatically; a manual reload stays as a fallback. The cache lives in the open tab only (D194). | - |
-| D38 | At sign-in the person chooses "This is my device" (their sign-in is remembered, D188) or "Shared device" (they are signed out when the tab closes). On the web no lead data is ever saved in the browser either way (D194). | - |
+| D38 | At sign-in a "Keep me signed in" box, ticked by default, remembers the sign-in (D188); unticked, as on a shared device, they are signed out when the tab closes (owner, 2026-11-24: one box instead of two choices). On the web no lead data is ever saved in the browser either way (D194). | - |
 | D70 | Handing over ownership completes only after the new owner adds their own payment method. The old owner's card is removed and never charged again. | 13 |
 | D80 | When payment fails or the plan ends, a grace period (7 days to start) keeps everything working and warns the owner. After it, members can read but not work and invitations stop, until the owner pays. | 18 |
 | D81 | Lowering the plan below the number of members cannot complete until the owner picks who keeps a seat. The others are suspended, not removed, and their work is handed on. *Settled by D365: treated like any suspension.* | 18 |
