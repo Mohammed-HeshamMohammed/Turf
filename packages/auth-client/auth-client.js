@@ -203,9 +203,11 @@ export function createAuth({ base, storage = globalThis.localStorage, tabStorage
       if (!fresh && known && now() - known.at < ME_MS) return known.request;
       const request = withToken("GET", "/v1/me");
       known = { at: now(), request };
-      // A failed answer is never remembered.
-      request.catch(() => {
+      // A failed answer is never remembered. "Sign in first" means the session was closed (signed out elsewhere, idle, revoked)
+      // although the access token still looks valid: this device is signed out too, so the page stops asking.
+      request.catch(reason => {
         if (known?.request === request) dropMe();
+        if (reason?.status === 401 && reason.code === "unauthenticated") forget();
       });
       return request;
     },

@@ -328,3 +328,18 @@ test("a shared device's sign-in is kept only in this tab, and a Google sign-in r
   assert.equal(storage.map.get("callerwhale.auth.refresh"), "R2");
   assert.equal(tabStorage.map.has("callerwhale.auth.refresh"), false, "my own device: kept, and the tab's copy dropped");
 });
+
+test("a /v1/me refused because the session closed signs this device out", async () => {
+  const storage = memoryStorage();
+  let changes = 0;
+  const { fetchImpl } = fakeService({
+    "/v1/sessions": tokens("A1", "R1", 900),
+    "/v1/me": { status: 401, body: { error: "Sign in first.", code: "unauthenticated" } },
+  });
+  const auth = createAuth({ base: "http://auth.example", storage, fetchImpl, onChange: () => changes++ });
+  await auth.signIn("s@example.com", "pw");
+  await assert.rejects(auth.me());
+  assert.equal(auth.signedIn(), false);
+  assert.equal(storage.map.has("callerwhale.auth.refresh"), false);
+  assert.equal(changes, 2, "signed in, then signed out");
+});
