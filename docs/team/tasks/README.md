@@ -8,7 +8,7 @@ takes one writes their name in **Taken by**, and the task moves through the stat
 | Company and business | [business.md](business.md) | Malaa, JooJoo, Geeha, Magdy |
 | Legal and compliance | [legal.md](legal.md) | Rana, with the lawyer |
 | CRM backend (Go) | [crm-backend.md](crm-backend.md) | Mohammed, Reem as she learns Go |
-| Calls and texts | [calls-and-texts.md](calls-and-texts.md) | Islam (carriers, SIP), Mohammed (code) |
+| Calls and texts | [calls-and-texts.md](calls-and-texts.md) | Malaa (leads the mobile network), Islam (carriers, SIP setup), Mohammed (code) |
 | Web screens | [web-frontend.md](web-frontend.md) | Reem |
 | Data and imports | [data.md](data.md) | Omar (data), Mohammed and Reem (code for now) |
 | Infrastructure | [infrastructure.md](infrastructure.md) | Eslam |
