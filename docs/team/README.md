@@ -29,7 +29,7 @@ flowchart TB
     subgraph COMPANY["Running the company"]
         direction TB
         COO["<b>Magdy</b><br/>Co-founder · COO<br/><i>Leads engineering until a CTO is chosen</i>"]
-        CFO["<b>Malaa</b><br/>CFO<br/><i>Finance · the US company</i>"]
+        CFO["<b>Malaa</b><br/>CFO · Head of Mobile Network<br/><i>Finance · the US company · carriers</i>"]
         CPO["<b>Rana</b><br/>CPO<br/><i>Product · specs · AI · compliance</i>"]
         CRO["<b>JooJoo</b><br/>CRO<br/><i>Sales · customers · support</i>"]
         CHRO["<b>Geeha</b><br/>CHRO (light)<br/><i>People · and the mobile app</i>"]
@@ -50,6 +50,7 @@ flowchart TB
 
     CPO -. "specs · API · AI" .-> BUILD
     CHRO -. "mobile app" .-> BUILD
+    CFO -. "leads the mobile network" .-> TEL
 
     classDef top fill:#1f3a5f,stroke:#1f3a5f,color:#ffffff
     classDef company fill:#e8f1fb,stroke:#5b8fc7,color:#10243d
@@ -63,8 +64,8 @@ flowchart TB
 
 The five company leads report to Mohammed. The engineers report to Magdy day to day until a CTO is chosen; their technical
 questions go through him to Mohammed (the thick line). The outside help (lawyer, security tester, designer) is in the
-table below. Rana and Geeha sit on the company side but also build: Rana the specs, the API contract
-and the AI assistant, Geeha the mobile app.
+table below. Rana, Geeha and Malaa sit on the company side but also build: Rana the specs, the API contract
+and the AI assistant, Geeha the mobile app, and Malaa leads the mobile network, with Islam doing the hands-on setup.
 
 ### Who decides what
 
@@ -78,7 +79,7 @@ flowchart TB
     subgraph CO["Running the company: each decides in their area"]
         direction TB
         D1["<b>Magdy</b><br/>who takes which task, the weekly plan,<br/>release dates, day-to-day engineering calls"]
-        D2["<b>Malaa</b><br/>spending up to the limit,<br/>supplier terms"]
+        D2["<b>Malaa</b><br/>spending up to the limit, supplier terms,<br/>carriers and the mobile network"]
         D3["<b>Rana</b><br/>what a feature does (its spec),<br/>the API contract, which tool to pick"]
         D4["<b>JooJoo</b><br/>which customers first,<br/>support answers"]
         D5["<b>Geeha</b><br/>onboarding new people,<br/>how the mobile app is built"]
@@ -87,7 +88,7 @@ flowchart TB
     subgraph PR["Building the product: each decides in their area"]
         direction TB
         D6["<b>Reem</b><br/>how the web code is written,<br/>review and merging"]
-        D7["<b>Islam</b><br/>carriers, numbers, SIP trunks"]
+        D7["<b>Islam</b><br/>the numbers and SIP setup,<br/>under Malaa"]
         D8["<b>Omar</b><br/>which data sources to use,<br/>and if they are good enough"]
         D9["<b>Eslam</b><br/>servers, CI, backups"]
         D10["<b>Joe</b><br/>security rules;<br/>can stop a release"]
@@ -119,7 +120,7 @@ flowchart LR
     O1["<b>Reem</b>"] --> A1["<b>Screens</b><br/>website · crm-web · crm (the app's screens)"]
     O2["<b>Mohammed</b><br/>Joe reviews"] --> A2["<b>Entry and accounts</b><br/>gateway · auth · authz · notifications"]
     O3["<b>Mohammed</b><br/>Reem learning Go"] --> A3["<b>CRM</b><br/>crm-core · crm-merge · crm-outbox · messaging"]
-    O4["<b>Islam</b>: carriers, numbers, SIP<br/><b>Mohammed</b>: the Go code"] --> A4["<b>Calls and texts</b><br/>six telnyx-* (dialer-sms until the switch)<br/>live (centrifugo)"]
+    O4["<b>Malaa</b>: leads the mobile network<br/><b>Islam</b>: numbers, SIP setup<br/><b>Mohammed</b>: the Go code"] --> A4["<b>Calls and texts</b><br/>six telnyx-* (dialer-sms until the switch)<br/>live (centrifugo)"]
     O5["<b>Omar</b>: the data and its quality<br/><b>Mohammed, Reem</b>: the code for now"] --> A5["<b>Data</b><br/>importing-lists · importing-worker<br/>learning · skip-engine"]
     O6["<b>Rana</b>: prompts, tools, tests<br/><b>Mohammed</b>: the Go code"] --> A6["<b>AI</b><br/>assistant · mcp"]
     O7["<b>Eslam</b><br/>Islam helps on the network"] --> A7["<b>Running it</b><br/>grafana-proxy · alert-relay<br/>Grafana, Prometheus, Loki · databases and backups"]
@@ -183,7 +184,7 @@ work. Whoever is not chosen keeps their title (Rana stays CPO; Reem leads the we
 | --- | --- | --- | --- | --- |
 | **Mohammed** | Founder · CEO | — | Built everything so far | Direction, final decisions, architecture and the D-numbers, approving `production`, secrets in Coolify, the Go backend until others take it, technical help for customers |
 | **Magdy** | Co-founder · COO | — | With Mohammed from the start; understands the system, follows pull requests, builds with AI and reviews | The task board, weekly plan and status, leading engineering day to day until a CTO is chosen, release checks, `docs/plans/` and the decision list, admin and contracts, backup on customer support |
-| **Malaa** | CFO | — | Thinks well about money; contacts in the US (he lives in Egypt) | Budget and runway, registering and running the US company through his contacts, bank, taxes and accountant, Paddle and Stripe accounts, supplier deals, investors |
+| **Malaa** | CFO · Head of Mobile Network | — | Thinks well about money; contacts in the US (he lives in Egypt); knows mobile networks best on the team | Budget and runway, registering and running the US company through his contacts, bank, taxes and accountant, Paddle and Stripe accounts, supplier deals, investors; **mobile network:** carriers, numbers, SIP trunks and 10DLC, leading Islam |
 | **Rana** | CPO | CTO candidate | Finds answers fast and precisely, often before being asked; studied mobile networks, Python and some machine learning | Research before each decision, compliance and the lawyer's questions, `docs/legal/research/`; **technical:** feature specs with their acceptance checks, the API contract (`contracts/`), the AI assistant's prompts, tools and tests, product numbers in SQL with Omar, anti-cloning with Joe |
 | **JooJoo** | CRO | — | Has dealt with US, foreign and Egyptian customers; good English | The waiting customers first, demos and sales, onboarding, first-line support on US hours, customer feedback to Rana |
 | **Geeha** | CHRO (light) | Head of Mobile | Good with people; started with Dart | Mainly: learning Flutter and building the mobile app. On the side: onboarding new people and the team's mood |
@@ -193,7 +194,7 @@ work. Whoever is not chosen keeps their title (Rana stays CPO; Reem leads the we
 | Person | Title now | Title later | Strength | Owns |
 | --- | --- | --- | --- | --- |
 | **Reem** | Lead Developer | CTO candidate | Full-stack, junior (React, JavaScript, Python, SQL and NoSQL) | `apps/crm`, `apps/crm-web`, `apps/website`; review of web code; learns Go on small `crm-core` tasks; helps on the Python importers |
-| **Islam (Legacy)** | Telephony and Network Engineer | Head of Telephony | CCNA, CCNP, mobile networks, works in DevOps; does not code yet | Telnyx setup, carriers, numbers, SIP trunks and 10DLC; studies core PS, SIP and VoIP; helps Eslam with networking. The Go code of `telnyx-*` stays with Mohammed |
+| **Islam (Legacy)** | Telephony and Network Engineer | Head of Telephony | CCNA, CCNP, mobile networks, works in DevOps; does not code yet | Under Malaa: Telnyx setup, numbers, SIP trunks and 10DLC by hand; studies core PS, SIP and VoIP; helps Eslam with networking. The Go code of `telnyx-*` stays with Mohammed |
 | **Omar** | Head of Data | — | Analyses large real-world data of the kind our customers use | Which data sources the skip engine and imports should use and how good they are; numbers and reports; grows into building `engines/skip-engine` and the importers |
 | **Eslam** | Head of Infrastructure | — | Has run Docker and Linux servers | Coolify and the VPS, CI and images, production branches, monitoring and `alert-relay`, backups, databases; on call when a server breaks |
 | **Joe** | Head of Security | CISO | Network security, hands-on testing and code review (CompTIA Network+ and Security+) | Security review of pull requests that touch `gateway`, `auth`, `authz`, `grafana-proxy`; Cloudflare and firewall; secret changes; [security upkeep](../operations/security-upkeep.md); anti-cloning with Rana |
@@ -224,13 +225,13 @@ work. Whoever is not chosen keeps their title (Rana stays CPO; Reem leads the we
 | Sales, onboarding, support, customer feedback | **JooJoo** |
 | Onboarding new people, the team's mood | **Geeha** |
 | Code review and technical guidance | **Reem** (web, Python), **Joe** (security), **Eslam** (infrastructure), **Mohammed** (Go) |
-| Carriers, numbers, SIP trunks, 10DLC | **Islam** |
+| Carriers, numbers, SIP trunks, 10DLC: the mobile network | **Malaa**, with Islam doing the setup |
 | The CTO choice, after version 1 | **Mohammed** |
 
 ## Not covered yet
 
 - **Go backend:** only Mohammed writes Go today, and about half the containers are Go. Reem learns it on small `crm-core` tasks.
 - **The Python importers and the skip engine:** written by Mohammed; Reem helps now, Omar takes them over as he starts building.
-- **Telnyx code:** Islam owns the calling setup but does not code yet, so the `telnyx-*` code stays with Mohammed.
+- **Telnyx code:** Malaa leads the mobile network and Islam does the setup, but neither codes yet, so the `telnyx-*` code stays with Mohammed.
 - **Desktop app (Rust, Tauri):** parked until the web version is done. No owner.
 - **Billing:** parked. When it starts, Reem builds it (Python), Malaa owns the accounts and Joe reviews it.
