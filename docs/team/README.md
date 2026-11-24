@@ -44,6 +44,7 @@ flowchart TB
     ENG --> TEL & DATA & OPS & SEC & QA
 
     COO -. "task board and follow-up" .-> BUILD
+    CPO -. "specs and the API contract" .-> ENG
     CPO -. "works with" .-> LAW
     SEC -. "works with" .-> PEN
     ENG -. "works with" .-> DES
@@ -62,71 +63,73 @@ flowchart TB
 ```
 
 Solid lines are who reports to whom. Magdy runs the day-to-day work of both sides: he turns Mohammed's decisions into tasks, hands
-them out and follows them up. Technical calls go up through Reem to Mohammed. The dotted lines to the outside are who works with
+them out and follows them up. Technical calls go up through Reem to Mohammed. Rana hands Reem the specs and the API contract to build from. The dotted lines to the outside are who works with
 the lawyer, the security tester and a designer.
 
 ### Who decides what
 
-Mohammed decides; the work under the CEO and CTO titles is carried by the others.
+Each lead decides inside their own area and tells Magdy. A decision goes up to Mohammed only when it touches the direction,
+the architecture, the law, money above Malaa's limit, or what goes to production.
 
 ```mermaid
 flowchart TB
-    M["<b>Mohammed</b><br/>direction · architecture<br/>money above the limit · legal<br/>approving production"]
+    M["<b>Mohammed decides</b><br/>direction · architecture · anything legal<br/>money above Malaa's limit · what goes to production"]
 
-    subgraph CEOWORK["The CEO's work"]
+    subgraph CO["Running the company: each decides in their area"]
         direction TB
-        W1["Running the week, goals, status<br/><b>Magdy</b>"]
-        W2["Budget, US company, bank,<br/>payment accounts, investors<br/><b>Malaa</b>"]
-        W3["What to build next, research,<br/>pricing, compliance<br/><b>Rana</b>"]
-        W4["Sales, onboarding, support<br/><b>JooJoo</b>"]
-        W5["Hiring, culture, marketing, brand<br/><b>Geeha</b>"]
+        D1["<b>Magdy</b><br/>who takes which task,<br/>the weekly plan, release dates"]
+        D2["<b>Malaa</b><br/>spending up to the limit,<br/>supplier terms"]
+        D3["<b>Rana</b><br/>what a feature does (its spec),<br/>the API contract, which tool to pick"]
+        D4["<b>JooJoo</b><br/>which customers first,<br/>support answers"]
+        D5["<b>Geeha</b><br/>hiring shortlists,<br/>marketing and posts"]
     end
 
-    subgraph CTOWORK["The CTO's work"]
+    subgraph PR["Building the product: each decides in their area"]
         direction TB
-        T1["Task board, release checks<br/><b>Magdy</b> with Hussein's sign-off"]
-        T2["Code review, technical guidance<br/><b>Reem</b>"]
-        T3["Infrastructure decisions<br/><b>Eslam</b>"]
-        T4["Security decisions<br/><b>Joe</b>"]
-        T5["Feature specs, the API contract,<br/>the AI assistant, tool research<br/><b>Rana</b>"]
-        T6["Technology bill<br/><b>Malaa</b>"]
+        D6["<b>Reem</b><br/>how code is written,<br/>review and merging"]
+        D7["<b>Islam · Omar</b><br/>how their containers work"]
+        D8["<b>Eslam</b><br/>servers, CI, backups"]
+        D9["<b>Joe</b><br/>security rules;<br/>can stop a release"]
+        D10["<b>Hussein</b><br/>a release passes or<br/>fails testing"]
     end
 
-    W1 ~~~ W2 ~~~ W3 ~~~ W4 ~~~ W5
-    T1 ~~~ T2 ~~~ T3 ~~~ T4 ~~~ T5 ~~~ T6
-    M --> CEOWORK
-    M --> CTOWORK
+    D1 ~~~ D2 ~~~ D3 ~~~ D4 ~~~ D5
+    D6 ~~~ D7 ~~~ D8 ~~~ D9 ~~~ D10
+    M -- "brings the rest up to Mohammed" --- CO
+    M -- "brings the rest up to Mohammed" --- PR
 
     classDef top fill:#1f3a5f,stroke:#1f3a5f,color:#ffffff
     classDef ceo fill:#e8f1fb,stroke:#5b8fc7,color:#10243d
     classDef cto fill:#eaf6ee,stroke:#5aa36f,color:#12301c
     class M top
-    class W1,W2,W3,W4,W5 ceo
-    class T1,T2,T3,T4,T5,T6 cto
-    style CEOWORK fill:#f7faff,stroke:#5b8fc7,color:#10243d
-    style CTOWORK fill:#f6fbf7,stroke:#5aa36f,color:#12301c
+    class D1,D2,D3,D4,D5 ceo
+    class D6,D7,D8,D9,D10 cto
+    style CO fill:#f7faff,stroke:#5b8fc7,color:#10243d
+    style PR fill:#f6fbf7,stroke:#5aa36f,color:#12301c
 ```
 
 ### Who owns which containers
 
+Every container, grouped by what it does, with its owner. Grey is parked. Joe reviews the security of the entry and accounts
+group, and Hussein tests all of it.
+
 ```mermaid
 flowchart LR
-    MO["<b>Mohammed</b><br/>until Reem knows Go"] --> G1["crm-core · crm-merge · crm-outbox<br/>auth · authz · messaging<br/>assistant · mcp (the Go code)"]
-    RE["<b>Reem</b>"] --> G2["apps/crm (CRM web app)<br/>apps/website"]
-    IS["<b>Islam</b>"] --> G3["dialer-sms · six telnyx-*<br/>centrifugo (live)"]
-    OM["<b>Omar</b>"] --> G4["skip-engine · importing-lists<br/>importing-worker · learning"]
-    ES["<b>Eslam</b>"] --> G5["Coolify and the VPS · CI and images<br/>production branches · monitoring<br/>alert-relay · backups · databases"]
-    JO["<b>Joe</b>"] --> G6["reviews gateway · auth · authz<br/>grafana-proxy · Cloudflare · secrets"]
-    HU["<b>Hussein</b>"] --> G7["checks by hand · test cases<br/>release sign-off"]
-    RA["<b>Rana</b>"] --> G9["assistant · mcp: prompts, tools, AI tests<br/>contracts/ (API and events)<br/>feature specs · product numbers (SQL)"]
-    NO["<b>No owner yet</b>"] --> G8["billing (parked)<br/>desktop app (parked)<br/>mobile app (Geeha, later)"]
+    O1["<b>Reem</b>"] --> A1["<b>Screens</b><br/>website · crm-web · crm (the app's screens)"]
+    O2["<b>Mohammed</b><br/>Joe reviews"] --> A2["<b>Entry and accounts</b><br/>gateway · auth · authz · notifications"]
+    O3["<b>Mohammed</b><br/>Reem learning Go"] --> A3["<b>CRM</b><br/>crm-core · crm-merge · crm-outbox · messaging"]
+    O4["<b>Islam</b>"] --> A4["<b>Calls and texts</b><br/>six telnyx-* (dialer-sms until the switch)<br/>live (centrifugo)"]
+    O5["<b>Omar</b>"] --> A5["<b>Data</b><br/>importing-lists · importing-worker<br/>learning · skip-engine"]
+    O6["<b>Rana</b><br/>Mohammed writes the Go"] --> A6["<b>AI</b><br/>assistant · mcp"]
+    O7["<b>Eslam</b>"] --> A7["<b>Running it</b><br/>grafana-proxy · alert-relay<br/>Grafana, Prometheus, Loki · databases and backups"]
+    O8["<b>No owner yet</b>"] --> A8["<b>Parked</b><br/>billing · crm-desktop · lists-desktop<br/>mobile app (Geeha, later)"]
 
     classDef person fill:#1f3a5f,stroke:#1f3a5f,color:#ffffff
-    classDef owned fill:#eaf6ee,stroke:#5aa36f,color:#12301c
+    classDef area fill:#eaf6ee,stroke:#5aa36f,color:#12301c
     classDef none fill:#f4f4f4,stroke:#9a9a9a,color:#333333,stroke-dasharray:4 3
-    class MO,RE,IS,OM,ES,JO,HU,RA person
-    class G1,G2,G3,G4,G5,G6,G7,G9 owned
-    class NO,G8 none
+    class O1,O2,O3,O4,O5,O6,O7 person
+    class A1,A2,A3,A4,A5,A6,A7 area
+    class O8,A8 none
 ```
 
 ### Where each person is heading
