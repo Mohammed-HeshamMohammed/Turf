@@ -1,7 +1,8 @@
 # The team
 
 Who is on Caller Whale, what each person owns, and who decides what. The work waiting to be done is in [tasks/](tasks/README.md),
-grouped by area and **not assigned to anyone yet**.
+grouped by area and **not assigned to anyone yet**. How a feature passes from Rana to Magdy to Reem, with their work drawn step by step, is in
+[how-the-work-flows.md](how-the-work-flows.md).
 
 Written 2026-11-24, from Mohammed's answers. Titles marked *later* are what a person grows into.
 
