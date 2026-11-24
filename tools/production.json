@@ -1,8 +1,9 @@
 {
-  "comment": "One production branch per part (docs/operations/production-branches.md). `checks`: GitHub checks that must have passed on the commit, besides CI summary, before the branch changes. `paths` are relative to `base` (an entry {\"from\": ..., \"to\": ...} puts that folder somewhere else in the branch, so a Coolify setting that names a path keeps working) (default 'Caller Whale CRM'); a branch holds only those, at those paths, plus .gitignore. `rust: true` adds the Cargo workspace file, cut down to the members present, and Cargo.lock (`rust: \"<folder>\"`: from and to that folder). The web apps, the services (step 50+51, with packages/go) and the desktop app use `base: \"\"` (the repository layout, apps/ since step 52), so their branches carry the npm workspace: the root package.json, its lock file and packages/ (D383, step 49); the desktop branch carries the root Rust workspace whole. `images`: the container images built from the branch's files (.github/workflows/images.yml, step 47): `context` and `dockerfile` are paths in the branch; `buildArgs` maps a build argument to the repository's Actions variable that holds it.",
+  "comment": "One production branch per part (docs/operations/production-branches.md). `branch: false`: no branch is kept any more, the part only defines the images built from main (Coolify runs the images; the branches were retired 2026-11-25). `checks`: GitHub checks that must have passed on the commit, besides CI summary, before the branch changes. `paths` are relative to `base` (an entry {\"from\": ..., \"to\": ...} puts that folder somewhere else in the branch, so a Coolify setting that names a path keeps working) (default 'Caller Whale CRM'); a branch holds only those, at those paths, plus .gitignore. `rust: true` adds the Cargo workspace file, cut down to the members present, and Cargo.lock (`rust: \"<folder>\"`: from and to that folder). The web apps, the services (step 50+51, with packages/go) and the desktop app use `base: \"\"` (the repository layout, apps/ since step 52), so their branches carry the npm workspace: the root package.json, its lock file and packages/ (D383, step 49); the desktop branch carries the root Rust workspace whole. `images`: the container images built from the branch's files (.github/workflows/images.yml, step 47): `context` and `dockerfile` are paths in the branch; `buildArgs` maps a build argument to the repository's Actions variable that holds it.",
   "components": [
     {
       "name": "website-production",
+      "branch": false,
       "envExample": "env/landing-web.production.example",
       "title": "Website (apps/website, callerwhale.com)",
       "base": "",
@@ -31,6 +32,7 @@
     },
     {
       "name": "crm-web-production",
+      "branch": false,
       "title": "CRM web app (apps/crm-web, app.callerwhale.com): the desktop frontend built for the browser",
       "base": "",
       "paths": [
@@ -64,6 +66,7 @@
     },
     {
       "name": "auth-backend-production",
+      "branch": false,
       "envExample": "env/auth.production.example",
       "title": "Authentication service (services/auth)",
       "base": "",
@@ -85,6 +88,7 @@
     },
     {
       "name": "notifications-backend-production",
+      "branch": false,
       "envExample": "env/notifications.production.example",
       "title": "Notification service (services/notifications)",
       "base": "",
@@ -106,6 +110,7 @@
     },
     {
       "name": "mcp-backend-production",
+      "branch": false,
       "envExample": "env/mcp.production.example",
       "title": "MCP connector service (services/mcp)",
       "base": "",
@@ -127,6 +132,7 @@
     },
     {
       "name": "crm-core-backend-production",
+      "branch": false,
       "envExample": "env/crm-core.production.example",
       "title": "CRM core (services/crm-core): the API, crm-merge and crm-outbox",
       "base": "",
@@ -168,6 +174,7 @@
     },
     {
       "name": "messaging-backend-production",
+      "branch": false,
       "envExample": "env/messaging.production.example",
       "title": "Messaging (services/messaging)",
       "base": "",
@@ -189,6 +196,7 @@
     },
     {
       "name": "live-backend-production",
+      "branch": false,
       "envExample": "env/centrifugo.production.example",
       "title": "Live server (services/live): Centrifugo with Caller Whale's settings",
       "base": "",
@@ -210,6 +218,7 @@
     },
     {
       "name": "telnyx-backend-production",
+      "branch": false,
       "envExample": "env/dialer-sms.production.example",
       "title": "Telnyx calls and texts (services/telnyx): six containers, with a built-in Telnyx simulator",
       "base": "",
@@ -261,6 +270,7 @@
     },
     {
       "name": "importing-lists-backend-production",
+      "branch": false,
       "envExample": "env/importing-lists.production.example",
       "title": "Importing lists (services/importing-lists): takes list uploads",
       "base": "",
@@ -282,6 +292,7 @@
     },
     {
       "name": "importing-worker-backend-production",
+      "branch": false,
       "envExample": "env/importing-worker.production.example",
       "title": "Importing worker (services/importing-worker): imports the uploaded lists",
       "base": "",
@@ -303,6 +314,7 @@
     },
     {
       "name": "assistant-backend-production",
+      "branch": false,
       "envExample": "env/assistant.production.example",
       "title": "Assistant (services/assistant)",
       "base": "",
@@ -324,6 +336,7 @@
     },
     {
       "name": "learning-backend-production",
+      "branch": false,
       "envExample": "env/learning.production.example",
       "title": "Learning store (services/learning)",
       "base": "",
@@ -345,6 +358,7 @@
     },
     {
       "name": "gateway-backend-production",
+      "branch": false,
       "envExample": "env/gateway.production.example",
       "title": "Gateway (services/gateway)",
       "base": "",
@@ -366,6 +380,7 @@
     },
     {
       "name": "authz-backend-production",
+      "branch": false,
       "envExample": "env/authz.production.example",
       "title": "Authorization service (services/authz)",
       "base": "",
@@ -387,6 +402,7 @@
     },
     {
       "name": "billing-backend-production",
+      "branch": false,
       "envExample": "env/billing.production.example",
       "title": "Billing service (services/billing)",
       "base": "",

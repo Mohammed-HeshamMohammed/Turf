@@ -256,6 +256,8 @@ function run() {
       console.log(`${component.name}: exported ${imageContent}`);
       continue;
     }
+    // `branch: false`: the part only defines images (built above with --export); its branch was retired.
+    if (component.branch === false) continue;
     const ref = `refs/heads/${component.name}`;
     let parent = "";
     try {
@@ -300,7 +302,7 @@ Content id: ${content}`}${trailer}`;
   }
   rmSync(indexFile, { force: true });
   if (flag("--push") && !flag("--list")) {
-    const toPush = chosen.map(c => c.name).filter(n => changed.includes(n) || remoteBehind(git, n));
+    const toPush = chosen.filter(c => c.branch !== false).map(c => c.name).filter(n => changed.includes(n) || remoteBehind(git, n));
     if (toPush.length) console.log(git(["push", "origin", ...toPush.map(n => `refs/heads/${n}:refs/heads/${n}`)]));
     else console.log("Nothing to push.");
   }
