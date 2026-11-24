@@ -1,6 +1,6 @@
 # Tasks
 
-Work waiting to be done, grouped by area. **Nothing here is assigned yet.** Magdy assigns tasks from these lists; the person who
+Work waiting to be done, grouped by area. **Nothing here is assigned yet.** Magdy assigns tasks from these lists, small ones first during each person's 2 to 4 week trial; the person who
 takes one writes their name in **Taken by**, and the task moves through the statuses below.
 
 | Area | List | Usually for |
@@ -8,15 +8,15 @@ takes one writes their name in **Taken by**, and the task moves through the stat
 | Company and business | [business.md](business.md) | Malaa, JooJoo, Geeha, Magdy |
 | Legal and compliance | [legal.md](legal.md) | Rana, with the lawyer |
 | CRM backend (Go) | [crm-backend.md](crm-backend.md) | Mohammed, Reem as she learns Go |
-| Calls and texts | [calls-and-texts.md](calls-and-texts.md) | Islam |
+| Calls and texts | [calls-and-texts.md](calls-and-texts.md) | Islam (carriers, SIP), Mohammed (code) |
 | Web screens | [web-frontend.md](web-frontend.md) | Reem |
-| Data and imports | [data.md](data.md) | Omar |
+| Data and imports | [data.md](data.md) | Omar (data), Mohammed and Reem (code for now) |
 | Infrastructure | [infrastructure.md](infrastructure.md) | Eslam |
 | Security | [security.md](security.md) | Joe (anti-cloning with Rana) |
 | Testing | [testing.md](testing.md) | Hussein |
 | AI and connections | [ai-and-connections.md](ai-and-connections.md) | Rana (prompts, tools, tests), Mohammed (Go) |
 | Product specs and the API contract | [product-specs.md](product-specs.md) | Rana |
-| Mobile and desktop (parked) | [mobile-and-desktop.md](mobile-and-desktop.md) | Geeha later |
+| Mobile (started) and desktop (parked) | [mobile-and-desktop.md](mobile-and-desktop.md) | Geeha (mobile) |
 
 ## How a task is written
 

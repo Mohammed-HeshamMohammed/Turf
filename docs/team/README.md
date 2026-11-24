@@ -3,7 +3,19 @@
 Who is on Caller Whale, what each person owns, and who decides what. The work waiting to be done is in [tasks/](tasks/README.md),
 grouped by area and **not assigned to anyone yet**.
 
-Written 2026-11-23. Titles marked *later* are what a person grows into; until then everyone goes by the title now.
+Written 2026-11-24, from Mohammed's answers. Titles marked *later* are what a person grows into.
+
+## Where we are
+
+- **The goal:** finish version 1 and get the customers who are already waiting onto it. Everything else comes after.
+- **So far only Mohammed and Magdy have built Caller Whale.** The team was gathered so the work is shared and the two of them
+  can step back from doing everything.
+- **Pay:** nobody is paid yet. Pay starts once Caller Whale has earned EGP 50,000, so it runs itself instead of on debt.
+- **A trial first:** everyone starts with 2 to 4 weeks of small tasks. Ownership and titles below are confirmed after it.
+- **Titles are shared out.** Mohammed keeps one C-title (CEO), so the titles and the weight that comes with them are spread
+  fairly across the team.
+- **The CTO is chosen after version 1**, by results. Reem and Rana both get real technical ownership; Mohammed picks. Until then
+  Magdy, as co-founder and COO, leads the engineering work day to day and brings the final calls to Mohammed.
 
 ## The diagrams
 
@@ -11,60 +23,47 @@ Written 2026-11-23. Titles marked *later* are what a person grows into; until th
 
 ```mermaid
 flowchart TB
-    CEO["<b>Mohammed</b><br/>Founder · CEO · CTO for now<br/><i>Lead backend engineer (Go)</i>"]
+    CEO["<b>Mohammed</b><br/>Founder · CEO<br/><i>Writes the Go backend for now</i>"]
 
     subgraph COMPANY["Running the company"]
         direction TB
-        COO["<b>Magdy</b><br/>Co-founder · COO and Chief of Staff<br/><i>Project manager</i>"]
-        CFO["<b>Malaa</b><br/>CFO · Head of US Operations<br/><i>Finance and operations</i>"]
-        CPO["<b>Rana</b><br/>Product and Research Lead<br/><i>Technical product manager · AI · Compliance</i>"]
-        CRO["<b>JooJoo</b><br/>CRO · Head of Customer Success<br/><i>Sales and support</i>"]
-        CHRO["<b>Geeha</b><br/>CHRO · Head of Brand and Community<br/><i>People, hiring, marketing</i>"]
+        COO["<b>Magdy</b><br/>Co-founder · COO<br/><i>Leads engineering until a CTO is chosen</i>"]
+        CFO["<b>Malaa</b><br/>CFO<br/><i>Finance · the US company</i>"]
+        CPO["<b>Rana</b><br/>CPO<br/><i>Product · specs · AI · compliance</i>"]
+        CRO["<b>JooJoo</b><br/>CRO<br/><i>Sales · customers · support</i>"]
+        CHRO["<b>Geeha</b><br/>CHRO (light)<br/><i>People · and the mobile app</i>"]
     end
 
     subgraph BUILD["Building the product"]
         direction TB
-        ENG["<b>Reem</b><br/>Head of Engineering<br/><i>Full-stack developer</i>"]
-        TEL["<b>Islam (Legacy)</b><br/>Head of Telephony<br/><i>Telecom engineer</i>"]
-        DATA["<b>Omar</b><br/>Head of Data<br/><i>Data engineer</i>"]
-        OPS["<b>Eslam</b><br/>Head of Infrastructure<br/><i>DevOps engineer</i>"]
-        SEC["<b>Joe</b><br/>Head of Security<br/><i>Security engineer</i>"]
-        QA["<b>Hussein</b><br/>QA Lead<br/><i>QA engineer (junior)</i>"]
-    end
-
-    subgraph OUTSIDE["From outside, when needed"]
-        direction LR
-        LAW["US lawyer"]
-        PEN["Security tester"]
-        DES["Designer"]
+        ENG["<b>Reem</b><br/>Lead Developer · CTO candidate<br/><i>Full-stack (React, Python, SQL)</i>"]
+        TEL["<b>Islam (Legacy)</b><br/>Telephony and Network Engineer<br/><i>Carriers, SIP, VoIP</i>"]
+        DATA["<b>Omar</b><br/>Head of Data<br/><i>Data analysis</i>"]
+        OPS["<b>Eslam</b><br/>Head of Infrastructure<br/><i>Docker, Linux servers</i>"]
+        SEC["<b>Joe</b><br/>Head of Security<br/><i>Network, testing, code review</i>"]
+        QA["<b>Hussein</b><br/>QA (junior)<br/><i>Checks before releases</i>"]
     end
 
     CEO --> COO & CFO & CPO & CRO & CHRO
-    CEO --> ENG
-    ENG --> TEL & DATA & OPS & SEC & QA
+    COO == "leads" ==> BUILD
 
-    COO -. "task board and follow-up" .-> BUILD
-    CPO -. "specs and the API contract" .-> ENG
-    CPO -. "works with" .-> LAW
-    SEC -. "works with" .-> PEN
-    ENG -. "works with" .-> DES
+    CPO -. "specs · API · AI" .-> BUILD
+    CHRO -. "mobile app" .-> BUILD
 
     classDef top fill:#1f3a5f,stroke:#1f3a5f,color:#ffffff
     classDef company fill:#e8f1fb,stroke:#5b8fc7,color:#10243d
     classDef build fill:#eaf6ee,stroke:#5aa36f,color:#12301c
-    classDef outside fill:#f4f4f4,stroke:#9a9a9a,color:#333333,stroke-dasharray:4 3
     class CEO top
     class COO,CFO,CPO,CRO,CHRO company
     class ENG,TEL,DATA,OPS,SEC,QA build
-    class LAW,PEN,DES outside
     style COMPANY fill:#f7faff,stroke:#5b8fc7,color:#10243d
     style BUILD fill:#f6fbf7,stroke:#5aa36f,color:#12301c
-    style OUTSIDE fill:#fafafa,stroke:#b5b5b5,color:#333333
 ```
 
-Solid lines are who reports to whom. Magdy runs the day-to-day work of both sides: he turns Mohammed's decisions into tasks, hands
-them out and follows them up. Technical calls go up through Reem to Mohammed. Rana hands Reem the specs and the API contract to build from. The dotted lines to the outside are who works with
-the lawyer, the security tester and a designer.
+The five company leads report to Mohammed. The engineers report to Magdy day to day until a CTO is chosen; their technical
+questions go through him to Mohammed (the thick line). The outside help (lawyer, security tester, designer) is in the
+table below. Rana and Geeha sit on the company side but also build: Rana the specs, the API contract
+and the AI assistant, Geeha the mobile app.
 
 ### Who decides what
 
@@ -77,24 +76,25 @@ flowchart TB
 
     subgraph CO["Running the company: each decides in their area"]
         direction TB
-        D1["<b>Magdy</b><br/>who takes which task,<br/>the weekly plan, release dates"]
+        D1["<b>Magdy</b><br/>who takes which task, the weekly plan,<br/>release dates, day-to-day engineering calls"]
         D2["<b>Malaa</b><br/>spending up to the limit,<br/>supplier terms"]
         D3["<b>Rana</b><br/>what a feature does (its spec),<br/>the API contract, which tool to pick"]
         D4["<b>JooJoo</b><br/>which customers first,<br/>support answers"]
-        D5["<b>Geeha</b><br/>hiring shortlists,<br/>marketing and posts"]
+        D5["<b>Geeha</b><br/>onboarding new people,<br/>how the mobile app is built"]
     end
 
     subgraph PR["Building the product: each decides in their area"]
         direction TB
-        D6["<b>Reem</b><br/>how code is written,<br/>review and merging"]
-        D7["<b>Islam · Omar</b><br/>how their containers work"]
-        D8["<b>Eslam</b><br/>servers, CI, backups"]
-        D9["<b>Joe</b><br/>security rules;<br/>can stop a release"]
-        D10["<b>Hussein</b><br/>a release passes or<br/>fails testing"]
+        D6["<b>Reem</b><br/>how the web code is written,<br/>review and merging"]
+        D7["<b>Islam</b><br/>carriers, numbers, SIP trunks"]
+        D8["<b>Omar</b><br/>which data sources to use,<br/>and if they are good enough"]
+        D9["<b>Eslam</b><br/>servers, CI, backups"]
+        D10["<b>Joe</b><br/>security rules;<br/>can stop a release"]
+        D11["<b>Hussein</b><br/>a release passes or<br/>fails testing"]
     end
 
     D1 ~~~ D2 ~~~ D3 ~~~ D4 ~~~ D5
-    D6 ~~~ D7 ~~~ D8 ~~~ D9 ~~~ D10
+    D6 ~~~ D7 ~~~ D8 ~~~ D9 ~~~ D10 ~~~ D11
     M -- "brings the rest up to Mohammed" --- CO
     M -- "brings the rest up to Mohammed" --- PR
 
@@ -103,51 +103,76 @@ flowchart TB
     classDef cto fill:#eaf6ee,stroke:#5aa36f,color:#12301c
     class M top
     class D1,D2,D3,D4,D5 ceo
-    class D6,D7,D8,D9,D10 cto
+    class D6,D7,D8,D9,D10,D11 cto
     style CO fill:#f7faff,stroke:#5b8fc7,color:#10243d
     style PR fill:#f6fbf7,stroke:#5aa36f,color:#12301c
 ```
 
 ### Who owns which containers
 
-Every container, grouped by what it does, with its owner. Grey is parked. Joe reviews the security of the entry and accounts
-group, and Hussein tests all of it.
+Every container, grouped by what it does. Where someone is still learning the code, the person writing it for now is named
+too. Joe reviews the security of all of it, and Hussein tests it before a release.
 
 ```mermaid
 flowchart LR
     O1["<b>Reem</b>"] --> A1["<b>Screens</b><br/>website · crm-web · crm (the app's screens)"]
     O2["<b>Mohammed</b><br/>Joe reviews"] --> A2["<b>Entry and accounts</b><br/>gateway · auth · authz · notifications"]
     O3["<b>Mohammed</b><br/>Reem learning Go"] --> A3["<b>CRM</b><br/>crm-core · crm-merge · crm-outbox · messaging"]
-    O4["<b>Islam</b>"] --> A4["<b>Calls and texts</b><br/>six telnyx-* (dialer-sms until the switch)<br/>live (centrifugo)"]
-    O5["<b>Omar</b>"] --> A5["<b>Data</b><br/>importing-lists · importing-worker<br/>learning · skip-engine"]
-    O6["<b>Rana</b><br/>Mohammed writes the Go"] --> A6["<b>AI</b><br/>assistant · mcp"]
-    O7["<b>Eslam</b>"] --> A7["<b>Running it</b><br/>grafana-proxy · alert-relay<br/>Grafana, Prometheus, Loki · databases and backups"]
-    O8["<b>No owner yet</b>"] --> A8["<b>Parked</b><br/>billing · crm-desktop · lists-desktop<br/>mobile app (Geeha, later)"]
+    O4["<b>Islam</b>: carriers, numbers, SIP<br/><b>Mohammed</b>: the Go code"] --> A4["<b>Calls and texts</b><br/>six telnyx-* (dialer-sms until the switch)<br/>live (centrifugo)"]
+    O5["<b>Omar</b>: the data and its quality<br/><b>Mohammed, Reem</b>: the code for now"] --> A5["<b>Data</b><br/>importing-lists · importing-worker<br/>learning · skip-engine"]
+    O6["<b>Rana</b>: prompts, tools, tests<br/><b>Mohammed</b>: the Go code"] --> A6["<b>AI</b><br/>assistant · mcp"]
+    O7["<b>Eslam</b><br/>Islam helps on the network"] --> A7["<b>Running it</b><br/>grafana-proxy · alert-relay<br/>Grafana, Prometheus, Loki · databases and backups"]
+    O8["<b>Geeha</b><br/>learning Flutter"] --> A8["<b>Mobile app</b><br/>not started"]
+    O9["<b>No owner yet</b>"] --> A9["<b>Parked</b><br/>billing · crm-desktop · lists-desktop"]
 
     classDef person fill:#1f3a5f,stroke:#1f3a5f,color:#ffffff
     classDef area fill:#eaf6ee,stroke:#5aa36f,color:#12301c
     classDef none fill:#f4f4f4,stroke:#9a9a9a,color:#333333,stroke-dasharray:4 3
-    class O1,O2,O3,O4,O5,O6,O7 person
-    class A1,A2,A3,A4,A5,A6,A7 area
-    class O8,A8 none
+    class O1,O2,O3,O4,O5,O6,O7,O8 person
+    class A1,A2,A3,A4,A5,A6,A7,A8 area
+    class O9,A9 none
+```
+
+### Who answers the customers
+
+The first customers are in the US, so someone covers US daytime (evening and night in Egypt).
+
+```mermaid
+flowchart LR
+    C["<b>A customer</b><br/>question or problem"] --> J["<b>JooJoo</b><br/>first answer, onboarding"]
+    J -- "a bug or how it works" --> MO["<b>Mohammed</b><br/>technical problems"]
+    J -- "she is away" --> MA["<b>Magdy</b><br/>backup"]
+    J -- "the service is down" --> E["<b>Eslam</b><br/>on call for the servers"]
+    J -- "what they ask for" --> R["<b>Rana</b><br/>feedback into the specs"]
+
+    classDef cust fill:#fff4e0,stroke:#d49a2a,color:#3d2a05
+    classDef first fill:#1f3a5f,stroke:#1f3a5f,color:#ffffff
+    classDef next fill:#e8f1fb,stroke:#5b8fc7,color:#10243d
+    class C cust
+    class J first
+    class MO,MA,E,R next
 ```
 
 ### Where each person is heading
 
 ```mermaid
 flowchart LR
-    R1["<b>Reem</b><br/>Head of Engineering"] --> R2["CTO"]
-    A1["<b>Rana</b><br/>Product and Research Lead"] --> A2["CPO"]
+    R1["<b>Reem</b><br/>Lead Developer"] --> CTO["<b>CTO</b><br/>chosen by Mohammed<br/>after version 1, by results"]
+    A1["<b>Rana</b><br/>CPO"] --> CTO
+    I1["<b>Islam</b><br/>Telephony and Network Engineer"] --> I2["Head of Telephony<br/>(SIP and VoIP)"]
+    O1["<b>Omar</b><br/>Head of Data"] --> O2["Builds the data engines<br/>(skip engine, imports)"]
     J1["<b>Joe</b><br/>Head of Security"] --> J2["CISO"]
-    G1["<b>Geeha</b><br/>CHRO · Brand and Community"] --> G2["Head of Mobile (Flutter)"]
-    H1["<b>Hussein</b><br/>QA Lead (junior)"] --> H2["QA Lead (automation)"]
-    M1["<b>Mohammed</b><br/>CEO · CTO"] --> M2["CEO only"]
+    G1["<b>Geeha</b><br/>CHRO (light)"] --> G2["Head of Mobile (Flutter)"]
+    H1["<b>Hussein</b><br/>QA (junior)"] --> H2["QA Lead (automation)"]
 
     classDef now fill:#e8f1fb,stroke:#5b8fc7,color:#10243d
     classDef later fill:#fff4e0,stroke:#d49a2a,color:#3d2a05
-    class R1,A1,J1,G1,H1,M1 now
-    class R2,A2,J2,G2,H2,M2 later
+    class R1,A1,I1,O1,J1,G1,H1 now
+    class CTO,I2,O2,J2,G2,H2 later
 ```
+
+Rana and Reem both have a road to CTO: Reem through the code she ships, Rana through the specs, the API contract and the AI
+work. Whoever is not chosen keeps their title (Rana stays CPO; Reem leads the web code).
 
 ## The people
 
@@ -155,23 +180,23 @@ flowchart LR
 
 | Person | Title now | Title later | Strength | Owns |
 | --- | --- | --- | --- | --- |
-| **Mohammed** | Founder · CEO · CTO | CEO (CTO passes to Reem) | Built everything so far | Direction, final decisions, architecture and the D-numbers, approving `production`, secrets in Coolify, the Go backend until Reem takes it |
-| **Magdy** | Co-founder · COO and Chief of Staff | — | Carries out Mohammed's direction faithfully | The task board, weekly plan and status, chasing blockers, release checks, keeping `docs/plans/` and the decision list current, admin and contracts |
-| **Malaa** | CFO and Head of US Operations | — | Finance; contacts in the US | Budget and runway, the US company, bank, taxes and accountant, Paddle and Stripe accounts, supplier deals, investors and partnerships |
-| **Rana** | Product and Research Lead (and Compliance Lead) · technical product manager | CPO | Researches anything fast and precisely; fresh graduate who has taken in a great deal of technical material | Research before each decision, tool and supplier comparisons, competitors and pricing proposals, `docs/legal/research/`, the lawyer's questions; **technical:** the feature specs with their acceptance checks, the API contract (`contracts/api-v1.yaml`, `contracts/events.md`), the AI assistant's prompts, tools and tests (`assistant`, `mcp`; the Go with Mohammed), product numbers in SQL with Omar, the anti-cloning work with Joe |
-| **JooJoo** | CRO and Head of Customer Success | — | Has dealt with customers the most | First agencies and beta testers, demos and sales, onboarding and support, customer feedback to Rana |
-| **Geeha** | CHRO and Head of Brand and Community | Head of Mobile | Talks well, convinces, good with people; started with Dart | Hiring and onboarding, culture, marketing and social, events and demos with JooJoo; learns Flutter for the mobile app |
+| **Mohammed** | Founder · CEO | — | Built everything so far | Direction, final decisions, architecture and the D-numbers, approving `production`, secrets in Coolify, the Go backend until others take it, technical help for customers |
+| **Magdy** | Co-founder · COO | — | With Mohammed from the start; understands the system, follows pull requests, builds with AI and reviews | The task board, weekly plan and status, leading engineering day to day until a CTO is chosen, release checks, `docs/plans/` and the decision list, admin and contracts, backup on customer support |
+| **Malaa** | CFO | — | Thinks well about money; contacts in the US (he lives in Egypt) | Budget and runway, registering and running the US company through his contacts, bank, taxes and accountant, Paddle and Stripe accounts, supplier deals, investors |
+| **Rana** | CPO | CTO candidate | Finds answers fast and precisely, often before being asked; studied mobile networks, Python and some machine learning | Research before each decision, compliance and the lawyer's questions, `docs/legal/research/`; **technical:** feature specs with their acceptance checks, the API contract (`contracts/`), the AI assistant's prompts, tools and tests, product numbers in SQL with Omar, anti-cloning with Joe |
+| **JooJoo** | CRO | — | Has dealt with US, foreign and Egyptian customers; good English | The waiting customers first, demos and sales, onboarding, first-line support on US hours, customer feedback to Rana |
+| **Geeha** | CHRO (light) | Head of Mobile | Good with people; started with Dart | Mainly: learning Flutter and building the mobile app. On the side: onboarding new people and the team's mood |
 
 ### Building the product
 
-| Person | Title now | Title later | Role | Owns |
+| Person | Title now | Title later | Strength | Owns |
 | --- | --- | --- | --- | --- |
-| **Reem** | Head of Engineering | CTO | Full-stack developer (React, JavaScript, Python, SQL and NoSQL) | `apps/crm` (the CRM web app), `apps/website`; day-to-day code review; backup on `importing-*`; learns Go on `crm-core` |
-| **Islam (Legacy)** | Head of Telephony | — | Telecom engineer (mobile core PS/CS) | `dialer-sms`, the six `telnyx-*` containers, `centrifugo`; carriers, numbers, 10DLC |
-| **Omar** | Head of Data | — | Data engineer and analyst (Python) | `engines/skip-engine`, `importing-lists`, `importing-worker`, `learning`; numbers and reports for the business side |
-| **Eslam** | Head of Infrastructure | — | DevOps engineer | Coolify and the VPS, CI and images, production branches, monitoring and `alert-relay`, backups, databases |
-| **Joe** | Head of Security | CISO | Security engineer (CompTIA Network+ and Security+) | Security review of `gateway`, `auth`, `authz`, `grafana-proxy`; Cloudflare and firewall; secret changes; [security upkeep](../operations/security-upkeep.md) |
-| **Hussein** | QA Lead (junior) | — | Studying software testing, manual first | [Checks by hand](../plans/people-teams-chats-clients/checks-by-hand.md), test cases per step, the sign-off before a release |
+| **Reem** | Lead Developer | CTO candidate | Full-stack, junior (React, JavaScript, Python, SQL and NoSQL) | `apps/crm`, `apps/crm-web`, `apps/website`; review of web code; learns Go on small `crm-core` tasks; helps on the Python importers |
+| **Islam (Legacy)** | Telephony and Network Engineer | Head of Telephony | CCNA, CCNP, mobile networks, works in DevOps; does not code yet | Telnyx setup, carriers, numbers, SIP trunks and 10DLC; studies core PS, SIP and VoIP; helps Eslam with networking. The Go code of `telnyx-*` stays with Mohammed |
+| **Omar** | Head of Data | — | Analyses large real-world data of the kind our customers use | Which data sources the skip engine and imports should use and how good they are; numbers and reports; grows into building `engines/skip-engine` and the importers |
+| **Eslam** | Head of Infrastructure | — | Has run Docker and Linux servers | Coolify and the VPS, CI and images, production branches, monitoring and `alert-relay`, backups, databases; on call when a server breaks |
+| **Joe** | Head of Security | CISO | Network security, hands-on testing and code review (CompTIA Network+ and Security+) | Security review of pull requests that touch `gateway`, `auth`, `authz`, `grafana-proxy`; Cloudflare and firewall; secret changes; [security upkeep](../operations/security-upkeep.md); anti-cloning with Rana |
+| **Hussein** | QA (junior) | QA Lead (automation) | Studying software testing; a few hours a week | [Checks by hand](../plans/people-teams-chats-clients/checks-by-hand.md) before each release, and the sign-off |
 
 ### From outside, when needed
 
@@ -183,29 +208,28 @@ flowchart LR
 
 ## Who decides what
 
-The CEO's and CTO's work is shared out so that Mohammed decides and the others carry it out.
-
 | Work | Owner |
 | --- | --- |
-| Direction, money above Malaa's limit, anything legal, architecture | **Mohammed** |
+| Direction, money above Malaa's limit, anything legal, architecture, what goes to production | **Mohammed** |
 | Running the week: meetings, goals, who does what, status to Mohammed | **Magdy** |
-| Engineering process: the task board, assigning tasks, release checks before `production` | **Magdy**, with Hussein's sign-off |
+| Engineering day to day until a CTO is chosen: assigning tasks, unblocking, release checks | **Magdy**, with Hussein's sign-off |
 | Budget, runway, spending up to a limit Mohammed sets, the technology bill | **Malaa** |
 | The US company, bank, taxes, payment accounts, investors | **Malaa** |
 | What to build next and why; research for each decision, brought as options with a recommendation | **Rana** |
+| Feature specs and acceptance checks; the API contract; the AI assistant's behaviour | **Rana**, with Reem (code) and Hussein (tests) |
 | Pricing: what each tier holds (Rana) and the margins (Malaa) | **Rana** + **Malaa** |
 | Compliance: do not call, TCPA, 10DLC, privacy, working with the lawyer | **Rana** |
+| Protecting the app from being copied: the licence terms (with the lawyer) and the technical measures | **Rana** + **Joe** |
 | Sales, onboarding, support, customer feedback | **JooJoo** |
-| Hiring, onboarding, culture, marketing, the brand | **Geeha** |
-| Code review and technical guidance | **Reem** (frontend, Python), **Joe** (security), **Eslam** (infrastructure) |
-| Technology and supplier comparisons before building | **Rana** |
-| Feature specs and acceptance checks; the API contract; the AI assistant's behaviour | **Rana**, with Reem (code) and Hussein (tests) |
-| Protecting the app from being copied: the licence terms (with the lawyer) and the technical measures (with Joe) | **Rana** + **Joe** |
-| Finding engineers; the technical interview | **Geeha**; **Reem** or **Mohammed** |
+| Onboarding new people, the team's mood | **Geeha** |
+| Code review and technical guidance | **Reem** (web, Python), **Joe** (security), **Eslam** (infrastructure), **Mohammed** (Go) |
+| Carriers, numbers, SIP trunks, 10DLC | **Islam** |
+| The CTO choice, after version 1 | **Mohammed** |
 
 ## Not covered yet
 
 - **Go backend:** only Mohammed writes Go today, and about half the containers are Go. Reem learns it on small `crm-core` tasks.
+- **The Python importers and the skip engine:** written by Mohammed; Reem helps now, Omar takes them over as he starts building.
+- **Telnyx code:** Islam owns the calling setup but does not code yet, so the `telnyx-*` code stays with Mohammed.
 - **Desktop app (Rust, Tauri):** parked until the web version is done. No owner.
-- **Mobile app:** Geeha, once he has learned Flutter; until then not started.
 - **Billing:** parked. When it starts, Reem builds it (Python), Malaa owns the accounts and Joe reviews it.
