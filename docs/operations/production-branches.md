@@ -9,6 +9,12 @@ Coolify reads its compose file from that branch.
 
 ## The branches
 
+**Retired 2026-11-25 (the owner):** Coolify runs every app below as an image, so no app branch is kept any more. The 16 rows
+with a Coolify image app are `"branch": false` in `production.json`: they still define what goes into their images (`--export`,
+from `main`, in `images.yml`), but `publish-production.mjs` no longer makes or pushes their branches, and the branches were deleted
+from GitHub. Only `grafana-production` (Coolify still builds five Monitoring services from its compose file), `desktop-app-production`
+and `skip-engine-production` are kept. The "Branch" column below is the part's name in `production.json`.
+
 | Branch | Holds (paths as on `main`) | Images built from it | How it runs |
 | --- | --- | --- | --- |
 | `website-production` | `apps/website` and the npm workspace | `cw-website` | Coolify image app (callerwhale.com) |
