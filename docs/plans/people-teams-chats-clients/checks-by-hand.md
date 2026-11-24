@@ -287,7 +287,7 @@ On callerwhale.com, Settings → Privacy. Use a throwaway account where a second
 |---|---|---|
 | P1 | Invite a throwaway address that has no account; open the email's link in a private window | The sign-up page, with the address filled in and locked and who invited you. After creating the account, no confirmation email is needed and the invitation is there to accept. |
 | P2 | Open the same email link again | "This invitation link has ended or was already used." |
-| P3 | Sign in choosing "Shared device", then close the tab and open callerwhale.com again | You are signed out. With "This is my device", you stay signed in. |
+| P3 | Sign in with "Keep me signed in" unticked, then close the tab and open callerwhale.com again | You are signed out. With it ticked, you stay signed in. |
 | P4 | Settings → My access | Your agency by name with your role (and teams if any), waiting invitations, your signed-in devices with "Sign out", and "Download my data", which saves a file. |
 | P5 | As the throwaway member, Settings → My access → Leave | You leave at once; the agency's member list no longer shows you. |
 

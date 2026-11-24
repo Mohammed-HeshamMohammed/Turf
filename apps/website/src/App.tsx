@@ -154,7 +154,7 @@ function SignIn({ onDone, notice, me }: { onDone: () => void; notice: string; me
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [challenge, setChallenge] = useState<Challenge | null>(null);
-  // "This is my device" keeps the sign-in for 30 days; "Shared device" ends it when the tab closes, and after 12 hours (D38, D188).
+  // "Keep me signed in" keeps the sign-in for 30 days; unticked (a shared device), it ends when the tab closes, and after 12 hours (D38, D188).
   const [shared, setShared] = useState(false);
   const resumed = Boolean(me && waitingForSecondStep(me)); // signed in already (Google, or an older session), second step not done
   const [state, run] = useAction();
@@ -221,11 +221,7 @@ function SignIn({ onDone, notice, me }: { onDone: () => void; notice: string; me
         {notice && <p className="notice" role="status">{notice}</p>}
         <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)} />
         <Field label="Password" type="password" autoComplete="current-password" required value={password} onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)} />
-        <fieldset className="device-choice">
-          <legend className="sr-only">Which device is this?</legend>
-          <label className="check"><input type="radio" name="device" checked={!shared} onChange={() => setShared(false)} /> <span>This is my device: keep me signed in</span></label>
-          <label className="check"><input type="radio" name="device" checked={shared} onChange={() => setShared(true)} /> <span>Shared device: sign me out when I close this tab</span></label>
-        </fieldset>
+        <label className="check"><input type="checkbox" checked={!shared} onChange={(e: ChangeEvent<HTMLInputElement>) => setShared(!e.target.checked)} /> <span>Keep me signed in</span></label>
         <HumanCheck getAuth={getAuth} />
         {state.error && <p className="notice bad" role="alert">{state.error}</p>}
         <button className="button primary" disabled={state.busy}>{state.busy ? "Signing in…" : "Sign in"}</button>
