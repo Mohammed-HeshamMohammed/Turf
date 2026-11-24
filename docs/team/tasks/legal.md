@@ -23,3 +23,7 @@ Research is done by the team; the wording itself is the lawyer's. What the lawye
 | LAW-16 | Name the server's country in the terms | LAW-03 | Step 41 | | open |
 | LAW-17 | The learning store's switch-on checklist, checked item by item | LAW-05 | [Learning store compliance](../../legal/research/learning-store-compliance.md) | | open |
 | LAW-18 | Campaigns (email and text): which states' rules apply and what they cost, kept current | — | [Campaigns law](../../legal/research/campaigns-law-all-states.md) | | open |
+| LAW-19 | An end-user licence agreement (EULA) for the desktop app: licensed, not sold; no copying, decompiling, reverse engineering, removing protections or building a competing product; accepted at install | LAW-02 | Anti-cloning | | open |
+| LAW-20 | Strengthen section 6 of the terms: no copying, scraping, reverse engineering or imitating the service, its screens or its data; a new terms version (every account accepts it again) | LAW-02 | Anti-cloning, [terms](../../../apps/website/src/legal/terms.md) | | open |
+| LAW-21 | Register the Caller Whale name and logo as a US trademark, and copyright in the code if the lawyer advises it | LAW-01 | Anti-cloning | | open |
+| LAW-22 | Everyone on the team signs an agreement that the code and work belong to the company, with confidentiality | LAW-01 | Anti-cloning, [LICENSE](../../../LICENSE) | | open |

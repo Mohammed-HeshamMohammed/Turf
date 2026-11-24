@@ -1,6 +1,6 @@
-# Mobile and desktop (parked)
+# Mobile (started) and desktop (parked)
 
-The web version comes first. These wait until it is done; they are listed so they are not forgotten.
+Geeha starts on the mobile app now, learning Flutter first. The desktop app waits until the web version is done.
 
 | ID | Task | Needs | Source | Taken by | Status |
 | --- | --- | --- | --- | --- | --- |
