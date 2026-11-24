@@ -22,7 +22,7 @@ browser / desktop app ──► gateway (the one public entry) ──► auth ·
 
 | You want to | Read |
 | --- | --- |
-| Know who does what, and find work to take | [team/](team/README.md) (the people, the diagram, and unassigned [tasks](team/tasks/README.md)) |
+| Know who does what, and find work to take | [team/](team/README.md) (the people, the diagrams, [how the work flows](team/how-the-work-flows.md), and unassigned [tasks](team/tasks/README.md)) |
 | Find your way around the code | [README.md](../README.md) (the folders) and each service's own `README.md` |
 | Know why things are the way they are | [The decision list (D-numbers)](plans/people-teams-chats-clients/09-repository-and-releases.md) |
 | Change code and get it to `main` | [AGENTS.md](../AGENTS.md): branch, pull request, CI summary, merge commit |
