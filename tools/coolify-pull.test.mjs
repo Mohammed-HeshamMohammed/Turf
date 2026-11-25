@@ -20,7 +20,7 @@ test("a deployment may only name this repository's images", () => {
 test("each deployment is applied once, in order, and remembered", async () => {
   const applied = [];
   const state = await pull({ deployments: [dep(4), dep(3)], state: { lastId: 2 }, base: "http://l", token: "t", log: () => {}, apply: async () => applied.push(applied.length) });
-  assert.deepEqual(state, { lastId: 4, tries: {} });
+  assert.deepEqual(state, { lastId: 4, tries: {}, done: {} });
   assert.equal(applied.length, 2);
   const again = await pull({ deployments: [dep(4), dep(3)], state, base: "http://l", token: "t", log: () => {}, apply: async () => applied.push(9) });
   assert.equal(applied.length, 2);
@@ -32,9 +32,23 @@ test("a failing deployment is retried, stops the queue, and is given up after th
   let state = { lastId: 2 };
   for (const tries of [1, 2]) {
     state = await pull({ deployments: [dep(3), dep(4)], state, base: "http://l", token: "t", log: () => {}, apply: fail });
-    assert.deepEqual(state, { lastId: 2, tries: { 3: tries } });
+    assert.deepEqual(state, { lastId: 2, tries: { 3: tries }, done: { 3: [] } });
   }
   const order = [];
   state = await pull({ deployments: [dep(3), dep(4)], state, base: "http://l", token: "t", log: () => {}, apply: async apps => { if (order.push(1) === 1) throw new Error("still down"); } });
-  assert.deepEqual(state, { lastId: 4, tries: {} });
+  assert.deepEqual(state, { lastId: 4, tries: {}, done: {} });
+});
+
+test("an application that fails never holds back the others in its deployment, and is the only one retried", async () => {
+  const OTHER = "pbhaa90fu9dh3tl2x9kzjdly";
+  const two = dep(3, { payload: { apps: [{ app: APP, image }, { app: OTHER, image: { ...image, name: "ghcr.io/mohammed-heshammohammed/cw-crm-core" } }] } });
+  const applied = [];
+  const apply = async apps => { applied.push(apps[0].app); if (apps[0].app === APP) throw new Error("not set up"); };
+  let state = await pull({ deployments: [two], state: { lastId: 2 }, base: "http://l", token: "t", log: () => {}, apply });
+  assert.deepEqual(applied, [APP, OTHER]);
+  assert.deepEqual(state, { lastId: 2, tries: { 3: 1 }, done: { 3: [OTHER] } });
+  state = await pull({ deployments: [two], state, base: "http://l", token: "t", log: () => {}, apply });
+  assert.deepEqual(applied, [APP, OTHER, APP]);
+  state = await pull({ deployments: [two], state, base: "http://l", token: "t", log: () => {}, apply });
+  assert.deepEqual(state, { lastId: 3, tries: {}, done: {} });
 });
