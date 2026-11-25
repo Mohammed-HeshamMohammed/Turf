@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { api } from "./remote/api.ts";
+import { useCrm } from "./context.jsx";
 import { LEAD_STAGES } from "./data.ts";
 import { Button, Checkbox, Field, Modal, Select } from "./ui.jsx";
 
 /** Gives many leads at once, on the server: the picked leads, or every lead matching a filter (or the first N of them), to one
  * person or shared evenly between several. Only the people the viewer manages are offered (the server checks it again). */
 export function AssignLeadsDialog({ state, picked = [], stage = "", onClose, notify }) {
+  const crm = useCrm();
   const targets = state.remote?.assignTargets || [];
   const lists = (state.datasets || []).filter(item => item.id);
   const [scope, setScope] = useState(picked.length ? "picked" : "filter");
@@ -17,6 +19,7 @@ export function AssignLeadsDialog({ state, picked = [], stage = "", onClose, not
   const [unassign, setUnassign] = useState(false);
   const [run, setRun] = useState(null);
   const [error, setError] = useState("");
+  const [total, setTotal] = useState(0); // how many the run will give, for "120 of 300"
   // How many leads the filter matches now (null: still counting), so a filter that matches nothing is seen before giving.
   const [matching, setMatching] = useState(null);
   useEffect(() => {
@@ -36,6 +39,7 @@ export function AssignLeadsDialog({ state, picked = [], stage = "", onClose, not
     return () => clearTimeout(timer);
   }, [run]);
   useEffect(() => {
+    if (run && run.status !== "running") crm?.dispatch({ type: "REFRESH_COUNTS" });
     if (run?.status === "done") notify?.(`${Number(run.assigned).toLocaleString()} ${run.assigned === 1 ? "lead" : "leads"} given`);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- tell once when the run finishes, not on every new notify
   }, [run?.status]);
@@ -44,6 +48,7 @@ export function AssignLeadsDialog({ state, picked = [], stage = "", onClose, not
     event.preventDefault();
     setError("");
     const selection = scope === "picked" ? { ids: picked } : { stage: filterStage, project_id: list, assignee: who === "anyone" ? "" : who };
+    setTotal(scope === "picked" ? picked.length : Math.min(howMany ? Number(howMany) : Infinity, matching || Infinity));
     try {
       setRun(await api.startAssignment({ selection, to: unassign ? [] : to, limit: scope === "filter" && howMany ? Number(howMany) : 0 }));
     } catch (cause) {
@@ -58,7 +63,8 @@ export function AssignLeadsDialog({ state, picked = [], stage = "", onClose, not
         <div className="assign-progress" role="status" aria-live="polite">
           <p>
             {run.status === "running" ? "Giving leads… " : run.status === "done" ? "Done. " : "Stopped. "}
-            <strong>{Number(run.assigned).toLocaleString()}</strong> {run.assigned === 1 ? "lead" : "leads"} given
+            <strong>{Number(run.assigned).toLocaleString()}</strong>
+            {run.status === "running" && Number.isFinite(total) && total > 0 ? ` of ${total.toLocaleString()}` : ""} {run.assigned === 1 && run.status !== "running" ? "lead" : "leads"} given
             {unassign ? " back to the pool" : ` to ${to.map(nameOf).join(", ")}`}.
           </p>
           {run.error && <p className="notice bad">{run.error}</p>}
