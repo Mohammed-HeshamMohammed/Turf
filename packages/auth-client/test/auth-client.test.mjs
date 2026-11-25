@@ -343,3 +343,71 @@ test("a /v1/me refused because the session closed signs this device out", async 
   assert.equal(storage.map.has("callerwhale.auth.refresh"), false);
   assert.equal(changes, 2, "signed in, then signed out");
 });
+
+/** The browser's lock, for tests: one holder at a time per name, the rest wait in order. */
+function fakeLocks() {
+  const tails = new Map();
+  return {
+    request(name, work) {
+      const run = (tails.get(name) ?? Promise.resolve()).then(() => work());
+      tails.set(name, run.catch(() => {}));
+      return run;
+    },
+  };
+}
+
+test("two tabs refreshing at once take turns, and the second sends the token the first got", async () => {
+  const storage = memoryStorage();
+  storage.setItem("callerwhale.auth.refresh", "R1");
+  const locks = fakeLocks();
+  let current = "R1";
+  let n = 1;
+  const sent = [];
+  const { fetchImpl } = fakeService({
+    "/v1/sessions/refresh": call => {
+      sent.push(call.body.refresh_token);
+      if (call.body.refresh_token !== current) return { status: 401, body: { code: "unauthenticated", error: "Sign in first." } };
+      current = `R${++n}`;
+      return tokens(`A${n}`, current);
+    },
+  });
+  const one = createAuth({ base: "http://auth.example", storage, tabStorage: null, fetchImpl, locks });
+  const two = createAuth({ base: "http://auth.example", storage, tabStorage: null, fetchImpl, locks });
+  const [a, b] = await Promise.all([one.accessToken(), two.accessToken()]);
+  assert.deepEqual(sent, ["R1", "R2"], "each sends the newest token");
+  assert.deepEqual([a, b], ["A2", "A3"]);
+  assert.equal(storage.map.get("callerwhale.auth.refresh"), "R3");
+  assert.equal(one.signedIn() && two.signedIn(), true);
+});
+
+test("a token another tab just replaced is sent again as the newest, and nobody is signed out", async () => {
+  const storage = memoryStorage();
+  storage.setItem("callerwhale.auth.refresh", "R1");
+  let changes = 0;
+  const sent = [];
+  const { fetchImpl } = fakeService({
+    "/v1/sessions/refresh": call => {
+      sent.push(call.body.refresh_token);
+      if (call.body.refresh_token === "R1") {
+        storage.setItem("callerwhale.auth.refresh", "R2"); // the other tab's answer lands meanwhile
+        return { status: 401, body: { code: "token_replaced", error: "This sign-in was just renewed." } };
+      }
+      return tokens("A3", "R3");
+    },
+  });
+  const auth = createAuth({ base: "http://auth.example", storage, tabStorage: null, fetchImpl, locks: null, onChange: () => changes++, wait: async () => {} });
+  assert.equal(await auth.accessToken(), "A3");
+  assert.deepEqual(sent, ["R1", "R2"]);
+  assert.equal(storage.map.get("callerwhale.auth.refresh"), "R3");
+  assert.equal(changes, 1, "only the new tokens: never signed out on the way");
+});
+
+test("a token still replaced after waiting gives up without signing out", async () => {
+  const storage = memoryStorage();
+  storage.setItem("callerwhale.auth.refresh", "R1");
+  const { calls, fetchImpl } = fakeService({ "/v1/sessions/refresh": { status: 401, body: { code: "token_replaced", error: "Renewed." } } });
+  const auth = createAuth({ base: "http://auth.example", storage, tabStorage: null, fetchImpl, locks: null, wait: async () => {} });
+  await assert.rejects(auth.refresh(), error => error.code === "token_replaced");
+  assert.equal(calls.length, 9);
+  assert.equal(storage.map.get("callerwhale.auth.refresh"), "R1", "the session is not given up");
+});

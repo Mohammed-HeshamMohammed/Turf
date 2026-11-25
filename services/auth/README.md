@@ -61,7 +61,7 @@ Routes, JSON, error codes and sentences, the access token (EdDSA, issuer `caller
 - An authenticator code works once (the time step of the last accepted code is kept); answers to a second-step challenge are counted before they are looked at, so parallel guesses cannot get more than five tries; recovery codes exist for a lost device.
 - A session that never passed a second step cannot add its own authenticator to an account that has one.
 - A returning person keeps their name when a provider sends none (Apple sends it once).
-- A refresh is one conditional `UPDATE`: of two requests with the same token exactly one wins, the other looks like a copied token and ends the session.
+- A refresh is one conditional `UPDATE`: of two requests with the same token exactly one wins, the other looks like a copied token and ends the session, unless it is the token replaced less than 10 seconds ago (a second tab of the same browser): that one is only refused with `token_replaced`, nothing handed out, and the client sends the newest token. The client also makes its tabs take turns (Web Locks), so this is rare.
 - The schema loader holds a database lock, so several instances starting together do not race.
 - A stop signal finishes the requests in flight, then closes (20 seconds at most).
 - Anything that is not one of our own refusals is logged and answered as "Something went wrong."; request bodies, headers and tokens are never logged.

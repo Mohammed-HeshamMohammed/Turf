@@ -491,8 +491,10 @@ func TestACopiedRefreshTokenEndsTheSession(t *testing.T) {
 	if rightful.status != 200 {
 		t.Fatal("setup")
 	}
-	// Someone else presents the token the rightful owner already used: refused, and the whole session ends.
-	if a := w.call("POST", "/v1/sessions/refresh", map[string]any{"refresh_token": stolen}, ""); a.status != 401 {
+	// Someone else presents the token the rightful owner already used, past the grace for a second tab: refused, and the whole
+	// session ends.
+	clock = func() time.Time { return time.Now().Add((replacedGrace + 1) * time.Second) }
+	if a := w.call("POST", "/v1/sessions/refresh", map[string]any{"refresh_token": stolen}, ""); a.status != 401 || a.body["code"] != "unauthenticated" {
 		t.Fatalf("reuse: %d", a.status)
 	}
 	if a := w.call("POST", "/v1/sessions/refresh", map[string]any{"refresh_token": rightful.refresh()}, ""); a.status != 401 {
@@ -500,6 +502,32 @@ func TestACopiedRefreshTokenEndsTheSession(t *testing.T) {
 	}
 	if a := w.call("GET", "/v1/me", nil, rightful.access()); a.status != 401 {
 		t.Fatalf("and so does its access token: %d", a.status)
+	}
+}
+
+func TestATokenJustReplacedIsOnlyRefusedSoASecondTabKeepsTheSession(t *testing.T) {
+	w := newWorld(t)
+	made := w.signUp("sami@example.com")
+	first := w.call("POST", "/v1/sessions/refresh", map[string]any{"refresh_token": made.refresh()}, "")
+	if first.status != 200 {
+		t.Fatal("setup")
+	}
+	// The other tab sends the same token a moment later: refused with nothing handed out, and the session lives on.
+	late := w.call("POST", "/v1/sessions/refresh", map[string]any{"refresh_token": made.refresh()}, "")
+	if late.status != 401 || late.body["code"] != "token_replaced" || late.access() != "" || late.refresh() != "" {
+		t.Fatalf("late: %d %v", late.status, late.body)
+	}
+	if a := w.call("GET", "/v1/me", nil, first.access()); a.status != 200 {
+		t.Fatalf("the session still works: %d", a.status)
+	}
+	// It reads the newest token and asks again: fine.
+	again := w.call("POST", "/v1/sessions/refresh", map[string]any{"refresh_token": first.refresh()}, "")
+	if again.status != 200 {
+		t.Fatalf("again: %d", again.status)
+	}
+	// A token two swaps old is not the one just replaced: plainly refused, no grace.
+	if a := w.call("POST", "/v1/sessions/refresh", map[string]any{"refresh_token": made.refresh()}, ""); a.status != 401 || a.body["code"] != "unauthenticated" {
+		t.Fatalf("older: %d %v", a.status, a.body)
 	}
 }
 
