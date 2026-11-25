@@ -91,6 +91,15 @@ export async function record(apps, { repo, sha, token, log = console.log }) {
   const text = await res.text();
   if (res.status >= 300) throw new Error(`recording the deployment failed (${res.status}) ${text.slice(0, 200)}`);
   const id = JSON.parse(text).id;
+  // The puller reads without a token, so it cannot report back: the record is marked handed over here, with a link to this run, or
+  // GitHub shows every one as "Queued" for good. Older ones then show as inactive. The puller goes by id only, not by this state.
+  const run = process.env.GITHUB_RUN_ID ? `${process.env.GITHUB_SERVER_URL || "https://github.com"}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}` : undefined;
+  const marked = await fetch(`https://api.github.com/repos/${repo}/deployments/${id}/statuses`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
+    body: JSON.stringify({ state: "success", description: "Handed to the server; it applies the images within a few minutes", auto_inactive: true, ...(run ? { log_url: run } : {}) }),
+  });
+  if (marked.status >= 300) log(`Could not mark deployment ${id} as handed over (${marked.status}); the server applies it all the same.`);
   for (const a of apps) log(`${a.app}: ${a.image ? a.image.ref : a.settings.map(s => `${s.key} = ${s.value}`).join(", ")}`);
   log(`Recorded as GitHub deployment ${id}; the server applies it within a few minutes (tools/coolify-pull.mjs).`);
   return id;

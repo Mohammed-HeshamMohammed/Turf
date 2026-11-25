@@ -126,4 +126,8 @@ test("the approved plan is recorded as a GitHub deployment for the server's pull
   assert.equal(calls[0].url, "https://api.github.com/repos/o/r/deployments");
   assert.equal(calls[0].auth, "Bearer gh");
   assert.deepEqual({ ...calls[0].body, description: undefined }, { ref: "abc", environment: PULL_ENVIRONMENT, auto_merge: false, required_contexts: [], payload: { apps }, description: undefined });
+  // Then marked handed over, so GitHub does not show it as queued for good.
+  assert.equal(calls[1].url, "https://api.github.com/repos/o/r/deployments/42/statuses");
+  assert.equal(calls[1].body.state, "success");
+  assert.equal(calls[1].body.auto_inactive, true);
 });
