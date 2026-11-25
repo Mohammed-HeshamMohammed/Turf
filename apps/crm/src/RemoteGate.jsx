@@ -86,12 +86,21 @@ export function RemoteGate({ onReady, onLeave }) {
       }
       // Caller Whale is for adults: an account that has not given its date of birth gives it before anything else.
       // The three lookups do not depend on each other, so they go out together instead of one after another.
-      const sessionLookup = auth.me({ fresh: true }).catch(() => null);
+      // A session closed elsewhere (signed out on the website, or from another device) is refused by auth at once, while Caller
+      // Whale's server trusts its token until it expires: so auth's answer decides. Unreachable is not refused, and carries on.
+      const closed = Symbol("closed");
+      const sessionLookup = auth.me({ fresh: true }).catch(reason => (reason?.status === 401 ? closed : null));
       const accountLookup = api.account();
       const identityLookup = api.me();
       accountLookup.catch(() => {});
       identityLookup.catch(() => {});
       const sessionPerson = await sessionLookup;
+      if (sessionPerson === closed) {
+        Vault.clearSession();
+        // To the website, which hands back whoever is signed in there now, or asks them to sign in.
+        if (!inDesktopApp() && goToWebsiteSignIn(false)) return setStep("checking");
+        return setStep("signin");
+      }
       setAuthSessionId(sessionPerson?.session_id || "");
       if (sessionPerson && !sessionPerson.setup_exempt && sessionPerson.age_confirmed === false) {
         setMe({ user: sessionPerson });
