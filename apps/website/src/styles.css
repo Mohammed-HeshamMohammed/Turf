@@ -56,6 +56,9 @@ a { color: var(--accent-ink); }
 .notice { margin: 0; padding: 10px 14px; border-radius: var(--inner); background: var(--accent-soft); color: var(--accent-ink); }
 .notice.bad { background: #f6dcd8; color: var(--danger-ink); }
 .alt { display: flex; justify-content: space-between; gap: var(--gap); flex-wrap: wrap; }
+.method-choice { display: flex; gap: 8px; flex-wrap: wrap; }
+.method-choice .button { flex: 1 1 0; min-width: 120px; }
+.method-choice .button.active { outline: 2px solid var(--accent-ink); outline-offset: 1px; }
 .fine { margin: 0; font-size: 12px; color: var(--muted); }
 .footer { padding: 0 20px 24px; color: var(--muted); font-size: 12px; }
 

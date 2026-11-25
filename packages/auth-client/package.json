@@ -2,7 +2,7 @@
   "name": "@callerwhale/auth-client",
   "version": "1.0.0",
   "private": true,
-  "description": "Signing in with the auth service, and the human check, for the website and the CRM.",
+  "description": "Signing in with the auth service (the client, and the sign-in steps without a screen), and the human check, for the website and the CRM.",
   "type": "module",
   "exports": {
     ".": {
@@ -12,6 +12,14 @@
     "./human-check.jsx": {
       "types": "./human-check.d.ts",
       "default": "./human-check.jsx"
+    },
+    "./sign-in-flow.js": {
+      "types": "./sign-in-flow.d.ts",
+      "default": "./sign-in-flow.js"
+    },
+    "./sign-in-flow.jsx": {
+      "types": "./sign-in-flow.d.ts",
+      "default": "./sign-in-flow.jsx"
     }
   },
   "scripts": {
