@@ -1093,13 +1093,13 @@ func TestListsArePickedByWhoseLeadsTheyHold(t *testing.T) {
 	e.rules.grants[dave+"|"+orgA] = grantReply{Allowed: true, Scopes: []string{"team"}, TeamIDs: []string{teamA}, TeamScopeIDs: []string{teamA}, ManagedTeamIDs: []string{teamA}, Capabilities: []string{"edit", "call"}, Roles: []string{"manager"}}
 	e.rules.people_[dave] = peopleReply{UserID: dave, Workspaces: []workspaceRoles{{OrgID: orgA, Roles: []string{"manager"}}}}
 	e.rules.mu.Unlock()
-	if _, err := e.admin.Exec(context.Background(), `INSERT INTO crm.teams (id, org_id, name) VALUES ($1, $2, 'Tampa')`, teamA, orgA); err != nil {
-		t.Fatal(err)
-	}
 	ids := map[string]string{}
 	for _, name := range []string{"Bob's", "Team's", "Nobody's"} {
 		_, p := e.call(alice, orgA, "POST", "/api/v1/projects", map[string]any{"name": name})
 		ids[name] = p["id"].(string)
+	}
+	if _, err := e.admin.Exec(context.Background(), `INSERT INTO crm.teams (id, org_id, name) VALUES ($1, $2, 'Tampa')`, teamA, orgA); err != nil {
+		t.Fatal(err)
 	}
 	for _, l := range []struct{ project, team, assignee any }{{ids["Bob's"], nil, bob}, {ids["Team's"], teamA, nil}, {ids["Nobody's"], nil, nil}} {
 		if _, err := e.admin.Exec(context.Background(), `INSERT INTO crm.leads (org_id, name, project_id, team_id, assignee_id) VALUES ($1, 'Lead', $2, $3, $4)`,
