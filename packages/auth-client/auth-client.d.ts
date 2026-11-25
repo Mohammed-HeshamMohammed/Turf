@@ -65,4 +65,8 @@ export function createAuth(options: {
   fetchImpl?: typeof fetch;
   now?: () => number;
   onChange?: () => void;
+  /** The browser's Web Locks (the default), so the tabs take turns to refresh; null goes ahead without. */
+  locks?: Pick<LockManager, "request"> | null;
+  /** Waits that long (the default is a timer). */
+  wait?: (ms: number) => Promise<void>;
 }): Auth;

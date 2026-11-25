@@ -12,7 +12,7 @@ components:
       required: [error, code]
       properties:
         error: { type: string }
-        code: { type: string, enum: [bad_request, unauthenticated, wrong_credentials, mfa_required, wrong_code, human_required, forbidden, conflict, too_many_attempts, internal] }
+        code: { type: string, enum: [bad_request, unauthenticated, token_replaced, wrong_credentials, mfa_required, wrong_code, human_required, forbidden, conflict, too_many_attempts, internal] }
     Tokens:
       type: object
       required: [access_token, token_type, expires_in, refresh_token, user]
@@ -73,7 +73,7 @@ paths:
     post:
       summary: Swap a refresh token for a new pair. A refresh token works once
       requestBody: { content: { application/json: { schema: { type: object, required: [refresh_token], properties: { refresh_token: { type: string } } } } } }
-      responses: { "200": { description: New tokens }, "401": { description: Not valid, used already, or the session ended } }
+      responses: { "200": { description: New tokens }, "401": { description: "Not valid, used already, or the session ended; token_replaced: the token was renewed under 10 seconds ago, so send the newest one" } }
   /v1/sessions/sign-out:
     post:
       summary: End the session of the bearer token, or of the refresh token in the body

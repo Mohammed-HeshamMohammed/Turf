@@ -490,9 +490,25 @@ func (s *server) refresh(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+// replacedGrace is how long the refresh token just replaced is only refused, not taken as copied: two tabs of one browser share
+// the token, and one may send it a moment after the other swapped it. Nothing is handed out for it, so a thief gains nothing;
+// the tab reads the current token and asks again. Later than this, it ends the session as before.
+const replacedGrace = 10
+
+var errTokenReplaced = newError(http.StatusUnauthorized, "token_replaced", "This sign-in was just renewed. Use the newest token.")
+
 // reused is a refresh token that is not the current one: if it was the one before, someone else has it. End that session.
 func (s *server) reused(ctx context.Context, presented string) error {
-	if _, err := s.db.Exec(ctx, "UPDATE sessions SET revoked_at = $1 WHERE prev_refresh_hash = $2 AND revoked_at IS NULL", now(), presented); err != nil {
+	t := now()
+	var one int
+	err := s.db.QueryRow(ctx, "SELECT 1 FROM sessions WHERE prev_refresh_hash = $1 AND revoked_at IS NULL AND expires_at > $2 AND last_seen_at >= $3", presented, t, t-replacedGrace).Scan(&one)
+	if err == nil {
+		return errTokenReplaced
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	if _, err := s.db.Exec(ctx, "UPDATE sessions SET revoked_at = $1 WHERE prev_refresh_hash = $2 AND revoked_at IS NULL", t, presented); err != nil {
 		return err
 	}
 	return errUnauthenticated
