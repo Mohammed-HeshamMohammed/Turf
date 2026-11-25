@@ -176,8 +176,8 @@ export const api = {
     return request("GET", "/sync/snapshot" + (query.size ? "?" + query : ""), undefined, { timeout: 300000 });
   },
   /** One page of the workspace's leads (optionally of one stage, or matching a search), for the Leads list of a big workspace. */
-  browseLeads: ({ term = "", stage = "", offset = 0, limit = 25, count = true, project = "", callable = false, email = false, sort = "" }: { term?: string; stage?: string; offset?: number; limit?: number; count?: boolean; project?: string; callable?: boolean; email?: boolean; sort?: string }): Promise<any> =>
-    request("GET", `/api/v1/leads/search?q=${encodeURIComponent(term)}&stage=${encodeURIComponent(stage)}&offset=${offset}&limit=${limit}${count ? "" : "&count=0"}${project ? "&project=" + encodeURIComponent(project) : ""}${callable ? "&callable=1" : ""}${email ? "&email=1" : ""}${sort ? "&sort=" + encodeURIComponent(sort) : ""}`),
+  browseLeads: ({ term = "", stage = "", offset = 0, limit = 25, count = true, project = "", callable = false, email = false, sort = "", assignee = "" }: { term?: string; stage?: string; offset?: number; limit?: number; count?: boolean; project?: string; callable?: boolean; email?: boolean; sort?: string; assignee?: string }): Promise<any> =>
+    request("GET", `/api/v1/leads/search?q=${encodeURIComponent(term)}&stage=${encodeURIComponent(stage)}&offset=${offset}&limit=${limit}${count ? "" : "&count=0"}${project ? "&project=" + encodeURIComponent(project) : ""}${callable ? "&callable=1" : ""}${email ? "&email=1" : ""}${sort ? "&sort=" + encodeURIComponent(sort) : ""}${assignee ? "&assignee=" + encodeURIComponent(assignee) : ""}`),
   /** Leads of a big workspace beyond the snapshot's window: by name, phone, email or address. */
   /** What hangs off one lead (tasks, notes, calls, handoffs, deals): asked for when a lead outside this device's window is opened. */
   leadDetails: (id: string): Promise<any> => request("GET", `/api/v1/leads/${encodeURIComponent(id)}/details`),

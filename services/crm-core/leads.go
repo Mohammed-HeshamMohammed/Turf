@@ -63,6 +63,18 @@ func (s *server) searchLeads(q *req) error {
 	if query.Get("email") == "1" {
 		where += ` AND l.email <> ''`
 	}
+	// One person's leads (the Team page's "Active leads"), or nobody's. leadSeen above already limits it to what the asker may see,
+	// so a team lead filtering by someone outside their teams gets none.
+	switch assignee := strings.TrimSpace(query.Get("assignee")); {
+	case assignee == "unassigned":
+		where += ` AND l.assignee_id IS NULL`
+	case assignee != "":
+		if !uuidPattern.MatchString(assignee) {
+			return bad("That person does not exist.")
+		}
+		args = append(args, assignee)
+		where += ` AND l.assignee_id = $` + strconv.Itoa(len(args))
+	}
 	if stage := strings.TrimSpace(query.Get("stage")); stage != "" && len(stage) <= 40 {
 		args = append(args, stage)
 		where += ` AND l.stage = $` + strconv.Itoa(len(args))

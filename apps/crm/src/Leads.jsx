@@ -68,7 +68,9 @@ export function Leads() {
   const [serverFailed, setServerFailed] = useState(false);
   const serverMode = Boolean(state.remote) && !heldAll && !serverFailed;
   // One shared source answers (and remembers) each page, so coming back here, or opening it from another screen, is instant.
-  const found = useLeadPage({ term, stage: stage === "All stages" ? "" : stage, sort: "newest", offset: page * size, limit: size }, serverMode);
+  // The server filters by the person's id ("unassigned" for nobody's leads) and only within what this person may see.
+  const assigneeId = assignee === "All people" ? "" : assignee === "Unassigned" ? "unassigned" : (state.remote?.people || []).find(person => person.name === assignee)?.id || "";
+  const found = useLeadPage({ term, stage: stage === "All stages" ? "" : stage, assignee: assigneeId, sort: "newest", offset: page * size, limit: size }, serverMode);
   const served = { ids: found.ids, total: found.total ?? 0 };
   const waiting = found.waiting; // the server has not answered for this page yet: not "no leads"
   useEffect(() => {
@@ -78,7 +80,7 @@ export function Leads() {
     const timer = setTimeout(() => setTerm(search.trim().length >= 2 ? search.trim() : ""), 350);
     return () => clearTimeout(timer);
   }, [search]);
-  useEffect(() => setPage(0), [term, stage, size]);
+  useEffect(() => setPage(0), [term, stage, assigneeId, size]);
   const byId = useMemo(() => new Map(state.leads.map(lead => [lead.id, lead])), [state.leads]);
   const archivedCount = archivedLeads(state).length;
   const windowLeads = (showArchived && archivedCount ? archivedLeads(state) : visibleLeads(state)).filter(
@@ -185,7 +187,7 @@ export function Leads() {
                 <option key={item}>{item}</option>
               ))}
             </Select>
-            {!serverMode && (
+            {(
               <Select aria-label="Filter by assigned person" value={assignee} onChange={event => setAssignee(event.target.value)}>
                 <option>All people</option>
                 {[...teamNames(state), "Unassigned"].map(item => (
