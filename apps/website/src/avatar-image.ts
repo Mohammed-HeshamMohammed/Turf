@@ -1,9 +1,9 @@
 // The maths of the profile picture cropper, kept apart from the page so it can be tested: which square of the chosen image is
 // shown, and how the result is saved. Any image the browser can open is accepted; what is saved is always a small square JPEG.
 
-/** The largest side kept, in pixels (the picture is shown at 150 px at most, so this is more than twice what is needed), and the
- *  longest data address the auth service accepts for it (668000 characters, about 500 KB of image). */
-export const MAX_SIDE = 512;
+/** The largest side sent, in pixels (the picture is shown at 150 px at most, so this is twice that and a little more; auth keeps
+ *  the same), and the longest data address the auth service accepts (668000 characters, about 500 KB of image; it keeps far less). */
+export const MAX_SIDE = 320;
 export const MAX_ENCODED = 668000;
 export const MAX_ZOOM = 4;
 

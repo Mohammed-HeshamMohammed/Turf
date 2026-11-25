@@ -78,6 +78,7 @@ func run() error {
 	failed := make(chan error, 1)
 	go func() { failed <- srv.ListenAndServe() }()
 	go s.watchMembershipPeriods(ctx) // without billing, an ended plan locks its workspace
+	go s.shrinkStoredAvatars(ctx)    // pictures saved before they were kept small
 	log.Printf("auth listening on http://localhost:%s", cfg.port)
 	select {
 	case err := <-failed:

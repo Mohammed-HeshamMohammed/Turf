@@ -23,8 +23,8 @@ test("dragging moves the picture with the pointer and stops at the edge", () => 
 
 test("the picture keeps its size, is never enlarged, and is only reduced past what is ever shown", () => {
   assert.equal(outputSide(200), 200);
-  assert.equal(outputSide(511.6), 512);
-  assert.equal(outputSide(3000), 512);
+  assert.equal(outputSide(319.6), 320);
+  assert.equal(outputSide(3000), 320);
   assert.equal(outputSide(0), 1);
 });
 
