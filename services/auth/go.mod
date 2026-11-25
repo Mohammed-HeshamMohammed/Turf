@@ -12,6 +12,8 @@ require (
 	golang.org/x/oauth2 v0.38.0
 )
 
+require golang.org/x/image v0.48.0
+
 require (
 	callerwhale/runtimelog v0.0.0
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
@@ -19,8 +21,8 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.3 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
+	golang.org/x/text v0.44.0 // indirect
 )
 
 replace callerwhale/runtimelog => ../../packages/go/runtimelog

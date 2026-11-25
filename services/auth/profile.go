@@ -10,8 +10,8 @@ import (
 
 var profilePhone = regexp.MustCompile(`^\+?[0-9][0-9 ()-]{5,24}$`)
 
-// A profile picture is kept as it was cropped (lossless PNG when it fits), so the limit is generous: 500 KB of image, which is
-// 667 KB as text, under the 1 MiB request limit. The website resizes anything larger before it is sent.
+// The largest picture accepted: 500 KB of image, which is 667 KB as text, under the 1 MiB request limit. What is kept is much
+// smaller (shrinkAvatar).
 const (
 	maxAvatarBytes   = 500000
 	maxAvatarEncoded = 668000
@@ -90,6 +90,7 @@ func (s *server) updateProfile(w http.ResponseWriter, r *http.Request) error {
 	if !validAvatar(body.Avatar) {
 		return bad("Choose a PNG or JPEG profile picture smaller than 500 KB.")
 	}
+	body.Avatar = shrinkAvatar(body.Avatar)
 	var current string
 	if err := s.db.QueryRow(r.Context(), "SELECT display_name FROM users WHERE id = $1", c.Sub).Scan(&current); err != nil {
 		return err

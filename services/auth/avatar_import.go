@@ -66,7 +66,7 @@ func fetchGooglePicture(ctx context.Context, raw string) string {
 	if !validAvatar(value) {
 		return ""
 	}
-	return value
+	return shrinkAvatar(value)
 }
 
 // fetchPicture is a variable so a test can answer without the network.
