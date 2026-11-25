@@ -152,11 +152,31 @@ function Providers({ action, shared = false }: { action: string; shared?: boolea
 
 type Challenge = { challenge: string; method: string };
 
+// The code step is kept in this tab while it lasts (auth gives it 10 minutes), so a refresh comes back to it instead of the password.
+const CHALLENGE_KEY = "cw-signin-challenge";
+const CHALLENGE_MS = 9 * 60_000;
+const keepChallenge = (value: Challenge | null) => {
+  try {
+    if (value) window.sessionStorage.setItem(CHALLENGE_KEY, JSON.stringify({ ...value, at: Date.now() }));
+    else window.sessionStorage.removeItem(CHALLENGE_KEY);
+  } catch { /* the step then lasts until the page closes */ }
+};
+const keptChallenge = (): Challenge | null => {
+  try {
+    const kept = JSON.parse(window.sessionStorage.getItem(CHALLENGE_KEY) || "null") as (Challenge & { at: number }) | null;
+    if (kept?.challenge && kept.method && Date.now() - kept.at < CHALLENGE_MS) return { challenge: kept.challenge, method: kept.method };
+  } catch { /* none */ }
+  keepChallenge(null);
+  return null;
+};
+
 function SignIn({ onDone, notice, me }: { onDone: () => void; notice: string; me: Me | null | undefined }) {
   const [email, setEmail] = useState(() => paramOf(typeof window === "undefined" ? "" : window.location.search, "email"));
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
-  const [challenge, setChallenge] = useState<Challenge | null>(null);
+  const [challenge, setChallengeNow] = useState<Challenge | null>(null);
+  const setChallenge = (value: Challenge | null) => { keepChallenge(value); setChallengeNow(value); };
+  useEffect(() => { const kept = keptChallenge(); if (kept) setChallengeNow(kept); }, []);
   // "Keep me signed in" keeps the sign-in for 30 days; unticked (a shared device), it ends when the tab closes, and after 12 hours (D38, D188).
   const [shared, setShared] = useState(false);
   const resumed = Boolean(me && waitingForSecondStep(me)); // signed in already (Google, or an older session), second step not done
@@ -183,11 +203,17 @@ function SignIn({ onDone, notice, me }: { onDone: () => void; notice: string; me
   };
   const verifyCode = async (value: string) => {
     const ok = await run(async () => {
-      if (challenge) await auth.answer(challenge.challenge, challenge.method, value);
-      else await auth.verifyMfa(value);
+      try {
+        if (challenge) await auth.answer(challenge.challenge, challenge.method, value);
+        else await auth.verifyMfa(value);
+      } catch (error) {
+        // Expired, used up or denied: the kept step is no use any more; the message says to start again.
+        if ((error as AuthError).status === 403) keepChallenge(null);
+        throw error;
+      }
     });
     // The session now counts as verified; the page follows that by itself when it was already signed in.
-    if (ok && challenge) onDone();
+    if (ok && challenge) { keepChallenge(null); onDone(); }
     else if (!ok) setCode("");
   };
   const verify = (e: FormEvent) => {
@@ -503,7 +529,7 @@ export function App({ path: first = "/" }) {
   // Pages are for the right state: signed in, nobody sees the sign-in forms; signed out, nobody sees the account page.
   const fromCrm = typeof window !== "undefined" && wantsCrm(window.location.search);
   useEffect(() => {
-    if (me && fromCrm) { if (!setupStep(me)) void openCrm(); return; } // the setup steps (age, terms, work) come first
+    if (me && fromCrm && !waitingForSecondStep(me)) { if (!setupStep(me)) void openCrm(); return; } // the setup steps (age, terms, work) come first
     // /account is the older address of the same page: it goes to the person's own address once it is known.
     if (me && cleanPath(path) === "/profile" && !setupStep(me) && profilePath(me) !== "/account") { go(profilePath(me), { replace: true }); return; }
     if (me === null && ownPageName) { go("/signin", { replace: true }); return; }
@@ -530,9 +556,13 @@ export function App({ path: first = "/" }) {
   }, [me]);
   // An account with a setup step still to do (its age, the terms, what its work is) does it before anything else.
   const setup = me ? <Setup me={me} auth={auth} onDone={() => { auth.me({ fresh: true }).then(setMe); }} onSignOut={signOut} /> : null;
+  // While a saved sign-in loads, /signin waits instead of showing the password form; and a person whose second step is still open
+  // never sees a signed-in page while the guard sends them to /signin. A refresh then goes straight to the right card.
+  const pending = <AccountPending error={restoreError} onRetry={retrySession} />;
+  const secondStepOpen = Boolean(me && waitingForSecondStep(me));
   const pages: Record<string, React.ReactNode> = {
     "/": <Home me={me} authBase={authBase} />,
-    "/signin": me && fromCrm ? (setupStep(me) ? setup : <div className="form-wrap"><p className="muted" role="status">Opening the CRM…</p></div>) : <SignIn onDone={signedIn} notice={notice} me={me} />,
+    "/signin": me === undefined && savedSession ? pending : me && fromCrm && !secondStepOpen ? (setupStep(me) ? setup : <div className="form-wrap"><p className="muted" role="status">Opening the CRM…</p></div>) : <SignIn onDone={signedIn} notice={notice} me={me} />,
     "/signup": <SignUp onDone={signedIn} />,
     "/forgot": <Forgot />,
     "/verify": <VerifyEmail me={me} onVerified={() => { auth.me({ fresh: true }).then(setMe, () => undefined); }} />,
@@ -549,10 +579,10 @@ export function App({ path: first = "/" }) {
     "/acceptable-use": <AcceptableUse />,
     "/privacy": <Privacy />,
     "/terms": <Terms />,
-    "/connect": me && setupStep(me) ? setup : me ? <Connect auth={auth} authBase={authBase} search={typeof window === "undefined" ? "" : window.location.search} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
-    "/account": me && setupStep(me) ? setup : me ? <Settings me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
-    "/profile": me && setupStep(me) ? setup : me ? <Profile me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
-    "/dashboard": me && setupStep(me) ? setup : me ? <Dashboard me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
+    "/connect": secondStepOpen ? pending : me && setupStep(me) ? setup : me ? <Connect auth={auth} authBase={authBase} search={typeof window === "undefined" ? "" : window.location.search} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
+    "/account": secondStepOpen ? pending : me && setupStep(me) ? setup : me ? <Settings me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
+    "/profile": secondStepOpen ? pending : me && setupStep(me) ? setup : me ? <Profile me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
+    "/dashboard": secondStepOpen ? pending : me && setupStep(me) ? setup : me ? <Dashboard me={me} auth={auth} authBase={authBase} onSaved={() => { auth.me({ fresh: true }).then(setMe); }} /> : <AccountPending error={restoreError} onRetry={retrySession} />,
   };
   const ownPage = me === undefined || me === null ? <AccountPending error={restoreError} onRetry={retrySession} /> : setupStep(me) ? setup : String(me.username || "") === ownPageName ? pages["/profile"] : <NotFound />;
   const featureSlug = cleanPath(path).startsWith("/features/") ? cleanPath(path).slice("/features/".length) : "";
