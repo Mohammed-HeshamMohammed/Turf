@@ -43,10 +43,12 @@ export function createAuth({ base, storage = globalThis.localStorage, tabStorage
     }
   };
   const writeRefresh = (value, shared = false) => {
+    // A new token is set over the old one, never removed first: other tabs read a removal as "signed out" (a storage event).
+    const kept = shared ? tabStorage : storage;
     try {
-      tabStorage?.removeItem(REFRESH_KEY);
-      storage?.removeItem(REFRESH_KEY);
-      if (value) (shared ? tabStorage : storage)?.setItem(REFRESH_KEY, value);
+      (shared ? storage : tabStorage)?.removeItem(REFRESH_KEY);
+      if (value) kept?.setItem(REFRESH_KEY, value);
+      else kept?.removeItem(REFRESH_KEY);
     } catch {
       /* Not remembered on this device: signed in until the page closes. */
     }

@@ -411,3 +411,18 @@ test("a token still replaced after waiting gives up without signing out", async 
   assert.equal(calls.length, 9);
   assert.equal(storage.map.get("callerwhale.auth.refresh"), "R1", "the session is not given up");
 });
+
+test("a new refresh token is set over the old one, never removed first, so other tabs do not read it as a sign-out", async () => {
+  const storage = memoryStorage();
+  const removed = [];
+  const remove = storage.removeItem;
+  storage.removeItem = key => { removed.push(key); remove(key); };
+  storage.setItem("callerwhale.auth.refresh", "R1");
+  const { fetchImpl } = fakeService({ "/v1/sessions/refresh": tokens("A2", "R2"), "/v1/sessions/sign-out": { status: 200, body: { ok: true } } });
+  const auth = createAuth({ base: "http://auth.example", storage, tabStorage: memoryStorage(), fetchImpl, locks: null });
+  await auth.refresh();
+  assert.equal(storage.map.get("callerwhale.auth.refresh"), "R2");
+  assert.deepEqual(removed, [], "never removed on the way");
+  await auth.signOut();
+  assert.deepEqual(removed, ["callerwhale.auth.refresh"], "signing out does remove it");
+});
