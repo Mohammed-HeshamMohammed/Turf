@@ -30,27 +30,46 @@ export function appsOf(deployment) {
   return apps;
 }
 
-/** Applies every pending deployment in order; returns the new state. Stops at the first failure so the order is kept. */
+/** Applies every pending deployment in order; returns the new state. Each application is applied on its own and remembered, so one
+ * that fails (not set up yet, say) never holds back the others in the same deployment: a retry repeats only the ones that failed. A
+ * deployment with a failure stops the queue so the order is kept, and is given up after three tries. */
 export async function pull({ deployments, state, base, token, log = console.log, apply = deploy }) {
-  const next = { lastId: state.lastId ?? 0, tries: { ...(state.tries ?? {}) } };
+  const next = { lastId: state.lastId ?? 0, tries: { ...(state.tries ?? {}) }, done: { ...(state.done ?? {}) } };
   for (const d of pending(deployments, next)) {
+    let apps;
     try {
-      const apps = appsOf(d);
-      log(`deployment ${d.id} (${String(d.sha).slice(0, 7)}): ${apps.length} application(s)`);
-      await apply(apps, { base, token, log });
+      apps = appsOf(d);
+    } catch (error) {
+      log(`deployment ${d.id}: refused, ${error.message}`);
+      next.lastId = d.id;
+      continue;
+    }
+    log(`deployment ${d.id} (${String(d.sha).slice(0, 7)}): ${apps.length} application(s)`);
+    const done = new Set(next.done[d.id] ?? []);
+    const failed = [];
+    for (const app of apps.filter(a => !done.has(a.app))) {
+      try {
+        await apply([app], { base, token, log });
+        done.add(app.app);
+      } catch (error) {
+        failed.push(app.app);
+        log(`deployment ${d.id}: ${app.app} failed: ${error.message}`);
+      }
+    }
+    next.done[d.id] = [...done];
+    if (!failed.length) {
       next.lastId = d.id;
       delete next.tries[d.id];
-    } catch (error) {
-      next.tries[d.id] = (next.tries[d.id] ?? 0) + 1;
-      log(`deployment ${d.id} failed (try ${next.tries[d.id]} of ${TRIES}): ${error.message}`);
-      if (next.tries[d.id] >= TRIES) {
-        log(`deployment ${d.id}: given up; the next one goes ahead`);
-        next.lastId = d.id;
-        delete next.tries[d.id];
-        continue;
-      }
-      break;
+      delete next.done[d.id];
+      continue;
     }
+    next.tries[d.id] = (next.tries[d.id] ?? 0) + 1;
+    log(`deployment ${d.id}: ${failed.length} application(s) failed (try ${next.tries[d.id]} of ${TRIES})`);
+    if (next.tries[d.id] < TRIES) break;
+    log(`deployment ${d.id}: given up for ${failed.join(", ")}; the next one goes ahead`);
+    next.lastId = d.id;
+    delete next.tries[d.id];
+    delete next.done[d.id];
   }
   return next;
 }
