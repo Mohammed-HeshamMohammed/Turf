@@ -1084,3 +1084,48 @@ func TestWorkCannotBeGivenPastTheTree(t *testing.T) {
 	e.want(e.opWith(dave, orgA, "lead.assign", map[string]any{"ids": []string{lead}, "assignee_id": bob, "team_id": teamU}, ""), "rejected")
 	e.want(e.opWith(alice, orgA, "lead.assign", map[string]any{"ids": []string{lead}, "assignee_id": erin}, ""), "applied")
 }
+
+func TestListsArePickedByWhoseLeadsTheyHold(t *testing.T) {
+	e := newEnv(t)
+	e.seed()
+	const teamA, dave = "aaaaaaaa-0000-4000-8000-000000000201", "44444444-4444-4444-8444-444444444444"
+	e.rules.mu.Lock()
+	e.rules.grants[dave+"|"+orgA] = grantReply{Allowed: true, Scopes: []string{"team"}, TeamIDs: []string{teamA}, TeamScopeIDs: []string{teamA}, ManagedTeamIDs: []string{teamA}, Capabilities: []string{"edit", "call"}, Roles: []string{"manager"}}
+	e.rules.people_[dave] = peopleReply{UserID: dave, Workspaces: []workspaceRoles{{OrgID: orgA, Roles: []string{"manager"}}}}
+	e.rules.mu.Unlock()
+	ids := map[string]string{}
+	for _, name := range []string{"Bob's", "Team's", "Nobody's"} {
+		_, p := e.call(alice, orgA, "POST", "/api/v1/projects", map[string]any{"name": name})
+		ids[name] = p["id"].(string)
+	}
+	if _, err := e.admin.Exec(context.Background(), `INSERT INTO crm.teams (id, org_id, name) VALUES ($1, $2, 'Tampa')`, teamA, orgA); err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range []struct{ project, team, assignee any }{{ids["Bob's"], nil, bob}, {ids["Team's"], teamA, nil}, {ids["Nobody's"], nil, nil}} {
+		if _, err := e.admin.Exec(context.Background(), `INSERT INTO crm.leads (org_id, name, project_id, team_id, assignee_id) VALUES ($1, 'Lead', $2, $3, $4)`,
+			orgA, l.project, l.team, l.assignee); err != nil {
+			t.Fatal(err)
+		}
+	}
+	names := func(user string) []string {
+		status, raw := e.raw(user, orgA, "GET", "/api/v1/projects", nil, nil)
+		var rows []map[string]any
+		if err := json.Unmarshal(raw, &rows); status != 200 || err != nil {
+			t.Fatalf("lists for %s: %d %s", user, status, raw)
+		}
+		out := []string{}
+		for _, r := range rows {
+			out = append(out, r["name"].(string))
+		}
+		return out
+	}
+	if got := strings.Join(names(alice), ","); got != "Bob's,Nobody's,Team's" {
+		t.Fatalf("the owner sees every list: %s", got)
+	}
+	if got := strings.Join(names(bob), ","); got != "Bob's" {
+		t.Fatalf("a caller sees the lists holding their leads: %s", got)
+	}
+	if got := strings.Join(names(dave), ","); got != "Team's" {
+		t.Fatalf("a team leader sees the lists holding the team's leads: %s", got)
+	}
+}
