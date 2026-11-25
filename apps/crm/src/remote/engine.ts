@@ -359,6 +359,18 @@ export class SyncEngine {
     }
   }
 
+  /** Reads the workspace's lead counts again (per person, per stage, per list) without reloading the leads: after a bulk change on the
+   * server, like giving leads, the pages that count from them would otherwise show the old numbers until the next full load. */
+  async refreshCounts() {
+    if (!this.store) return;
+    const fresh = storeFromSnapshot(await this.api.snapshot({ limit: 1 }));
+    const { leadsTotal, projectCounts, projectCallable, stageCounts, unassignedCount, assigneeCounts, projectContactable } = fresh;
+    this.store = { ...this.store, leadsTotal, projectCounts, projectCallable, stageCounts, unassignedCount, assigneeCounts, projectContactable };
+    await this.save();
+    leadSource.invalidate();
+    this.emit();
+  }
+
   async pull() {
     while (true) {
       const answer = await this.api.pull(this.store.cursor, this.store.accessRevision);

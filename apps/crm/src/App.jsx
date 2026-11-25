@@ -312,6 +312,7 @@ export function App() {
   const dispatch = useCallback(
     action => {
       const sync = engine.current;
+      if (action.type === "REFRESH_COUNTS") return void sync?.refreshCounts().catch(() => undefined); // counts come from the server
       if (!sync) return apply(action);
       // Team chats and groups live in the messaging service: what is done to one goes there, and comes back as its new state.
       const talk = chat.current;

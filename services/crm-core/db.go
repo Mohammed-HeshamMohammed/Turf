@@ -156,6 +156,8 @@ var lateIndexes = []struct{ name, create string }{
 	// A call history's rows are matched to leads by name (importing.merge_call_batch); without this each row read every lead of the agency.
 	// The stored address keys (0050): finding the other leads at an address, and finding the properties whose key is not filled in yet.
 	{"properties_by_addr_key", `CREATE INDEX CONCURRENTLY IF NOT EXISTS properties_by_addr_key ON crm.properties (org_id, addr_key) WHERE addr_key <> ''`},
+	// Giving leads takes the next batch of one person's (or nobody's) leads in id order; without this it sorted all of them each batch.
+	{"leads_by_assignee", `CREATE INDEX CONCURRENTLY IF NOT EXISTS leads_by_assignee ON crm.leads (org_id, assignee_id, id) WHERE deleted_at IS NULL`},
 	{"properties_addr_key_missing", `CREATE INDEX CONCURRENTLY IF NOT EXISTS properties_addr_key_missing ON crm.properties (org_id) WHERE addr_key IS NULL`},
 }
 

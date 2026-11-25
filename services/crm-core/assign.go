@@ -25,7 +25,12 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const assignBatch = 5000
+// assignBatch is the largest batch; a run starts at assignFirstBatch and doubles from there, so the first leads (and the count the
+// dialog shows) arrive within moments and a big run still moves in large batches.
+const (
+	assignBatch      = 5000
+	assignFirstBatch = 100
+)
 
 const noTeam = "00000000-0000-0000-0000-000000000000"
 
@@ -318,7 +323,7 @@ func (s *server) assignSlice(ctx context.Context, org, id string, budget time.Du
 		after = *cursor
 	}
 	for {
-		n := int64(assignBatch)
+		n := min(int64(assignBatch), max(int64(assignFirstBatch), assigned))
 		if limit != nil {
 			if assigned >= *limit {
 				break
