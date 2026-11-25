@@ -309,11 +309,26 @@ func (s *server) projects(q *req) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	rows, err := queryJSON(ctx, tx, `SELECT to_jsonb(p) FROM projects p
-		WHERE 'organization' = ANY(string_to_array(current_setting('cw.scopes', true), ','))
+	// The same reach as cw_visible_lead, one indexed check per kind of reach: asking cw_visible_lead lead by lead read every lead of a
+	// list a person could not see, which took longer than the app waits for a team leader in a large agency.
+	rows, err := queryJSON(ctx, tx, `WITH me AS (
+		  SELECT nullif(current_setting('cw.user_id', true), '')::uuid AS id,
+		         string_to_array(coalesce(current_setting('cw.scopes', true), ''), ',') AS scopes)
+		SELECT to_jsonb(p) FROM projects p, me
+		WHERE 'organization' = ANY(me.scopes)
 		   OR p.id = ANY(cw_uuids('cw.project_ids'))
-		   OR EXISTS (SELECT 1 FROM leads l WHERE l.project_id = p.id AND cw_visible_lead(l.id))
-		ORDER BY name`)
+		   OR ('team' = ANY(me.scopes) AND EXISTS (SELECT 1 FROM leads l
+		        WHERE l.project_id = p.id AND l.deleted_at IS NULL AND l.team_id = ANY(cw_uuids('cw.team_ids'))))
+		   OR ('own' = ANY(me.scopes) AND (
+		        EXISTS (SELECT 1 FROM leads l WHERE l.project_id = p.id AND l.deleted_at IS NULL AND l.assignee_id = me.id)
+		     OR EXISTS (SELECT 1 FROM handoffs h JOIN leads l ON l.id = h.lead_id
+		        WHERE h.to_user = me.id AND h.status = 'Requested' AND l.project_id = p.id AND l.deleted_at IS NULL)))
+		   OR ('shared' = ANY(me.scopes) AND (
+		        EXISTS (SELECT 1 FROM lead_shares s JOIN leads l ON l.id = s.lead_id
+		        WHERE s.user_id = me.id AND l.project_id = p.id AND l.deleted_at IS NULL)
+		     OR EXISTS (SELECT 1 FROM client_members cm JOIN leads l ON l.client_id = cm.client_id
+		        WHERE cm.user_id = me.id AND l.shared_with_client AND l.project_id = p.id AND l.deleted_at IS NULL)))
+		ORDER BY p.name`)
 	if err != nil {
 		return err
 	}

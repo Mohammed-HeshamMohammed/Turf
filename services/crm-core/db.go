@@ -158,6 +158,9 @@ var lateIndexes = []struct{ name, create string }{
 	{"properties_by_addr_key", `CREATE INDEX CONCURRENTLY IF NOT EXISTS properties_by_addr_key ON crm.properties (org_id, addr_key) WHERE addr_key <> ''`},
 	// Giving leads takes the next batch of one person's (or nobody's) leads in id order; without this it sorted all of them each batch.
 	{"leads_by_assignee", `CREATE INDEX CONCURRENTLY IF NOT EXISTS leads_by_assignee ON crm.leads (org_id, assignee_id, id) WHERE deleted_at IS NULL`},
+	// The lists a team leader or caller sees are found through these: without them, each list read its leads until one was visible.
+	{"leads_by_project_team", `CREATE INDEX CONCURRENTLY IF NOT EXISTS leads_by_project_team ON crm.leads (project_id, team_id) WHERE deleted_at IS NULL`},
+	{"leads_by_project_assignee", `CREATE INDEX CONCURRENTLY IF NOT EXISTS leads_by_project_assignee ON crm.leads (project_id, assignee_id) WHERE deleted_at IS NULL`},
 	{"properties_addr_key_missing", `CREATE INDEX CONCURRENTLY IF NOT EXISTS properties_addr_key_missing ON crm.properties (org_id) WHERE addr_key IS NULL`},
 }
 
