@@ -525,6 +525,32 @@ func TestABrowserSignInIsHandedToTheDesktopAppOnce(t *testing.T) {
 	}
 }
 
+func TestSigningOutOfTheWebsiteSignsItsCrmOut(t *testing.T) {
+	w, _ := newOAuthWorld(t)
+	site := w.signUp("mona@example.com")
+	crm := w.exchange(w.call("POST", "/v1/handoffs", map[string]any{"kind": "browser"}, site.access()).str("code"))
+	desktop := w.exchange(w.call("POST", "/v1/handoffs", map[string]any{}, site.access()).str("code"))
+	other := w.signInWith("mona@example.com", nil)
+	if crm.status != 200 || desktop.status != 200 {
+		t.Fatalf("%d %d", crm.status, desktop.status)
+	}
+	// As the website does: with its refresh token.
+	if a := w.call("POST", "/v1/sessions/sign-out", map[string]any{"refresh_token": site.refresh()}, ""); a.status != 200 {
+		t.Fatalf("sign out: %d", a.status)
+	}
+	if a := w.call("GET", "/v1/me", nil, crm.access()); a.status != 401 {
+		t.Fatalf("the CRM opened from that website session is signed out too: %d", a.status)
+	}
+	if a := w.call("POST", "/v1/sessions/refresh", map[string]any{"refresh_token": crm.refresh()}, ""); a.status == 200 {
+		t.Fatal("the CRM's session cannot be renewed after the website signed out")
+	}
+	for name, kept := range map[string]answer{"the desktop app": desktop, "another sign-in": other} {
+		if a := w.call("GET", "/v1/me", nil, kept.access()); a.status != 200 {
+			t.Fatalf("%s is its own sign-in and stays: %d", name, a.status)
+		}
+	}
+}
+
 func TestAHandedOverSignInKeepsWhatTheSessionPassed(t *testing.T) {
 	w, _ := newOAuthWorld(t)
 	first := w.signUp("mona@example.com")

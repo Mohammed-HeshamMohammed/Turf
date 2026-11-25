@@ -206,6 +206,11 @@ func (s *server) upsertFirebaseUser(ctx context.Context, p fbProfile) (*user, er
 // openSession opens a session and returns the tokens for it. provider: how it began ("password", "google", "apple"). fbRefresh is
 // the person's Firebase refresh token, kept so this service can ask Firebase for them later.
 func (s *server) openSession(ctx context.Context, u *user, kind string, mfaPassed bool, provider, fbRefresh string) (map[string]any, error) {
+	return s.openSessionFrom(ctx, u, kind, mfaPassed, provider, fbRefresh, "")
+}
+
+// openSessionFrom opens a session handed over from another one (parent): signing out of the parent signs this one out too.
+func (s *server) openSessionFrom(ctx context.Context, u *user, kind string, mfaPassed bool, provider, fbRefresh, parent string) (map[string]any, error) {
 	t := now()
 	id := uuid.NewString()
 	refresh, refreshHash := newSecret()
@@ -223,8 +228,8 @@ func (s *server) openSession(ctx context.Context, u *user, kind string, mfaPasse
 	if kind == "shared" {
 		expires = t + sharedSessionSeconds
 	}
-	_, err := s.db.Exec(ctx, "INSERT INTO sessions (id, user_id, refresh_hash, kind, mfa_passed, created_at, last_seen_at, expires_at, provider, fb_refresh, mfa_at) VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9, $10)",
-		id, u.id, refreshHash, kind, mfa, t, expires, provider, fb, mfaAt)
+	_, err := s.db.Exec(ctx, "INSERT INTO sessions (id, user_id, refresh_hash, kind, mfa_passed, created_at, last_seen_at, expires_at, provider, fb_refresh, mfa_at, parent_id) VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9, $10, nullif($11, ''))",
+		id, u.id, refreshHash, kind, mfa, t, expires, provider, fb, mfaAt, parent)
 	if err != nil {
 		return nil, err
 	}
