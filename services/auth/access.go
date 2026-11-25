@@ -70,6 +70,7 @@ func (s *server) meAccess(w http.ResponseWriter, r *http.Request) error {
 		log.Printf("WARN roles unavailable: %v", err)
 		return unavailable
 	}
+	s.settleFounderTag(r.Context(), c.Sub, profile.PlatformRole) // #Owner and #Co-Owner follow the platform role
 	writeJSON(w, http.StatusOK, map[string]any{
 		"platform_role":  profile.PlatformRole,
 		"platform_label": profile.PlatformLabel,
