@@ -9,6 +9,7 @@ import { api } from "./remote/api.ts";
 import { Avatar, Badge, Button, Card, PageHeader, money } from "./ui.jsx";
 import { SignInMark } from "./SignInMarks.jsx";
 import { TeamMonitor } from "./TeamMonitor.jsx";
+import { PhoneNumbers } from "./PhoneNumbers.jsx";
 
 /** Everyone on the team in one place: what they own, what is waiting on them and where to go next. */
 export function Team() {
@@ -16,6 +17,7 @@ export function Team() {
   const finance = capability(state, "finance");
   // A solo operator who wants to add callers makes the same workspace an agency (D59, D203).
   const solo = Boolean(state.remote?.roles?.includes("solo"));
+  const owner = Boolean(state.remote?.roles?.includes("owner"));
   const [upgrading, setUpgrading] = useState(false);
   const upgrade = async () => {
     if (!window.confirm("Make this workspace an agency? You stay its owner and also lead a first team named after you, which takes all your leads. Nothing is copied or lost, and you can then invite callers.")) return;
@@ -70,6 +72,7 @@ export function Team() {
         {solo && <Button variant="primary" disabled={upgrading} onClick={upgrade}>{upgrading ? "Upgrading…" : "Make this an agency"}</Button>}
       </PageHeader>
       {state.remote && <TeamMonitor />}
+      {owner && <PhoneNumbers notify={notify} />}
       <div className="metrics-grid">
         {[
           ["People", people.length, "On this workspace", UsersThree],

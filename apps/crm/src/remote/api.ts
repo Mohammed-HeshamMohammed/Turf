@@ -156,6 +156,10 @@ export const api = {
   /** My account's picture, kept with my name so the rest of the team sees the same face. */
   setPicture: (avatar: string): Promise<any> => request("PUT", "/api/v1/me/picture", { avatar }, { includeOrganization: false }),
   teams: () => request("GET", "/api/v1/admin/teams"),
+  /** How leads are protected (owner and admins): which teams' agents see full phone numbers, and the export and view settings (D162-D165). */
+  protection: () => request("GET", "/api/v1/protection"),
+  /** The owner shows (or masks again) full phone numbers to one team's agents (D163). */
+  setFullNumbers: (teamId: string, on: boolean) => request("PUT", `/api/v1/teams/${encodeURIComponent(teamId)}/full-numbers`, { on }),
   /** A solo operator makes the workspace an agency: a first team named after them, holding their leads. */
   upgradeToAgency: () => request("POST", "/api/v1/workspace/upgrade"),
   // Giving leads to people (crm-core assign.go): who the viewer may give leads to, starting a run, and following it.
