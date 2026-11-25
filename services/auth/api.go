@@ -541,12 +541,13 @@ func (s *server) freshFirebaseUser(ctx context.Context, sid string) *user {
 	return updated
 }
 
-// signOut ends the session of the access token, or of the refresh token in the body.
+// signOut ends the session of the access token, or of the refresh token in the body, and the sessions handed over from it (the
+// CRM web app's, opened from the website).
 func (s *server) signOut(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	t := now()
 	if c, err := s.person(r); err == nil {
-		if _, err := s.db.Exec(ctx, "UPDATE sessions SET revoked_at = $1 WHERE id = $2 AND revoked_at IS NULL", t, c.SID); err != nil {
+		if _, err := s.db.Exec(ctx, "UPDATE sessions SET revoked_at = $1 WHERE (id = $2 OR parent_id = $2) AND revoked_at IS NULL", t, c.SID); err != nil {
 			return err
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
@@ -559,7 +560,8 @@ func (s *server) signOut(w http.ResponseWriter, r *http.Request) error {
 	if strings.TrimSpace(body.RefreshToken) == "" {
 		return errUnauthenticated
 	}
-	if _, err := s.db.Exec(ctx, "UPDATE sessions SET revoked_at = $1 WHERE refresh_hash = $2 AND revoked_at IS NULL", t, sha256Hex(strings.TrimSpace(body.RefreshToken))); err != nil {
+	if _, err := s.db.Exec(ctx, `UPDATE sessions SET revoked_at = $1 WHERE revoked_at IS NULL AND (refresh_hash = $2
+		OR parent_id = (SELECT id FROM sessions WHERE refresh_hash = $2))`, t, sha256Hex(strings.TrimSpace(body.RefreshToken))); err != nil {
 		return err
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})

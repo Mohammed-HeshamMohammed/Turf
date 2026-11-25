@@ -390,7 +390,7 @@ func (s *server) finish(ctx context.Context, name string, got returned) string {
 	userID, fbRefresh, err := s.providerSignIn(ctx, name, got, nonce, deref(verifier), linkToken, deref(linkUser))
 	var code string
 	if err == nil && linkUser == nil {
-		code, err = s.handoff(ctx, userID, kind, name, false, fbRefresh)
+		code, err = s.handoff(ctx, userID, kind, name, false, fbRefresh, "")
 	}
 	if err == nil && linkUser != nil {
 		if fbRefresh != "" {
@@ -599,7 +599,7 @@ func appleName(user string) string {
 // ---- the one-time code ----
 
 // handoff records a finished sign-in to collect, once, within two minutes. Only the hash is kept.
-func (s *server) handoff(ctx context.Context, userID, kind, provider string, mfaPassed bool, fbRefresh string) (string, error) {
+func (s *server) handoff(ctx context.Context, userID, kind, provider string, mfaPassed bool, fbRefresh, parentSID string) (string, error) {
 	code, hash := newSecret()
 	t := now()
 	var fb *string
@@ -610,7 +610,7 @@ func (s *server) handoff(ctx context.Context, userID, kind, provider string, mfa
 	if mfaPassed {
 		mfa = 1
 	}
-	if _, err := s.db.Exec(ctx, "INSERT INTO oauth_handoffs (code_hash, user_id, kind, expires_at, provider, fb_refresh, mfa_passed) VALUES ($1, $2, $3, $4, $5, $6, $7)", hash, userID, kind, t+handoffSeconds, provider, fb, mfa); err != nil {
+	if _, err := s.db.Exec(ctx, "INSERT INTO oauth_handoffs (code_hash, user_id, kind, expires_at, provider, fb_refresh, mfa_passed, parent_sid) VALUES ($1, $2, $3, $4, $5, $6, $7, nullif($8, ''))", hash, userID, kind, t+handoffSeconds, provider, fb, mfa, parentSID); err != nil {
 		return "", err
 	}
 	_, _ = s.db.Exec(ctx, "DELETE FROM oauth_handoffs WHERE expires_at < $1", t)
@@ -630,10 +630,10 @@ func (s *server) exchange(w http.ResponseWriter, r *http.Request) error {
 	}
 	ctx := r.Context()
 	var userID, kind, provider string
-	var fb *string
+	var fb, parent *string
 	var mfa int64
-	err := s.db.QueryRow(ctx, "DELETE FROM oauth_handoffs WHERE code_hash = $1 AND expires_at > $2 RETURNING user_id, kind, provider, fb_refresh, mfa_passed", sha256Hex(strings.TrimSpace(body.Code)), now()).
-		Scan(&userID, &kind, &provider, &fb, &mfa)
+	err := s.db.QueryRow(ctx, "DELETE FROM oauth_handoffs WHERE code_hash = $1 AND expires_at > $2 RETURNING user_id, kind, provider, fb_refresh, mfa_passed, parent_sid", sha256Hex(strings.TrimSpace(body.Code)), now()).
+		Scan(&userID, &kind, &provider, &fb, &mfa, &parent)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return forbidden("This sign-in has expired. Try again.")
 	}
@@ -652,7 +652,7 @@ func (s *server) exchange(w http.ResponseWriter, r *http.Request) error {
 	if kind == "browser" && body.Device == "shared" {
 		kind = "shared"
 	}
-	reply, err := s.openSession(ctx, u, kind, mfa == 1, provider, deref(fb))
+	reply, err := s.openSessionFrom(ctx, u, kind, mfa == 1, provider, deref(fb), deref(parent))
 	if err != nil {
 		return err
 	}
@@ -688,11 +688,13 @@ func (s *server) desktopHandoff(w http.ResponseWriter, r *http.Request) error {
 		Kind string `json:"kind"`
 	}
 	_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&body) // an empty body means the desktop app
-	kind := "desktop"
+	// The CRM web app runs in the same browser as the website, so its session follows the website's: signing out of one website
+	// session signs its CRM out too. The desktop app is its own sign-in and is left as it is.
+	kind, parent := "desktop", ""
 	if body.Kind == "browser" {
-		kind = "browser"
+		kind, parent = "browser", c.SID
 	}
-	code, err := s.handoff(ctx, u.id, kind, c.Provider, passed == 1, deref(fb))
+	code, err := s.handoff(ctx, u.id, kind, c.Provider, passed == 1, deref(fb), parent)
 	if err != nil {
 		return err
 	}

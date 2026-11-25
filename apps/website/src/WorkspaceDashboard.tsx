@@ -5,7 +5,7 @@ import type { Access } from "./RoleBadges.tsx";
 import { InviteManager, PendingInvitations, WorkspaceManager } from "./AccessManagement.tsx";
 import { Settings } from "./Settings.tsx";
 import { profilePath } from "./profile-path.ts";
-import { crmUrl } from "./crm-url.ts";
+import { crmUrl, openCrm } from "./crm-url.ts";
 import { EarlyFeatures, FeedbackButton, SupportChats, WhatsNew } from "./Help.tsx";
 
 const gateway = (import.meta.env.VITE_CALLERWHALE_GATEWAY_URL || "https://gate.callerwhale.com").replace(/\/$/, "");
@@ -62,7 +62,7 @@ function WorkspaceOverview({ auth, authBase, orgId, owner, open }: { auth: Auth;
       <section className="card" aria-labelledby="ws-work">
         <h2 id="ws-work">Work</h2>
         <p className="muted">Leads, calls, tasks and lists are in the CRM.</p>
-        <a className="button primary" href={crmUrl}>Open the CRM</a>
+        <a className="button primary" href={crmUrl} onClick={event => { event.preventDefault(); void openCrm(auth); }}>Open the CRM</a>
         <button type="button" className="staff-text-button" onClick={() => open("activity")}>See what everyone did →</button>
       </section>
     </div>
@@ -131,7 +131,7 @@ export function WorkspaceDashboard({ access, auth, authBase, me, onSaved }: { ac
         {canInvite && link("invitations", "Invitations")}
         {link("activity", "Activity")}
         {owner && link("support", "Support")}
-        <a href={crmUrl}>Open the CRM</a>
+        <a href={crmUrl} onClick={event => { event.preventDefault(); void openCrm(auth); }}>Open the CRM</a>
         <Link to="/help">Help</Link>
         <Link to={profilePath(me)}>Profile</Link>
         {link("account", "Settings")}

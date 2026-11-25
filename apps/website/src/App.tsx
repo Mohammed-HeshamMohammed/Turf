@@ -16,7 +16,7 @@ import { Home } from "./Home.tsx";
 import { AnnouncementBanner } from "./Announcement.tsx";
 import { SiteHeader } from "./components/ui/site-header.tsx";
 import { hasCrmAccess, type CrmAccess } from "./crm-access.ts";
-import { crmUrl } from "./crm-url.ts";
+import { openCrm as openCrmAs } from "./crm-url.ts";
 import { paramOf, wantsCrm } from "./links.ts";
 import { ageProblem } from "./age.ts";
 import { BirthDateField } from "./BirthDate.tsx";
@@ -490,8 +490,7 @@ export function App({ path: first = "/" }) {
   const [crmLink, setCrmLink] = useState(false);
   // Carries this sign-in to the CRM web app: a one-time code (good for two minutes) is traded there for its own session.
   const openCrm = async () => {
-    try { window.location.assign(`${crmUrl}/?callerwhale_code=${encodeURIComponent(await auth.handoff("browser"))}`); }
-    catch { window.location.assign(crmUrl); }
+    await openCrmAs(auth);
   };
   useEffect(() => {
     setCrmLink(false);
