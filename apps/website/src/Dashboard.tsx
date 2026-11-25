@@ -10,6 +10,7 @@ import { InviteManager, PendingInvitations, WorkspaceManager, WorkspaceSecondSte
 import { AIRequests, AgencyStanding, HandOver, SeatChoice, SupportAccess, SupportedAgencies, OfferedAgencies, OwnerlessAgencies, askTakeover } from "./Ownership.tsx";
 import { MonitoringPanel } from "./MonitoringPanel.tsx";
 import { Settings } from "./Settings.tsx";
+import { Profile } from "./Profile.tsx";
 import { profilePath } from "./profile-path.ts";
 import { WorkspaceDashboard } from "./WorkspaceDashboard.tsx";
 import { FeedbackButton, StaffHelp, WhatsNew } from "./Help.tsx";
@@ -22,7 +23,7 @@ const firstNameOf = (me: { first_name?: unknown; name?: string; email: string })
 const roleNames: Record<string, string> = Object.fromEntries(PLATFORM_ROLES.map(role => [role.key, role.name]));
 
 const staffRoles = new Set(["owner", "cofounder"]); // system admin is switched off for now
-type AdminView = "overview" | "team" | "members" | "access" | "costs" | "announcement" | "help" | "monitoring" | "account";
+type AdminView = "overview" | "team" | "members" | "access" | "costs" | "announcement" | "help" | "monitoring" | "profile" | "account";
 const viewFromHash = (hash: string): AdminView => {
   if (hash === "#team" || hash === "#admin-team") return "team";
   if (hash === "#access" || hash === "#admin-manage") return "access";
@@ -31,6 +32,7 @@ const viewFromHash = (hash: string): AdminView => {
   if (hash === "#announcement") return "announcement";
   if (hash === "#help") return "help";
   if (hash === "#monitoring") return "monitoring";
+  if (hash === "#profile") return "profile";
   if (hash === "#account" || hash === "#admin-account") return "account";
   return "overview";
 };
@@ -231,15 +233,16 @@ function StaffDashboard({ access, auth, authBase, me, onSaved }: { access: Acces
     announcement: "Announcement",
     help: "Support and feedback",
     monitoring: "Monitoring",
+    profile: "Profile",
     account: "Settings",
     recovery: "Save your recovery codes",
   };
   return <div className="admin-layout">
-    <div className="admin-sidebar-slot"><aside className="admin-sidebar" aria-label="Administration navigation"><div className="admin-sidebar-brand"><span className="admin-sidebar-mark" aria-hidden="true">{me.avatar ? <img src={String(me.avatar)} alt="" /> : initials(me.name || me.email)}</span><span><strong>{access.platform_role === "owner" ? "Owner" : roleNames[access.platform_role] || access.platform_label || "Staff"}</strong><small>{firstNameOf(me)}</small></span></div>{recovery.length ? <p className="admin-sidebar-note">Save your recovery codes to continue.</p> : <nav aria-label="Dashboard sections"><a href="#overview" aria-current={view === "overview" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("overview"); }}>Overview</a><a href="#team" aria-current={view === "team" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("team"); }}>Platform team</a><a href="#members" aria-current={view === "members" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("members"); }}>Members</a>{canManage && <a href="#access" aria-current={view === "access" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("access"); }}>Manage access</a>}{canManage && <a href="#costs" aria-current={view === "costs" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("costs"); }}>Costs</a>}<a href="#announcement" aria-current={view === "announcement" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("announcement"); }}>Announcement</a><a href="#help" aria-current={view === "help" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("help"); }}>Support and feedback</a><a href="#monitoring" aria-current={view === "monitoring" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("monitoring"); }}>Monitoring</a><Link to={profilePath(me)}>Profile</Link><a href="#account" aria-current={view === "account" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("account"); }}>Settings</a></nav>}</aside></div>
+    <div className="admin-sidebar-slot"><aside className="admin-sidebar" aria-label="Administration navigation"><div className="admin-sidebar-brand"><span className="admin-sidebar-mark" aria-hidden="true">{me.avatar ? <img src={String(me.avatar)} alt="" /> : initials(me.name || me.email)}</span><span><strong>{access.platform_role === "owner" ? "Owner" : roleNames[access.platform_role] || access.platform_label || "Staff"}</strong><small>{firstNameOf(me)}</small></span></div>{recovery.length ? <p className="admin-sidebar-note">Save your recovery codes to continue.</p> : <nav aria-label="Dashboard sections"><a href="#overview" aria-current={view === "overview" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("overview"); }}>Overview</a><a href="#team" aria-current={view === "team" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("team"); }}>Platform team</a><a href="#members" aria-current={view === "members" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("members"); }}>Members</a>{canManage && <a href="#access" aria-current={view === "access" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("access"); }}>Manage access</a>}{canManage && <a href="#costs" aria-current={view === "costs" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("costs"); }}>Costs</a>}<a href="#announcement" aria-current={view === "announcement" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("announcement"); }}>Announcement</a><a href="#help" aria-current={view === "help" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("help"); }}>Support and feedback</a><a href="#monitoring" aria-current={view === "monitoring" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("monitoring"); }}>Monitoring</a><a href="#profile" aria-current={view === "profile" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("profile"); }}>Profile</a><a href="#account" aria-current={view === "account" ? "page" : undefined} onClick={event => { event.preventDefault(); openView("account"); }}>Settings</a></nav>}</aside></div>
     <div className="admin-main"><section className={`admin-workspace admin-view-${shownView}`} aria-labelledby="dashboard-administration">
     <header className="admin-view-header"><h1 id="dashboard-administration">{viewTitles[shownView]}</h1></header>
-    {shownView !== "account" && !recovery.length && status === "loading" && <div className="admin-feedback card" role="status">Loading platform staff…</div>}
-    {shownView !== "account" && !recovery.length && status === "verify" && <div className="staff-verify">
+    {shownView !== "account" && shownView !== "profile" && !recovery.length && status === "loading" && <div className="admin-feedback card" role="status">Loading platform staff…</div>}
+    {shownView !== "account" && shownView !== "profile" && !recovery.length && status === "verify" && <div className="staff-verify">
       <span className="eyebrow">Two-step security</span>
       <h3>{setupDetails ? "Connect your authenticator" : me.mfa_enrolled ? "Confirm it’s you" : "Protect your staff access"}</h3>
       <p className="muted">{setupDetails ? "Scan this QR code in your authenticator app, then enter its six-digit code below." : me.mfa_enrolled ? "Enter a code from your authenticator app to open the staff dashboard." : "Set up an authenticator app to open the staff dashboard. This takes about a minute."}</p>
@@ -257,7 +260,7 @@ function StaffDashboard({ access, auth, authBase, me, onSaved }: { access: Acces
       {message && <p className="notice bad" role="alert">{message}</p>}
     </div>}
     {recovery.length > 0 && <div className="staff-recovery" role="status"><span className="eyebrow">One-time backup</span><h3>Save your recovery codes</h3><p>These codes can restore staff access if you lose your authenticator. Each code works once. They will not be shown again after you leave this page.</p><ol>{recovery.map(value => <li key={value}><code>{value}</code></li>)}</ol><div className="staff-recovery-actions"><button type="button" className="button raised" onClick={() => void copy(recovery.join("\n"), "Recovery codes")}>Copy codes</button><button type="button" className="button raised" onClick={downloadRecovery}>Download text file</button></div>{copyMessage && <p className="fine" role="status">{copyMessage}</p>}<button type="button" className="button primary" onClick={() => { setRecovery([]); setCopyMessage(""); }}>I saved my codes</button></div>}
-    {shownView !== "account" && !recovery.length && status === "error" && <div className="admin-feedback card" role="alert"><h2>Staff information is unavailable</h2><p>Check your connection and try again.</p><button type="button" className="button primary" onClick={() => void load()}>Try again</button></div>}
+    {shownView !== "account" && shownView !== "profile" && !recovery.length && status === "error" && <div className="admin-feedback card" role="alert"><h2>Staff information is unavailable</h2><p>Check your connection and try again.</p><button type="button" className="button primary" onClick={() => void load()}>Try again</button></div>}
     {status === "ready" && shownView === "overview" && (canManage
       ? <>
         <div className="settings-tabs" role="tablist" aria-label="Overview">
@@ -284,6 +287,7 @@ function StaffDashboard({ access, auth, authBase, me, onSaved }: { access: Acces
     {canManage && status === "ready" && shownView === "access" && <OwnerlessAgencies auth={auth} authBase={authBase} />}
     {status === "ready" && shownView === "access" && <SupportedAgencies auth={auth} authBase={authBase} />}
     {shownView === "account" && <Settings embedded me={me} auth={auth} authBase={authBase} onSaved={onSaved} />}
+    {shownView === "profile" && <Profile me={me} auth={auth} authBase={authBase} onSaved={onSaved} />}
   </section></div></div>;
 }
 
