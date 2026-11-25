@@ -74,7 +74,8 @@ function useMe() {
     const changed = (event: StorageEvent) => {
       if (event.key !== REFRESH_KEY) return;
       // The other tab signed out: forget this tab's copy of the session too (no request: the refresh token is gone).
-      if (!event.newValue) auth.signOut().then(ask);
+      // Only when it is really gone: signOut sends whatever token is stored, and a token set again since would end the session.
+      if (!event.newValue) { if (!event.storageArea?.getItem(REFRESH_KEY)) auth.signOut().then(ask); }
       // Another tab signed in. When it only swapped its refresh token for a new one, the same person is still signed in: asking
       // again here would refresh this tab too, which swaps the token again and wakes the other tab, back and forth, endlessly.
       else if (!event.oldValue) ask();
