@@ -17,6 +17,18 @@ export function AssignLeadsDialog({ state, picked = [], stage = "", onClose, not
   const [unassign, setUnassign] = useState(false);
   const [run, setRun] = useState(null);
   const [error, setError] = useState("");
+  // How many leads the filter matches now (null: still counting), so a filter that matches nothing is seen before giving.
+  const [matching, setMatching] = useState(null);
+  useEffect(() => {
+    if (scope !== "filter") return;
+    let live = true;
+    setMatching(null);
+    const assignee = who === "anyone" ? "" : who;
+    api.browseLeads({ stage: filterStage, project: list, assignee, limit: 1 }).then(found => live && setMatching(Number(found.total ?? 0)), () => live && setMatching(undefined));
+    return () => {
+      live = false;
+    };
+  }, [scope, who, filterStage, list]);
 
   useEffect(() => {
     if (!run || run.status !== "running") return;
@@ -106,6 +118,11 @@ export function AssignLeadsDialog({ state, picked = [], stage = "", onClose, not
               </div>
             </>
           )}
+          {scope === "filter" && (
+            <p className="muted" role="status" aria-live="polite">
+              {matching === null ? "Counting the leads that match…" : matching === undefined ? "" : matching === 0 ? "No leads match these filters. Change who holds them, the stage or the list." : `${matching.toLocaleString()} ${matching === 1 ? "lead matches" : "leads match"}.`}
+            </p>
+          )}
           <fieldset className="assign-targets">
             <legend>Give them to</legend>
             {targets.length === 0 && <p className="muted">There is nobody you can give leads to yet.</p>}
@@ -125,7 +142,7 @@ export function AssignLeadsDialog({ state, picked = [], stage = "", onClose, not
           {to.length > 1 && <p className="muted">The leads are shared evenly, in turn, between the {to.length} people.</p>}
           {error && <p className="notice bad" role="alert">{error}</p>}
           <div className="row">
-            <Button variant="primary" type="submit" disabled={!unassign && to.length === 0}>
+            <Button variant="primary" type="submit" disabled={(!unassign && to.length === 0) || (scope === "filter" && matching === 0)}>
               Give leads
             </Button>
             <Button type="button" onClick={onClose}>
