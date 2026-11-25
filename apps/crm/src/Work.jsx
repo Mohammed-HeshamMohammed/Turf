@@ -69,7 +69,11 @@ import {
 } from "./ui.jsx";
 
 /** A lead can be called only if it has a phone number with digits in it. */
-const hasPhone = lead => /\d{7}/.test(String(lead.phone || "").replace(/\D/g, ""));
+// A caller may see only the last digits ("••• 6868", D163): the number is still there, and the dialer dials the real one.
+const hasPhone = lead => {
+  const phone = String(lead.phone || "");
+  return /\d{7}/.test(phone.replace(/\D/g, "")) || /^•+\s*\d{2,}$/.test(phone.trim());
+};
 
 export function Calls({ target }) {
   const { state, dispatch, navigate, notify, route } = useCrm();

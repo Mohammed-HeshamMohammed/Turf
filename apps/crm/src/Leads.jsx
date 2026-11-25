@@ -565,7 +565,7 @@ export function LeadDetail({ id }) {
         <div>
           <div className="card property-detail">
             <div className="detail-photo">
-              <img src="/assets/property.jpg" alt="Illustrative sample Florida house" />
+              <img src="/images/property.jpg" alt="Illustrative sample Florida house" />
               <span className="image-caption demo-note">Illustrative sample photo</span>
             </div>
             <div>

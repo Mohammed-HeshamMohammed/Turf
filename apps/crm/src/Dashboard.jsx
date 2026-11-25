@@ -131,7 +131,7 @@ export function Dashboard() {
             {next ? (
               <div className="spotlight">
                 <div className="property-image">
-                  <img src="/assets/property.jpg" alt="Illustrative exterior of a fictional Florida property" />
+                  <img src="/images/property.jpg" alt="Illustrative exterior of a fictional Florida property" />
                   <span className="image-caption demo-note">Illustrative sample photo</span>
                   <Badge tone="good">{isClient ? "Shared with you" : next.verdict}</Badge>
                 </div>
