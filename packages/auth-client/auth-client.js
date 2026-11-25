@@ -23,8 +23,10 @@ const DEVICE_KEY = "callerwhale.auth.device";
 const EARLY_MS = 60_000;
 /** /v1/me is asked once a minute at most; new tokens, signing out and anything that changes the answer ask again. */
 const ME_MS = 60_000;
+/** The name of the lock every tab of this browser takes to refresh, so they take turns (the Web Locks API). */
+const LOCK_NAME = "callerwhale.auth.refresh";
 
-export function createAuth({ base, storage = globalThis.localStorage, tabStorage = globalThis.sessionStorage, fetchImpl = (...args) => fetch(...args), now = () => Date.now(), onChange = () => {} }) {
+export function createAuth({ base, storage = globalThis.localStorage, tabStorage = globalThis.sessionStorage, fetchImpl = (...args) => fetch(...args), now = () => Date.now(), onChange = () => {}, locks = globalThis.navigator?.locks, wait = ms => new Promise(resolve => setTimeout(resolve, ms)) }) {
   base = String(base || "").replace(/\/$/, "");
   let access = null;
   let refreshing = null;
@@ -120,20 +122,38 @@ export function createAuth({ base, storage = globalThis.localStorage, tabStorage
     if (had) onChange();
   }
 
-  /** New tokens from the refresh token. Several callers at once share one request. */
+  // The refresh token changes every time it is used, and every tab of the browser shares it. Two tabs sending it at once would
+  // look to auth like a copied token. So the tabs take turns (a lock the browser holds for all of them, freed if a tab closes),
+  // and each reads the token only once it has its turn, by then the newest. Without the lock (an old browser) it goes ahead.
+  const inTurn = work => (locks?.request ? locks.request(LOCK_NAME, work) : work());
+
+  async function swap() {
+    for (let tries = 0; ; tries++) {
+      const token = readRefresh();
+      if (!token) return null;
+      try {
+        return keep(await call("POST", "/v1/sessions/refresh", { refresh_token: token }));
+      } catch (reason) {
+        // Another tab swapped it a moment ago without taking turns (a page from before the lock): the session is fine, and the
+        // newest token is in storage, or will be once that tab has its answer.
+        if (reason?.code === "token_replaced" && tries < 8) {
+          if (readRefresh() === token) await wait(250);
+          continue;
+        }
+        // The session ended (signed out elsewhere, or the token was copied): this device is signed out too.
+        if (reason?.status === 401 && reason.code !== "token_replaced") forget();
+        throw reason;
+      }
+    }
+  }
+
+  /** New tokens from the refresh token. Several callers at once share one request; other tabs wait their turn. */
   function refresh() {
     if (refreshing) return refreshing;
-    const token = readRefresh();
-    if (!token) return Promise.resolve(null);
-    refreshing = call("POST", "/v1/sessions/refresh", { refresh_token: token })
-      .then(keep, reason => {
-        // The session ended (signed out elsewhere, or the token was copied): this device is signed out too.
-        if (reason.status === 401) forget();
-        throw reason;
-      })
-      .finally(() => {
-        refreshing = null;
-      });
+    if (!readRefresh()) return Promise.resolve(null);
+    refreshing = Promise.resolve(inTurn(swap)).finally(() => {
+      refreshing = null;
+    });
     return refreshing;
   }
 
