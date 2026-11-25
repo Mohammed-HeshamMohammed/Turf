@@ -1,82 +1,24 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { DeviceMobile, EnvelopeSimple, PaperPlaneTilt, ShieldCheck, TelegramLogo } from "@phosphor-icons/react";
+import { needsCode } from "@callerwhale/auth-client/sign-in-flow.jsx";
 import { Button, Field } from "./ui.jsx";
 
-// The second step after the password (docs/history/plans/second-factor.md): choose how to confirm it is you, then confirm. The auth
-// service offers only the ways this person has, and decides whether the answer is right.
+// The second step after the password (docs/history/plans/second-factor.md), drawn the CRM's way. The steps themselves (which way,
+// sending, answering, waiting for an approval, coming back after a refresh) are shared with the website: the `flow` from
+// useSignInFlow (@callerwhale/auth-client/sign-in-flow.jsx). The auth service offers only the ways this person has.
 
 const NAMES = { totp: "Authenticator app", email: "Email", telegram: "Telegram", push: "Approve on another device" };
 const ICONS = { totp: ShieldCheck, email: EnvelopeSimple, telegram: TelegramLogo, push: DeviceMobile };
 
-export function SecondStep({ auth, challenge, methods, onDone, onBack }) {
-  const [method, setMethod] = useState(methods.includes("totp") ? "totp" : methods[0]);
+export function SecondStep({ state, flow, onBack }) {
   const [code, setCode] = useState("");
-  const [sent, setSent] = useState(false);
-  const [state, setState] = useState({ busy: false, error: "", note: "" });
-  const alive = useRef(true);
-  useEffect(() => () => void (alive.current = false), []);
-
-  const run = async work => {
-    setState({ busy: true, error: "", note: "" });
-    try {
-      await work();
-    } catch (error) {
-      if (alive.current) setState({ busy: false, error: error.message, note: "" });
-      return;
-    }
-    if (alive.current) setState(s => ({ ...s, busy: false }));
-  };
-
-  // An approval on another device: asked once, then watched until it is answered.
-  useEffect(() => {
-    if (method !== "push" || !sent) return undefined;
-    let live = true;
-    const watch = setInterval(async () => {
-      try {
-        const answer = await auth.approvalState(challenge);
-        if (!live) return;
-        if (answer === "approved") {
-          clearInterval(watch);
-          await auth.answer(challenge, "push");
-          if (live) onDone();
-        } else if (answer === "denied" || answer === "expired") {
-          clearInterval(watch);
-          setSent(false);
-          setState({ busy: false, error: answer === "denied" ? "The sign-in was denied on your other device." : "No one answered in time. Try again.", note: "" });
-        }
-      } catch (error) {
-        if (live) {
-          clearInterval(watch);
-          setState({ busy: false, error: error.message, note: "" });
-        }
-      }
-    }, 2000);
-    return () => {
-      live = false;
-      clearInterval(watch);
-    };
-  }, [method, sent, challenge, auth, onDone]);
-
-  const choose = next => {
-    setMethod(next);
-    setSent(false);
-    setCode("");
-    setState({ busy: false, error: "", note: "" });
-  };
-  const send = () =>
-    run(async () => {
-      await auth.sendCode(challenge, method, method === "push" ? "Caller Whale desktop app" : undefined);
-      setSent(true);
-      setState({ busy: false, error: "", note: method === "push" ? "Open Caller Whale on your other device and approve this sign-in." : `We sent a code by ${NAMES[method].toLowerCase()}.` });
-    });
+  const { method, methods, sent, busy, error, note } = state;
+  useEffect(() => setCode(""), [method]);
   const confirm = event => {
     event.preventDefault();
-    run(async () => {
-      await auth.answer(challenge, method, code.trim());
-      onDone();
-    });
+    if (code.trim()) flow.answer(code);
   };
-  const needsCode = method === "totp" || ((method === "email" || method === "telegram") && sent);
+  const asksCode = needsCode(state);
 
   return (
     <div className="remote-step second-step">
@@ -86,7 +28,7 @@ export function SecondStep({ auth, challenge, methods, onDone, onBack }) {
           {methods.map(item => {
             const Icon = ICONS[item];
             return (
-              <Button key={item} icon={Icon} aria-pressed={method === item} onClick={() => choose(item)}>
+              <Button key={item} icon={Icon} aria-pressed={method === item} onClick={() => flow.choose(item)}>
                 {NAMES[item]}
               </Button>
             );
@@ -96,27 +38,27 @@ export function SecondStep({ auth, challenge, methods, onDone, onBack }) {
       <form onSubmit={confirm}>
         {method === "totp" && <p className="muted">Enter the code your authenticator app shows.</p>}
         {(method === "email" || method === "telegram") && !sent && <p className="muted">We will send a six-digit code by {NAMES[method].toLowerCase()}.</p>}
-        {needsCode && (
+        {asksCode && (
           <Field label="Code">
             <input inputMode="numeric" autoComplete="one-time-code" value={code} onChange={event => setCode(event.target.value)} required autoFocus />
           </Field>
         )}
-        {state.error && <p className="error" role="alert">{state.error}</p>}
-        {state.note && <p className="muted" role="status">{state.note}</p>}
+        {error && <p className="error" role="alert">{error}</p>}
+        {note && <p className="muted" role="status">{note}</p>}
         <div className="row">
-          {needsCode ? (
+          {asksCode ? (
             <>
-              <Button type="submit" variant="primary" icon={ShieldCheck} disabled={state.busy || !code.trim()}>
-                {state.busy ? "One moment…" : "Confirm"}
+              <Button type="submit" variant="primary" icon={ShieldCheck} disabled={busy || !code.trim()}>
+                {busy ? "One moment…" : "Confirm"}
               </Button>
               {method !== "totp" && (
-                <Button disabled={state.busy} onClick={send}>
+                <Button disabled={busy} onClick={() => flow.send()}>
                   Send again
                 </Button>
               )}
             </>
           ) : (
-            <Button variant="primary" icon={PaperPlaneTilt} disabled={state.busy || (method === "push" && sent)} onClick={send}>
+            <Button variant="primary" icon={PaperPlaneTilt} disabled={busy || (method === "push" && sent)} onClick={() => flow.send()}>
               {method === "push" ? (sent ? "Waiting for approval…" : "Ask my other device") : "Send me a code"}
             </Button>
           )}

@@ -12,6 +12,7 @@ import { PasswordStrength, PasswordTips } from "./DevicePasswordHelp.jsx";
 import { PasswordInput } from "./PasswordInput.jsx";
 import { assess, MAX_LENGTH } from "./remote/password-check.ts";
 import { HumanCheck, humanToken } from "@callerwhale/auth-client/human-check.jsx";
+import { useSignInFlow } from "@callerwhale/auth-client/sign-in-flow.jsx";
 
 /**
  * Signs in with the auth service, opens the person's workspace on Caller Whale's server, and unlocks this device's offline
@@ -22,19 +23,18 @@ import { HumanCheck, humanToken } from "@callerwhale/auth-client/human-check.jsx
  */
 /**
  * One Caller Whale account for the website and the CRM. The CRM in a browser keeps its own session (it is a different address),
- * so a visit with none goes to the website's sign-in once: signed in there already, it comes straight back with a one-time
- * code and the person is in; otherwise they sign in there and come back. Only once per tab, so signing out here stays out.
+ * so a visit with none asks the website once, without showing it: signed in there already, it comes straight back with a one-time
+ * code and the person is in; otherwise it comes straight back (`quiet`) and the sign-in shows here, in the CRM. Only once per tab,
+ * so signing out here stays out.
  */
-function goToWebsiteSignIn(automatic) {
+function askWebsiteSession() {
   try {
-    if (automatic) {
-      if (window.sessionStorage.getItem("cw-sso") === "tried") return false;
-      window.sessionStorage.setItem("cw-sso", "tried");
-    }
+    if (window.sessionStorage.getItem("cw-sso") === "tried") return false;
+    window.sessionStorage.setItem("cw-sso", "tried");
   } catch {
-    if (automatic) return false; // no storage to remember it, so never risk a loop
+    return false; // no storage to remember it, so never risk a loop
   }
-  window.location.replace(`${SITE}/signin?next=app`);
+  window.location.replace(`${SITE}/signin?next=app&quiet=1`);
   return true;
 }
 
@@ -68,20 +68,32 @@ export function RemoteGate({ onReady, onLeave }) {
   const [birthDate, setBirthDate] = useState("");
   const [enrolment, setEnrolment] = useState(null);
   const [recovery, setRecovery] = useState(null);
-  // The second step: the challenge the server handed over, and the ways it may be answered.
-  const [second, setSecond] = useState(null);
   const [form, setForm] = useState({ email: "", password: "", code: "", passphrase: "" });
   // This device already holds an offline copy for this person: it only needs its password, not a new one.
   const [hasCopy, setHasCopy] = useState(false);
   const [authSessionId, setAuthSessionId] = useState("");
   const field = name => event => setForm({ ...form, [name]: event.target.value });
   const kind = inDesktopApp() ? "desktop" : "browser";
+  // The sign-in steps (password, the second step) are shared with the website; the screens below are the CRM's own.
+  const [signInState, flow] = useSignInFlow({
+    auth,
+    humanToken: () => humanToken(getAuth, "signin"),
+    device: inDesktopApp() ? "Caller Whale desktop app" : "Caller Whale in a browser",
+    onSignedIn: () => {
+      setForm(current => ({ ...current, password: "", code: "" }));
+      setStep("checking");
+      attempt(check);
+    },
+  });
+  const secondOpen = signInState.step === "second";
 
   async function check() {
     try {
       if (!auth.signedIn()) {
         Vault.clearSession();
-        if (!inDesktopApp() && goToWebsiteSignIn(true)) return setStep("checking");
+        // A code step left by a refresh comes back as it was, with no trip to the website.
+        if (flow.getState().step === "second") return setStep("signin");
+        if (!inDesktopApp() && askWebsiteSession()) return setStep("checking");
         return setStep("signin");
       }
       // Caller Whale is for adults: an account that has not given its date of birth gives it before anything else.
@@ -98,7 +110,7 @@ export function RemoteGate({ onReady, onLeave }) {
       if (sessionPerson === closed) {
         Vault.clearSession();
         // To the website, which hands back whoever is signed in there now, or asks them to sign in.
-        if (!inDesktopApp() && goToWebsiteSignIn(false)) return setStep("checking");
+        if (!inDesktopApp() && askWebsiteSession()) return setStep("checking");
         return setStep("signin");
       }
       setAuthSessionId(sessionPerson?.session_id || "");
@@ -144,8 +156,8 @@ export function RemoteGate({ onReady, onLeave }) {
         // Ask the auth service which ways this person has (an authenticator, email, Telegram, an approval on another device).
         const offered = await auth.startStepUp().catch(() => null);
         if (offered?.methods?.length) {
-          setSecond(offered);
-          return setStep("second");
+          flow.begin(offered);
+          return setStep("signin");
         }
         // Only now is /v1/me needed: to tell a person who has an authenticator from one who must set it up.
         return setStep((await auth.me()).mfa_enrolled ? "stepup" : "enroll");
@@ -275,8 +287,8 @@ export function RemoteGate({ onReady, onLeave }) {
       await work();
     } catch (reason) {
       if (reason.code === "mfa_required" && reason.data?.challenge) {
-        setSecond({ challenge: reason.data.challenge, methods: reason.data.methods });
-        setStep("second");
+        flow.begin(reason.data);
+        setStep("signin");
       } else if (reason.code === "mfa_required") setStep("stepup");
       else setError(reason.message);
     } finally {
@@ -286,22 +298,8 @@ export function RemoteGate({ onReady, onLeave }) {
 
   const signIn = event => {
     event.preventDefault();
-    attempt(async () => {
-      if (!apiBase()) setApiBase(SERVER);
-      try {
-        await auth.signIn(form.email.trim(), form.password, step === "code" ? form.code.trim() : undefined, kind, await humanToken(getAuth, "signin"));
-      } catch (reason) {
-        // Two-step sign-in is on: the server hands over a challenge and the ways to answer it.
-        if (reason.code === "mfa_required" && reason.data?.challenge) {
-          setSecond({ challenge: reason.data.challenge, methods: reason.data.methods });
-          return setStep("second");
-        }
-        if (reason.code === "mfa_required") return setStep("code");
-        throw reason;
-      }
-      setForm(current => ({ ...current, password: "", code: "" }));
-      await check();
-    });
+    if (!apiBase()) setApiBase(SERVER);
+    flow.signIn(form.email, form.password, { kind });
   };
   const stepUp = event => {
     event.preventDefault();
@@ -324,6 +322,7 @@ export function RemoteGate({ onReady, onLeave }) {
     attempt(async () => {
       await auth.signOut();
       Vault.clearSession();
+      flow.back();
       setOrganization("");
       setMe(null);
       setStep("signin");
@@ -393,7 +392,7 @@ export function RemoteGate({ onReady, onLeave }) {
             </div>
           </div>
         )}
-        {inDesktopApp() && step === "signin" && (
+        {inDesktopApp() && step === "signin" && !secondOpen && (
           <div className="remote-step">
             <p className="body-copy">Sign in on Caller Whale's website, in your browser. Caller Whale continues here when you're done.</p>
             <Button variant="primary" icon={SignIn} disabled={busy} onClick={signInWithBrowser}>
@@ -402,14 +401,11 @@ export function RemoteGate({ onReady, onLeave }) {
             <p className="muted">New here? Caller Whale is by invitation. Accept yours on Caller Whale's website first, then sign in here with the same account.</p>
           </div>
         )}
-        {!inDesktopApp() && (step === "signin" || step === "code") && (
+        {!inDesktopApp() && step === "signin" && !secondOpen && (
           <form className="remote-step" onSubmit={signIn}>
             {step === "signin" && (
               <>
                 <div className="provider-buttons">
-                  <Button variant="primary" disabled={busy} onClick={() => goToWebsiteSignIn(false)}>
-                    Continue with your Caller Whale account
-                  </Button>
                   <Button icon={GoogleMark} disabled={busy} onClick={() => continueWith("google", "Google")}>
                     Continue with Google
                   </Button>
@@ -428,35 +424,22 @@ export function RemoteGate({ onReady, onLeave }) {
                 </Field>
               </>
             )}
-            {step === "code" && (
-              <>
-                <p className="body-copy">{auth.startUrl ? "Enter the six-digit code from your authenticator app, or one of your recovery codes." : "Enter the six-digit code from your authenticator app."}</p>
-                <Field label="Sign-in code">
-                  <input inputMode="numeric" autoComplete="one-time-code" value={form.code} onChange={field("code")} required autoFocus />
-                </Field>
-              </>
-            )}
             <HumanCheck getAuth={getAuth} />
-            <Button type="submit" variant="primary" icon={SignIn} disabled={busy}>
-              {busy ? "Signing in…" : step === "code" ? "Confirm" : "Sign in"}
+            {signInState.error && <p className="error" role="alert">{signInState.error}</p>}
+            <Button type="submit" variant="primary" icon={SignIn} disabled={busy || signInState.busy}>
+              {signInState.busy ? "Signing in…" : "Sign in"}
             </Button>
             {step === "signin" && (
               <p className="muted">New here? Caller Whale is by invitation. Accept yours on Caller Whale's website first, then sign in here with the same account.</p>
             )}
           </form>
         )}
-        {step === "second" && second && (
+        {secondOpen && step !== "checking" && (
           <SecondStep
-            auth={auth}
-            challenge={second.challenge}
-            methods={second.methods}
-            onDone={() => {
-              setSecond(null);
-              setForm(current => ({ ...current, password: "", code: "" }));
-              attempt(check);
-            }}
+            state={signInState}
+            flow={flow}
             onBack={() => {
-              setSecond(null);
+              flow.back();
               setStep("signin");
             }}
           />

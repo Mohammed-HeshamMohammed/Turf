@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes } from "react";
-import { createAuth, type AuthError, type Me } from "@callerwhale/auth-client";
+import { createAuth, type Me } from "@callerwhale/auth-client";
 import { HumanCheck, HumanNotice, humanToken } from "@callerwhale/auth-client/human-check.jsx";
+import { needsCode, useSignInFlow } from "@callerwhale/auth-client/sign-in-flow.jsx";
 import { redirectFor, waitingForSecondStep } from "./guard.ts";
 import { readProfile, writeProfile, type CachedProfile } from "./profile-cache.ts";
 import { applyMetadata, metadataFor } from "./metadata.ts";
@@ -16,7 +17,7 @@ import { Home } from "./Home.tsx";
 import { AnnouncementBanner } from "./Announcement.tsx";
 import { SiteHeader } from "./components/ui/site-header.tsx";
 import { hasCrmAccess, type CrmAccess } from "./crm-access.ts";
-import { openCrm as openCrmAs } from "./crm-url.ts";
+import { crmUrl, openCrm as openCrmAs } from "./crm-url.ts";
 import { paramOf, wantsCrm } from "./links.ts";
 import { ageProblem } from "./age.ts";
 import { BirthDateField } from "./BirthDate.tsx";
@@ -150,94 +151,66 @@ function Providers({ action, shared = false }: { action: string; shared?: boolea
   );
 }
 
-type Challenge = { challenge: string; method: string };
-
-// The code step is kept in this tab while it lasts (auth gives it 10 minutes), so a refresh comes back to it instead of the password.
-const CHALLENGE_KEY = "cw-signin-challenge";
-const CHALLENGE_MS = 9 * 60_000;
-const keepChallenge = (value: Challenge | null) => {
-  try {
-    if (value) window.sessionStorage.setItem(CHALLENGE_KEY, JSON.stringify({ ...value, at: Date.now() }));
-    else window.sessionStorage.removeItem(CHALLENGE_KEY);
-  } catch { /* the step then lasts until the page closes */ }
-};
-const keptChallenge = (): Challenge | null => {
-  try {
-    const kept = JSON.parse(window.sessionStorage.getItem(CHALLENGE_KEY) || "null") as (Challenge & { at: number }) | null;
-    if (kept?.challenge && kept.method && Date.now() - kept.at < CHALLENGE_MS) return { challenge: kept.challenge, method: kept.method };
-  } catch { /* none */ }
-  keepChallenge(null);
-  return null;
-};
+// The sign-in steps are shared with the CRM (@callerwhale/auth-client/sign-in-flow.jsx); this card is the website's own.
+const METHOD_NAMES: Record<string, string> = { totp: "Authenticator app", email: "Email", telegram: "Telegram", push: "Another device" };
 
 function SignIn({ onDone, notice, me }: { onDone: () => void; notice: string; me: Me | null | undefined }) {
   const [email, setEmail] = useState(() => paramOf(typeof window === "undefined" ? "" : window.location.search, "email"));
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
-  const [challenge, setChallengeNow] = useState<Challenge | null>(null);
-  const setChallenge = (value: Challenge | null) => { keepChallenge(value); setChallengeNow(value); };
-  useEffect(() => { const kept = keptChallenge(); if (kept) setChallengeNow(kept); }, []);
   // "Keep me signed in" keeps the sign-in for 30 days; unticked (a shared device), it ends when the tab closes, and after 12 hours (D38, D188).
   const [shared, setShared] = useState(false);
-  const resumed = Boolean(me && waitingForSecondStep(me)); // signed in already (Google, or an older session), second step not done
+  const [flowState, flow] = useSignInFlow({ auth, humanToken: () => humanToken(getAuth, "signin"), onSignedIn: () => { setPassword(""); setCode(""); onDone(); } });
+  // Signed in already (Google, or an older session) with the second step not done: confirmed with the authenticator on this session.
+  const resumed = Boolean(me && waitingForSecondStep(me)) && flowState.step === "password";
   const [state, run] = useAction();
-  const submit = async (e: FormEvent) => {
+  const submit = (e: FormEvent) => {
     e.preventDefault();
-    let next: Challenge | null = null;
-    const ok = await run(async () => {
-      try {
-        await auth.signIn(email, password, undefined, shared ? "shared" : "browser", await humanToken(getAuth, "signin"));
-      } catch (error) {
-        if ((error as AuthError).code !== "mfa_required") throw error;
-        const data = (error as AuthError).data as { challenge?: string; methods?: string[] } | null;
-        const methods = data?.methods || [];
-        const method = methods.includes("totp") ? "totp" : methods.find(m => m === "email" || m === "telegram");
-        if (!data?.challenge || !method) throw new Error("This account needs a second step this page cannot do yet. Use the Caller Whale app.");
-        if (method !== "totp") await auth.sendCode(data.challenge, method);
-        next = { challenge: data.challenge, method };
-      }
-    });
-    // Asking for the code is not signing in: nothing opens the dashboard until the code is accepted.
-    if (next) setChallenge(next);
-    else if (ok) onDone();
+    void flow.signIn(email, password, { kind: shared ? "shared" : "browser" });
   };
   const verifyCode = async (value: string) => {
-    const ok = await run(async () => {
-      try {
-        if (challenge) await auth.answer(challenge.challenge, challenge.method, value);
-        else await auth.verifyMfa(value);
-      } catch (error) {
-        // Expired, used up or denied: the kept step is no use any more; the message says to start again.
-        if ((error as AuthError).status === 403) keepChallenge(null);
-        throw error;
-      }
-    });
-    // The session now counts as verified; the page follows that by itself when it was already signed in.
-    if (ok && challenge) { keepChallenge(null); onDone(); }
-    else if (!ok) setCode("");
+    if (!resumed) {
+      await flow.answer(value);
+      if (flow.getState().error) setCode("");
+      return;
+    }
+    // The session now counts as verified; the page follows that by itself.
+    if (!(await run(() => auth.verifyMfa(value).then(() => undefined)))) setCode("");
   };
+  const busy = resumed ? state.busy : flowState.busy;
+  const error = resumed ? state.error : flowState.error;
   const verify = (e: FormEvent) => {
     e.preventDefault();
     if (code.trim()) void verifyCode(code.trim());
   };
   // The sixth digit sends the code by itself: no Enter, no button.
   const typeCode = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, "").slice(0, 6);
+    const value = e.target.value.replace(/D/g, "").slice(0, 6);
     setCode(value);
-    if (value.length === 6 && !state.busy) void verifyCode(value);
+    if (value.length === 6 && !busy) void verifyCode(value);
   };
-  if (challenge || resumed) {
+  if (flowState.step === "second" || resumed) {
     // The password was right: the card now asks for the second step and nothing else.
+    const method = resumed ? "totp" : flowState.method;
+    const asksCode = resumed || needsCode(flowState);
     return (
       <div className="form-wrap">
         <form className="form card" onSubmit={verify}>
           <h1>Confirm it's you</h1>
-          <p className="fine">{challenge && challenge.method !== "totp" ? `Enter the code we sent you by ${challenge.method}.` : "Enter the 6-digit code from your authenticator app."}</p>
-          <Field label="Code" inputMode="numeric" autoComplete="one-time-code" autoFocus required maxLength={6} placeholder="000000" value={code} onChange={typeCode} />
-          {state.error && <p className="notice bad" role="alert">{state.error}</p>}
-          <button className="button primary" disabled={state.busy}>{state.busy ? "Checking…" : "Verify"}</button>
+          {!resumed && flowState.methods.length > 1 && (
+            <div className="method-choice" role="group" aria-label="How to confirm">
+              {flowState.methods.map(item => <button key={item} type="button" className={"button raised" + (item === method ? " active" : "")} aria-pressed={item === method} onClick={() => { setCode(""); flow.choose(item); }}>{METHOD_NAMES[item] || item}</button>)}
+            </div>
+          )}
+          <p className="fine">{method === "totp" ? "Enter the 6-digit code from your authenticator app." : method === "push" ? (flowState.sent ? "Open Caller Whale on your other device and approve this sign-in." : "We will ask your other signed-in device to approve this sign-in.") : flowState.sent ? `Enter the code we sent you by ${method}.` : `We will send a 6-digit code by ${method}.`}</p>
+          {asksCode && <Field label="Code" inputMode="numeric" autoComplete="one-time-code" autoFocus required maxLength={6} placeholder="000000" value={code} onChange={typeCode} />}
+          {error && <p className="notice bad" role="alert">{error}</p>}
+          {asksCode
+            ? <button className="button primary" disabled={busy}>{busy ? "Checking…" : "Verify"}</button>
+            : <button type="button" className="button primary" disabled={busy || (method === "push" && flowState.sent)} onClick={() => void flow.send()}>{method === "push" ? (flowState.sent ? "Waiting for approval…" : "Ask my other device") : "Send me a code"}</button>}
           <div className="alt">
-            <button type="button" className="button raised" onClick={() => { setCode(""); setPassword(""); if (challenge) setChallenge(null); else void auth.signOut(); }}>Use a different account</button>
+            {asksCode && !resumed && method !== "totp" && <button type="button" className="button raised" disabled={busy} onClick={() => void flow.send()}>Send again</button>}
+            <button type="button" className="button raised" onClick={() => { setCode(""); setPassword(""); if (resumed) void auth.signOut(); else flow.back(); }}>Use a different account</button>
           </div>
         </form>
       </div>
@@ -252,8 +225,8 @@ function SignIn({ onDone, notice, me }: { onDone: () => void; notice: string; me
         <Field label="Password" type="password" autoComplete="current-password" required value={password} onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)} />
         <label className="check"><input type="checkbox" checked={!shared} onChange={(e: ChangeEvent<HTMLInputElement>) => setShared(!e.target.checked)} /> <span>Keep me signed in</span></label>
         <HumanCheck getAuth={getAuth} />
-        {state.error && <p className="notice bad" role="alert">{state.error}</p>}
-        <button className="button primary" disabled={state.busy}>{state.busy ? "Signing in…" : "Sign in"}</button>
+        {error && <p className="notice bad" role="alert">{error}</p>}
+        <button className="button primary" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
         <Providers action="signin" shared={shared} />
         <div className="alt">
           <Link to="/forgot">Forgot your password?</Link>
@@ -527,8 +500,11 @@ export function App({ path: first = "/" }) {
   useEffect(() => applyMetadata(metadataFor(ownPageName ? "profile" : routeFor(path).key)), [path, ownPageName]);
   // Pages are for the right state: signed in, nobody sees the sign-in forms; signed out, nobody sees the account page.
   const fromCrm = typeof window !== "undefined" && wantsCrm(window.location.search);
+  // The CRM only asked whether someone is signed in here (`quiet`): nobody is, so straight back, where it shows its own sign-in.
+  const quietCheck = fromCrm && typeof window !== "undefined" && paramOf(window.location.search, "quiet") === "1";
   useEffect(() => {
     if (me && fromCrm && !waitingForSecondStep(me)) { if (!setupStep(me)) void openCrm(); return; } // the setup steps (age, terms, work) come first
+    if ((me === null || (me && waitingForSecondStep(me))) && quietCheck) { window.location.replace(crmUrl); return; }
     // /account is the older address of the same page: it goes to the person's own address once it is known.
     if (me && cleanPath(path) === "/profile" && !setupStep(me) && profilePath(me) !== "/account") { go(profilePath(me), { replace: true }); return; }
     if (me === null && ownPageName) { go("/signin", { replace: true }); return; }
@@ -561,7 +537,7 @@ export function App({ path: first = "/" }) {
   const secondStepOpen = Boolean(me && waitingForSecondStep(me));
   const pages: Record<string, React.ReactNode> = {
     "/": <Home me={me} authBase={authBase} />,
-    "/signin": me === undefined && savedSession ? pending : me && fromCrm && !secondStepOpen ? (setupStep(me) ? setup : <div className="form-wrap"><p className="muted" role="status">Opening the CRM…</p></div>) : <SignIn onDone={signedIn} notice={notice} me={me} />,
+    "/signin": (me === undefined && savedSession) || (quietCheck && me !== undefined && (!me || secondStepOpen)) ? pending : me && fromCrm && !secondStepOpen ? (setupStep(me) ? setup : <div className="form-wrap"><p className="muted" role="status">Opening the CRM…</p></div>) : <SignIn onDone={signedIn} notice={notice} me={me} />,
     "/signup": <SignUp onDone={signedIn} />,
     "/forgot": <Forgot />,
     "/verify": <VerifyEmail me={me} onVerified={() => { auth.me({ fresh: true }).then(setMe, () => undefined); }} />,
