@@ -2,7 +2,17 @@
 **/database_setup/*.sql text eol=lf
 *.sh text eol=lf
 
-# Preserve image bytes; text normalization corrupts PNG chunks and Windows icons.
+# Preserve the bytes of every binary file; text normalization corrupts them (24 JPEGs lost bytes to it in October 2026).
 *.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.pdf binary
+*.xlsx binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.zip binary
 *.ico binary
 *.icns binary

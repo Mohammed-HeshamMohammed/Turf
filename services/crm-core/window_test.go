@@ -52,6 +52,19 @@ func TestABigWorkspaceSendsAWindowAndSearchFindsTheRest(t *testing.T) {
 	if calls["total"].(float64) != 0 {
 		t.Fatalf("callable: %v", calls["total"])
 	}
+	// One person's leads, and nobody's: the Team page's "Active leads" and the Leads filter.
+	_, before := e.call(alice, orgA, "GET", "/api/v1/leads/search?limit=1&assignee=unassigned", nil)
+	if _, err := e.admin.Exec(ctx, fmt.Sprintf(`UPDATE crm.leads SET assignee_id = '%s'::uuid WHERE id IN (SELECT id FROM crm.leads WHERE org_id = '%s'::uuid ORDER BY id LIMIT 3)`, bob, orgA)); err != nil {
+		t.Fatal(err)
+	}
+	_, held := e.call(alice, orgA, "GET", "/api/v1/leads/search?limit=5&assignee="+bob, nil)
+	_, nobody := e.call(alice, orgA, "GET", "/api/v1/leads/search?limit=5&assignee=unassigned", nil)
+	if held["total"].(float64) != 3 || nobody["total"].(float64) != before["total"].(float64)-3 {
+		t.Fatalf("by assignee: %v held, %v unassigned (was %v)", held["total"], nobody["total"], before["total"])
+	}
+	if status, _ = e.call(alice, orgA, "GET", "/api/v1/leads/search?assignee=nope", nil); status != http.StatusBadRequest {
+		t.Fatalf("a bad person id: %d", status)
+	}
 	if status, _ = e.call(alice, orgA, "GET", "/api/v1/leads/search?project=nope", nil); status != http.StatusBadRequest {
 		t.Fatalf("a bad list id: %d", status)
 	}
