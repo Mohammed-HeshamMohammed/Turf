@@ -95,6 +95,9 @@ func (s *server) changeTag(w http.ResponseWriter, r *http.Request) error {
 	if err := tx.QueryRow(ctx, "SELECT tag FROM users WHERE id = $1 FOR UPDATE", c.Sub).Scan(&current); err != nil {
 		return err
 	}
+	if isFounderTag(current) {
+		return forbidden("Your #" + current + " tag comes with your role and cannot be changed.")
+	}
 	if tag != current {
 		var taken bool
 		if err := tx.QueryRow(ctx, "SELECT tag_taken(name_key, $2, id) FROM users WHERE id = $1", c.Sub, tag).Scan(&taken); err != nil {
@@ -194,7 +197,7 @@ func (s *server) searchPeople(w http.ResponseWriter, r *http.Request) error {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	name, tag, exact := strings.Cut(q, "#")
 	name, tag = strings.TrimSpace(name), strings.ToUpper(strings.TrimSpace(tag))
-	if utf8.RuneCountInString(name) < 2 || utf8.RuneCountInString(name) > 120 || (exact && !tagPattern.MatchString(tag)) {
+	if utf8.RuneCountInString(name) < 2 || utf8.RuneCountInString(name) > 120 || (exact && !tagPattern.MatchString(tag) && tag != strings.ToUpper(ownerTag) && tag != strings.ToUpper(coOwnerTag)) {
 		return bad("Type at least two letters of a name, or a full name with its #tag.")
 	}
 	mates, err := s.agencyMates(r, c.Sub)
@@ -232,7 +235,7 @@ func (s *server) searchPeople(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 		rows, err := s.db.Query(ctx, `SELECT id, display_name, tag, avatar, find_me, message_me FROM users
-			WHERE name_key = name_key($1) AND tag = $2 AND id <> $3 AND disabled_at IS NULL`, name, tag, c.Sub)
+			WHERE name_key = name_key($1) AND upper(tag) = $2 AND id <> $3 AND disabled_at IS NULL`, name, tag, c.Sub) // #Owner and #Co-Owner are kept as written
 		if err != nil {
 			return err
 		}
