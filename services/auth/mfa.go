@@ -275,8 +275,8 @@ func (s *server) loadChallenge(ctx context.Context, token string) (*challenge, e
 	var c challenge
 	var sess, fb, hash, method *string
 	var sent, expires *int64
-	err := s.db.QueryRow(ctx, "SELECT id, user_id, session_id, session_kind, provider, fb_refresh, code_hash, code_method, code_sent_at, code_expires_at, tries, push_state FROM mfa_challenges WHERE token_hash = $1 AND expires_at > $2",
-		sha256Hex(strings.TrimSpace(token)), now()).Scan(&c.id, &c.userID, &sess, &c.kind, &c.provider, &fb, &hash, &method, &sent, &expires, &c.tries, &c.pushState)
+	err := s.db.QueryRow(ctx, "SELECT id, user_id, session_id, session_kind, provider, fb_refresh, code_hash, code_method, code_sent_at, code_expires_at, tries, push_state FROM mfa_challenges WHERE token_hash = $1 AND expires_at > $2 AND tries <= $3",
+		sha256Hex(strings.TrimSpace(token)), now(), maxTries).Scan(&c.id, &c.userID, &sess, &c.kind, &c.provider, &fb, &hash, &method, &sent, &expires, &c.tries, &c.pushState)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, errExpiredSignIn
 	}
@@ -494,7 +494,9 @@ func (s *server) challengeAnswer(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if counted.RowsAffected() != 1 {
-		if _, err := s.db.Exec(ctx, "DELETE FROM mfa_challenges WHERE id = $1", ch.id); err != nil {
+		// Used up, not deleted: an answer counted before this one may still be finishing with the right code, and deleting the
+		// challenge under it would sign nobody in. One past the limit, it is never found again (loadChallenge) and expires.
+		if _, err := s.db.Exec(ctx, "UPDATE mfa_challenges SET tries = $2 + 1 WHERE id = $1", ch.id, maxTries); err != nil {
 			return err
 		}
 		return errTooMany
