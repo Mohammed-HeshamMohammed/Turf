@@ -119,14 +119,14 @@ func (s *server) tellOwners(ctx context.Context, org, title string) {
 	_ = tx.Commit(ctx)
 }
 
-// crossAgencyStaff is the platform owner or cofounder with their second step (D271).
+// crossAgencyStaff is the platform owner, cofounder or a system admin with their second step (D271, D391).
 func (s *server) crossAgencyStaff(q *req) error {
 	p, err := s.rules.people(q.r.Context(), q.c.Sub)
 	if err != nil {
 		return err
 	}
-	if !slices.Contains([]string{"owner", "cofounder"}, p.PlatformRole) {
-		return forbidden("Only Caller Whale's owner and cofounder see across agencies.")
+	if !slices.Contains([]string{"owner", "cofounder", "system_admin"}, p.PlatformRole) {
+		return forbidden("Only Caller Whale's owner, cofounder and system admins see across agencies.")
 	}
 	if !q.c.SecondFactor {
 		return &apiError{http.StatusForbidden, "second_step_required", "Pass your second sign-in step first."}

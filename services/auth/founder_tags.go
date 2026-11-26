@@ -59,3 +59,9 @@ func (s *server) settleFounderTag(ctx context.Context, userID, platformRole stri
 		log.Printf("WARN could not set the founder tag of %s: %v", userID, err)
 	}
 }
+
+// platformStaff is Caller Whale's own staff with the run of the platform pages: the owner, the cofounder and system admins (D391).
+// Testers are not: they only try features early. The founder tags stay with the owner and cofounder alone.
+func platformStaff(platformRole string) bool {
+	return platformRole == "owner" || platformRole == "cofounder" || platformRole == "system_admin"
+}

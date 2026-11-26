@@ -586,12 +586,12 @@ func (p *postgres) check(ctx context.Context, user, org, permission string) (boo
 			return false, err
 		}
 		if permission == "staff" {
-			return r == "owner" || r == "cofounder", nil // system_admin is switched off for now
+			return staffBoss(r), nil
 		}
 		if permission == "tester" {
 			return r == "tester", nil
 		}
-		return r == "owner" || r == "cofounder", nil
+		return staffBoss(r), nil
 	}
 	f, err := p.facts(ctx, user, org)
 	if err != nil {
@@ -605,7 +605,7 @@ func (p *postgres) check(ctx context.Context, user, org, permission string) (boo
 		if err != nil {
 			return false, err
 		}
-		if r == "owner" || r == "cofounder" {
+		if staffBoss(r) {
 			return true, nil
 		}
 		m, ok, err := p.membership(ctx, org, user)

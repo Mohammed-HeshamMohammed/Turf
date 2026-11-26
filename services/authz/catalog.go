@@ -36,6 +36,11 @@ var platformRoleNames = []struct{ Key, Name string }{
 	{"tester", "Tester"},
 }
 
+// platformRole is true for a key on the staff ladder: never a workspace role, even one stored under that key long ago.
+func platformRole(key string) bool {
+	return slices.ContainsFunc(platformRoleNames, func(p struct{ Key, Name string }) bool { return p.Key == key })
+}
+
 // reservedKeys cannot be used for a custom role: the standard roles, the platform roles, and "admin" (a capability, never a role).
 func reserved(key string) bool {
 	for _, p := range presets {
@@ -83,7 +88,7 @@ func buildCatalog(stored []role) []catalogRole {
 	}
 	custom := []catalogRole{}
 	for _, r := range stored {
-		if seen[r.Key] || disabledRoles[r.Key] {
+		if seen[r.Key] || disabledRoles[r.Key] || platformRole(r.Key) {
 			continue
 		}
 		seen[r.Key] = true

@@ -500,7 +500,7 @@ func (s *server) adminOverview(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return errAccessUnavailable
 	}
-	owner := profile.PlatformRole == "owner" || profile.PlatformRole == "cofounder"
+	owner := platformStaff(profile.PlatformRole)
 	staff, err := s.staffIDs(ctx)
 	if err != nil {
 		return err

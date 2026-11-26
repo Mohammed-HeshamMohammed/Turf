@@ -82,7 +82,8 @@ The web cache, shared devices, what plans and billing do to people, support acce
 | D329 | The invitation link opens the CRM, which shows and accepts it. The website Dashboard still lists pending invitations too, so nobody gets stuck. | 1, 3 |
 | D330 | Clients sign in to the same CRM and see a simplified view with only their own pages, under the agency's branding (D172). | 23 |
 | D331 | Platform staff screens (the report queue, agencies, support access) stay in the website Dashboard's existing staff area, away from agencies' work. | 7, 19, 39 |
-| D338 | The switched-off "system admin" platform role is removed. The narrow staff roles (support, billing, moderation, D271) take its place when there is a team. | 11 |
+| D338 | (Reversed by D391.) The switched-off "system admin" platform role is removed. The narrow staff roles (support, billing, moderation, D271) take its place when there is a team. | 11 |
+| D391 | The "system admin" platform role is back (reverses D338): a system admin does what the owner and cofounder do on the platform (the staff dashboard, across agencies with the second step, managing staff), except that the owner and cofounder stay permanent and keep #Owner and #Co-Owner. Grafana gives them its own configured role (ADMIN_GRAFANA_ROLE). | 11 |
 | D340 | A Duo agency is created with one team and both people as owner and admin. Team leads, deputies and team screens stay hidden until it moves to the Team plan. | 17 |
 | D341 | Moving from Duo to Team upgrades the same workspace in place, like the Solo upgrade. The team screens, roles and invitations appear, and the two people keep owner and admin. | 17 |
 | D342 | One person can run a Solo workspace and own a Team agency at the same time, as separate workspaces each billed on its own (D69). | - |
