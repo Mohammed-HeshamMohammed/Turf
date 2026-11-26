@@ -25,7 +25,7 @@ func (s *server) me(q *req) error {
 	}
 	// Caller Whale's own owner, cofounder and system admins work in a workspace of their own, opened for them the first time (and
 	// only after their second step), the way the old server did. Everyone else is given a workspace by an owner or by an invitation.
-	if len(ppl.Workspaces) == 0 && q.c.SecondFactor && slices.Contains([]string{"owner", "cofounder"}, ppl.PlatformRole) { // system admin is switched off
+	if len(ppl.Workspaces) == 0 && q.c.SecondFactor && slices.Contains([]string{"owner", "cofounder", "system_admin"}, ppl.PlatformRole) {
 		if err = s.rules.open(ctx, staffWorkspaceID(q.c.Sub), q.c.Sub, "owner"); err != nil {
 			return err
 		}

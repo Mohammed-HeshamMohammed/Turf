@@ -695,8 +695,8 @@ func (s *server) putStaff(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return store(err)
 	}
-	if actorRole != "owner" && actorRole != "cofounder" {
-		return forbidden("Only the platform owner or cofounder manages staff.")
+	if !staffBoss(actorRole) {
+		return forbidden("Only the platform owner, cofounder and system admins manage staff.")
 	}
 	if s.cfg.staffSecondStep && !body.ActorSecondStep {
 		return forbidden("Confirm it's you with your second step first.")
@@ -763,8 +763,8 @@ func (s *server) person(w http.ResponseWriter, r *http.Request) error {
 		held := slices.ContainsFunc(m.Roles, func(role string) bool { return slices.Contains(heldRoles, role) })
 		spaces = append(spaces, workspaceRoles{OrgID: org, Roles: m.Roles, BusinessOwner: held})
 	}
-	// The platform owner and cofounder also see the agencies that let support in now, as support.
-	if staff == "owner" || staff == "cofounder" {
+	// The platform owner, cofounder and system admins also see the agencies that let support in now, as support.
+	if staffBoss(staff) {
 		open, err := s.rules.supportOpen(r.Context(), s.now().Unix())
 		if err != nil {
 			return store(err)

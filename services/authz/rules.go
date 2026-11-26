@@ -150,7 +150,7 @@ func knownAction(action string) bool {
 
 // decideStaff answers a request to act on Caller Whale's own platform pages.
 func decideStaff(staffRole string, secondStepPassed, staffSecondStep bool) decision {
-	if staffRole != "owner" && staffRole != "cofounder" { // system_admin is switched off for now (disabledRoles)
+	if !staffBoss(staffRole) {
 		return refuse("not_staff", "This is for Caller Whale's staff.")
 	}
 	if staffSecondStep && !secondStepPassed {

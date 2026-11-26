@@ -183,7 +183,7 @@ func (s *server) workspaceSeat(r *http.Request, org string) (workspaceSeat, erro
 	if err != nil {
 		return workspaceSeat{}, errAccessUnavailable
 	}
-	seat := workspaceSeat{c: c, staff: profile.PlatformRole == "owner" || profile.PlatformRole == "cofounder"}
+	seat := workspaceSeat{c: c, staff: platformStaff(profile.PlatformRole)}
 	for _, space := range profile.Workspaces {
 		if space.OrgID == org {
 			seat.admin = slices.Contains(space.Roles, "admin")
@@ -325,8 +325,8 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 		teamID = body.TeamIDs[0]
 	}
 	if scope == "platform" {
-		if role != "tester" || len(body.Roles) > 1 || len(body.TeamIDs) > 0 || len(body.LeadTeamIDs) > 0 { // system admin is switched off
-			return bad("Choose tester.")
+		if (role != "tester" && role != "system_admin") || len(body.Roles) > 1 || len(body.TeamIDs) > 0 || len(body.LeadTeamIDs) > 0 {
+			return bad("Choose system admin or tester.")
 		}
 	} else {
 		var listed struct {

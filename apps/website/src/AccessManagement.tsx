@@ -39,7 +39,7 @@ async function call(auth: Auth, base: string, method: string, path: string, body
 
 export function InviteManager({ auth, authBase, scope, orgId = "" }: { auth: Auth; authBase: string; scope: "platform" | "workspace"; orgId?: string }) {
   const path = scope === "platform" ? "/v1/admin/invitations" : `/v1/orgs/${orgId}/invitations`;
-  const [roles, setRoles] = useState(scope === "platform" ? ["tester"] : workspaceRoles) // system admin is switched off for now;
+  const [roles, setRoles] = useState(scope === "platform" ? ["tester", "system_admin"] : workspaceRoles);
   const [items, setItems] = useState<Invitation[]>([]);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState(roles[0]);

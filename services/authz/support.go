@@ -31,8 +31,8 @@ func supportFacts(f facts) facts {
 
 var supportSeen sync.Map // staff|org -> time of the last record
 
-// asSupport turns a non-member's facts into support facts when the agency granted access and the person is the platform owner or
-// cofounder (system admins are switched off for now); it records the visit.
+// asSupport turns a non-member's facts into support facts when the agency granted access and the person is the platform owner,
+// cofounder or a system admin; it records the visit.
 func (s *server) asSupport(r *http.Request, user, org string, f facts) (facts, error) {
 	if f.member {
 		return f, nil
@@ -42,7 +42,7 @@ func (s *server) asSupport(r *http.Request, user, org string, f facts) (facts, e
 		return f, err
 	}
 	staff, err := s.rules.staffRole(r.Context(), user)
-	if err != nil || (staff != "owner" && staff != "cofounder") {
+	if err != nil || !staffBoss(staff) {
 		return f, err
 	}
 	key := user + "|" + org

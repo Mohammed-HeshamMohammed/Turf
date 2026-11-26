@@ -147,5 +147,5 @@ func (s *server) setupExempt(ctx context.Context, id string) bool {
 	if err != nil {
 		return false
 	}
-	return profile.PlatformRole == "owner" || profile.PlatformRole == "cofounder"
+	return platformStaff(profile.PlatformRole)
 }

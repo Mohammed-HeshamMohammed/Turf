@@ -70,8 +70,11 @@ func TestDecideStaff(t *testing.T) {
 	if d := decideStaff("cofounder", false, true); d.Allowed || d.Code != "second_step_required" {
 		t.Errorf("staff without the second step: %+v", d)
 	}
-	if d := decideStaff("system_admin", true, true); d.Allowed || d.Code != "not_staff" {
-		t.Errorf("system admin is switched off: %+v", d)
+	if d := decideStaff("system_admin", true, true); !d.Allowed || d.DBRole != "cw_staff" {
+		t.Errorf("a system admin is staff (D391): %+v", d)
+	}
+	if d := decideStaff("tester", true, true); d.Allowed || d.Code != "not_staff" {
+		t.Errorf("a tester is not: %+v", d)
 	}
 	if d := decideStaff("cofounder", true, true); !d.Allowed || d.DBRole != "cw_staff" {
 		t.Errorf("cofounder: %+v", d)

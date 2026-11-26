@@ -20,9 +20,9 @@ import (
 	"strings"
 )
 
-// disabledRoles are switched off: not listed, not given, and a grant someone still holds allows nothing. The system admin platform
-// role is gone (D338); narrow staff roles take its place when there is a staff team.
-var disabledRoles = map[string]bool{"system_admin": true}
+// disabledRoles are switched off: not listed, not given, and a grant someone still holds allows nothing. None now: the system admin
+// platform role is back (D391, which reverses D338) and does what the owner and cofounder do.
+var disabledRoles = map[string]bool{}
 
 // agentRoles sit in teams: one team under the old team rules, one to maxTeams under the new ones. A researcher (D337) sits in teams
 // like a caller or closer and is managed by the team's leads the same way (D369).
@@ -46,7 +46,7 @@ func isHeld(roles []string) bool {
 	return slices.ContainsFunc(roles, func(r string) bool { return slices.Contains(heldRoles, r) })
 }
 func onlyClient(roles []string) bool { return len(roles) == 1 && roles[0] == "client" }
-func staffBoss(staff string) bool    { return staff == "owner" || staff == "cofounder" }
+func staffBoss(staff string) bool    { return staff == "owner" || staff == "cofounder" || staff == "system_admin" }
 
 // team is one team of a workspace: its leads (none, one, or several equal ones; D43) and deputies. ManagerID is the first lead,
 // kept for the services and screens that know only one.
@@ -214,6 +214,9 @@ func checkPlacement(roles, teamIDs []string, teams []team, newTeam bool) error {
 	for _, r := range roles {
 		if disabledRoles[r] {
 			return forbidden(roleTitle(r) + " is switched off for now.")
+		}
+		if platformRole(r) {
+			return forbidden(roleTitle(r) + " is a Caller Whale staff role, not a workspace role.")
 		}
 		if slices.Contains(heldRoles, r) {
 			return forbidden("Only the person who opened this workspace is its owner; that role cannot be given.")

@@ -241,12 +241,18 @@ func TestStaffChanges(t *testing.T) {
 	if code := put(ownerID, strangerID, "owner", true); code != 400 {
 		t.Errorf("there is one platform owner: %d", code)
 	}
-	if code := put(ownerID, strangerID, "system_admin", true); code != 403 {
-		t.Errorf("system admin is switched off: %d", code)
+	// A system admin does what the founders do (D391): the platform pages, and managing other staff.
+	if code := put(ownerID, strangerID, "system_admin", true); code != 200 {
+		t.Errorf("the owner makes a system admin: %d", code)
 	}
-	h.mem.staff[strangerID] = "system_admin" // given before it was switched off
-	if code, out := h.call(coreToken, "POST", "/v1/grant", map[string]any{"user_id": strangerID, "action": "platform", "second_step_passed": true}); code != 200 || out["allowed"] != false {
-		t.Errorf("a system admin kept from before gets nothing: %d %v", code, out)
+	if code, out := h.call(coreToken, "POST", "/v1/grant", map[string]any{"user_id": strangerID, "action": "platform", "second_step_passed": true}); code != 200 || out["allowed"] != true {
+		t.Errorf("a system admin gets the staff grant: %d %v", code, out)
+	}
+	if code, out := h.call(coreToken, "POST", "/v1/grant", map[string]any{"user_id": strangerID, "action": "platform", "second_step_passed": false}); code != 200 || out["allowed"] != false {
+		t.Errorf("a system admin needs the second step too: %d %v", code, out)
+	}
+	if code := put(strangerID, ownerID, "", true); code != 403 {
+		t.Errorf("a system admin cannot change the owner: %d", code)
 	}
 	delete(h.mem.staff, strangerID)
 	code, out := h.call(coreToken, "POST", "/v1/grant", map[string]any{"user_id": ownerID, "action": "platform", "second_step_passed": true})
@@ -274,8 +280,19 @@ func TestStaffChanges(t *testing.T) {
 	if code, out := h.call(gatewayToken, "POST", "/v1/check", map[string]any{"user_id": strangerID, "permission": "tester"}); code != 200 || out["allowed"] != true {
 		t.Errorf("tester check: %d %v", code, out)
 	}
-	if code := put(callerID, strangerID, "system_admin", true); code != 403 {
-		t.Errorf("nobody assigns system admin while it is switched off: %d", code)
+	if code := put(callerID, strangerID, "system_admin", true); code != 200 {
+		t.Errorf("the cofounder makes a system admin: %d", code)
+	}
+	if code := put(strangerID, ownerID, "tester", true); code != 403 {
+		t.Errorf("a system admin cannot change the owner: %d", code)
+	}
+	if code := put(strangerID, callerID, "tester", true); code != 403 {
+		t.Errorf("a system admin cannot change the cofounder: %d", code)
+	}
+	const otherAdminID = "66666666-6666-4666-8666-666666666666"
+	h.mem.staff[otherAdminID] = "tester"
+	if code := put(strangerID, otherAdminID, "system_admin", true); code != 200 {
+		t.Errorf("a system admin manages other staff: %d", code)
 	}
 }
 
@@ -416,7 +433,7 @@ func TestTheCatalogListsEachRoleOnce(t *testing.T) {
 		{Key: "senior_closer", Capabilities: []string{"edit"}, Scope: "own"},
 		{Key: "helper", Capabilities: []string{"export"}, Scope: "team"},
 		{Key: "helper", Capabilities: []string{"export"}, Scope: "team"},          // a repeat is still one role
-		{Key: "system_admin", Capabilities: []string{"import"}, Scope: "project"}, // switched off: never listed
+		{Key: "system_admin", Capabilities: []string{"import"}, Scope: "project"}, // a staff role's key: never a workspace role
 	}
 	got := buildCatalog(stored)
 	seen := map[string]bool{}
@@ -461,7 +478,7 @@ func TestTheRoleCatalogHasThePlatformRolesInTheirOwnGroup(t *testing.T) {
 	}
 	workspace, _ := out["workspace"].([]any)
 	platform, _ := out["platform"].([]any)
-	if len(workspace) != len(presets) || len(platform) != 3 { // system admin is gone (D338)
+	if len(workspace) != len(presets) || len(platform) != 4 { // owner, cofounder, system admin (back, D391), tester
 		t.Fatalf("workspace %d, platform %d", len(workspace), len(platform))
 	}
 	first, _ := platform[0].(map[string]any)
