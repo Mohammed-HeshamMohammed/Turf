@@ -23,7 +23,7 @@ func (s *server) staffActor(r *http.Request, manage bool) (claims, error) {
 		return claims{}, err
 	}
 	if !c.MFA {
-		return claims{}, newError(http.StatusForbidden, "mfa_required", "Confirm your identity with a second step first.")
+		return claims{}, newError(http.StatusForbidden, "mfa_required", "This sign-in has not passed your second step. Enter your authenticator code first.")
 	}
 	if s.cfg.authzURL == "" || s.cfg.authzToken == "" {
 		return claims{}, errAccessUnavailable
@@ -32,11 +32,15 @@ func (s *server) staffActor(r *http.Request, manage bool) (claims, error) {
 	if err != nil {
 		return claims{}, errAccessUnavailable
 	}
-	if manage && !platformStaff(profile.PlatformRole) {
-		return claims{}, forbidden("Only the platform owner, cofounder and system admins can manage staff.")
-	}
-	if !manage && !platformStaff(profile.PlatformRole) {
-		return claims{}, forbidden("This dashboard is for Caller Whale staff.")
+	if !platformStaff(profile.PlatformRole) {
+		held := "no staff role"
+		if profile.PlatformRole != "" {
+			held = "the " + strings.ToLower(roleWords(profile.PlatformRole)) + " role"
+		}
+		if manage {
+			return claims{}, newError(http.StatusForbidden, "not_staff", "Only the platform owner, cofounder and system admins can manage staff. Your account has "+held+".")
+		}
+		return claims{}, newError(http.StatusForbidden, "not_staff", "This dashboard is for Caller Whale staff. Your account has "+held+".")
 	}
 	return c, nil
 }
@@ -115,11 +119,21 @@ func (s *server) assignStaff(w http.ResponseWriter, r *http.Request) error {
 		return errAccessUnavailable
 	}
 	defer res.Body.Close()
-	if res.StatusCode == http.StatusForbidden {
-		return forbidden("That staff role cannot be changed.")
-	}
 	if res.StatusCode != http.StatusOK {
-		return errAccessUnavailable
+		// The roles service says exactly why (not staff, the founders cannot change, a role it refuses): pass its words on, so the
+		// person sees the real reason, not one sentence for every refusal.
+		var refused struct {
+			Error string `json:"error"`
+		}
+		_ = json.NewDecoder(io.LimitReader(res.Body, 1<<16)).Decode(&refused)
+		if res.StatusCode >= 500 || refused.Error == "" {
+			return errAccessUnavailable
+		}
+		code := map[int]string{http.StatusForbidden: "staff_refused", http.StatusBadRequest: "bad_request", http.StatusNotFound: "not_found", http.StatusConflict: "conflict"}[res.StatusCode]
+		if code == "" {
+			code = "staff_refused"
+		}
+		return newError(res.StatusCode, code, refused.Error)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	return nil

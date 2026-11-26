@@ -91,7 +91,8 @@ func TestOnlyTheOwnerAndCofounderCarryOwnerAndCoOwner(t *testing.T) {
 // staffAuthz is rolesAuthz that also takes staff changes (PUT /v1/staff/{user}) and remembers them.
 type staffAuthz struct {
 	rolesAuthz
-	given map[string]string
+	given  map[string]string
+	refuse string // when set, the change is refused with these words, as authz does (403)
 }
 
 func (f *staffAuthz) serve(w http.ResponseWriter, r *http.Request) {
@@ -100,6 +101,11 @@ func (f *staffAuthz) serve(w http.ResponseWriter, r *http.Request) {
 			Role string `json:"role"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
+		if f.refuse != "" {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": f.refuse, "code": "forbidden"})
+			return
+		}
 		f.mu.Lock()
 		f.given[strings.TrimPrefix(r.URL.Path, "/v1/staff/")] = body.Role
 		f.mu.Unlock()
@@ -131,5 +137,22 @@ func TestTheDashboardGivesSystemAdminAndTester(t *testing.T) {
 		if a := w.call("POST", "/v1/admin/staff", map[string]any{"email": "helper@example.com", "role": role}, owner); a.status != 400 {
 			t.Fatalf("%q given: %d", role, a.status)
 		}
+	}
+
+	// Every refusal keeps its own reason: authz's words come through as they are, and auth's own say what is missing.
+	fake.refuse = "The platform owner and cofounder cannot be changed here."
+	if a := w.call("POST", "/v1/admin/staff", map[string]any{"email": "helper@example.com", "role": "tester"}, owner); a.status != 403 || a.str("error") != fake.refuse || a.str("code") != "staff_refused" {
+		t.Fatalf("authz's reason: %d %v", a.status, a.body)
+	}
+	if a := w.call("POST", "/v1/admin/staff", map[string]any{"email": "nobody@example.com", "role": "tester"}, owner); a.status != 404 || a.str("code") != "account_not_found" {
+		t.Fatalf("no such account: %d %v", a.status, a.body)
+	}
+	plain := w.confirmed("plain@example.com").access()
+	if a := w.call("POST", "/v1/admin/staff", map[string]any{"email": "helper@example.com", "role": "tester"}, plain); a.status != 403 || a.str("code") != "mfa_required" {
+		t.Fatalf("no second step: %d %v", a.status, a.body)
+	}
+	stepped := w.stepped("stepped@example.com").access()
+	if a := w.call("POST", "/v1/admin/staff", map[string]any{"email": "helper@example.com", "role": "tester"}, stepped); a.status != 403 || a.str("code") != "not_staff" || !strings.Contains(a.str("error"), "no staff role") {
+		t.Fatalf("not staff: %d %v", a.status, a.body)
 	}
 }

@@ -85,7 +85,9 @@ const freshSecondStepWindow = 5 * 60
 // the answer is "step_up_required", which the dashboard turns into a code box on the spot, then asks again.
 func requireFreshSecondStep(c claims, at int64) *apiError {
 	if !c.MFA || c.AuthTime <= 0 || at-c.AuthTime > freshSecondStepWindow || c.AuthTime > at+60 {
-		return newError(http.StatusForbidden, "step_up_required", "Confirm it's you with your authenticator code to do this.")
+		// Said plainly: changes like this need a second step from the last few minutes (freshSecondStepWindow), not just one this
+		// session passed earlier.
+		return newError(http.StatusForbidden, "step_up_required", "Changes like this need your authenticator code from the last 5 minutes. Enter it to continue.")
 	}
 	return nil
 }
