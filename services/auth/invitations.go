@@ -325,7 +325,7 @@ func (s *server) createInvitation(w http.ResponseWriter, r *http.Request, scope,
 		teamID = body.TeamIDs[0]
 	}
 	if scope == "platform" {
-		if (role != "tester" && role != "system_admin") || len(body.Roles) > 1 || len(body.TeamIDs) > 0 || len(body.LeadTeamIDs) > 0 {
+		if role == "" || !assignableStaffRole(role) || len(body.Roles) > 1 || len(body.TeamIDs) > 0 || len(body.LeadTeamIDs) > 0 {
 			return bad("Choose system admin or tester.")
 		}
 	} else {
@@ -1221,6 +1221,8 @@ func roleWords(role string) string {
 		return "Acquisitions / closer"
 	case "client":
 		return "Client"
+	case "system_admin":
+		return "System admin"
 	case "tester":
 		return "Tester"
 	}

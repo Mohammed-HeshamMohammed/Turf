@@ -93,9 +93,9 @@ func (s *server) assignStaff(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	body.Email = strings.ToLower(strings.TrimSpace(body.Email))
-	// The system admin role is gone (D338); testers remain.
-	if body.Email == "" || (body.Role != "" && body.Role != "tester") {
-		return bad("Choose an account email and a staff role.")
+	// System admins (back, D391) and testers; the owner and cofounder are permanent and never given here.
+	if body.Email == "" || !assignableStaffRole(body.Role) {
+		return bad("Choose an account email and a staff role: system admin, tester, or none.")
 	}
 	var target string
 	if err := s.db.QueryRow(r.Context(), "SELECT id FROM users WHERE email = $1 AND disabled_at IS NULL", body.Email).Scan(&target); errors.Is(err, pgx.ErrNoRows) {
@@ -124,3 +124,6 @@ func (s *server) assignStaff(w http.ResponseWriter, r *http.Request) error {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	return nil
 }
+
+// assignableStaffRole is a staff role the dashboard may give or take: system admin, tester, or "" to take it away.
+func assignableStaffRole(role string) bool { return role == "" || role == "system_admin" || role == "tester" }
