@@ -87,3 +87,49 @@ func TestOnlyTheOwnerAndCofounderCarryOwnerAndCoOwner(t *testing.T) {
 		t.Fatalf("after the role went: %q", after)
 	}
 }
+
+// staffAuthz is rolesAuthz that also takes staff changes (PUT /v1/staff/{user}) and remembers them.
+type staffAuthz struct {
+	rolesAuthz
+	given map[string]string
+}
+
+func (f *staffAuthz) serve(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/v1/staff/") {
+		var body struct {
+			Role string `json:"role"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		f.mu.Lock()
+		f.given[strings.TrimPrefix(r.URL.Path, "/v1/staff/")] = body.Role
+		f.mu.Unlock()
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+		return
+	}
+	f.rolesAuthz.serve(w, r)
+}
+
+func TestTheDashboardGivesSystemAdminAndTester(t *testing.T) {
+	fake := &staffAuthz{rolesAuthz: rolesAuthz{roles: map[string]string{}}, given: map[string]string{}}
+	authz := httptest.NewServer(http.HandlerFunc(fake.serve))
+	t.Cleanup(authz.Close)
+	w := newWorld(t, func(c *config) { c.authzURL = authz.URL; c.authzToken = "token" })
+	owner := w.stepped("owner@example.com").access()
+	w.confirmed("helper@example.com")
+	fake.set(w.idOf("owner@example.com"), "owner")
+	helper := w.idOf("helper@example.com")
+
+	for _, role := range []string{"system_admin", "tester", ""} {
+		if a := w.call("POST", "/v1/admin/staff", map[string]any{"email": "helper@example.com", "role": role}, owner); a.status != 200 {
+			t.Fatalf("%q: %d %v", role, a.status, a.body)
+		}
+		if fake.given[helper] != role {
+			t.Fatalf("authz was asked for %q, not %q", fake.given[helper], role)
+		}
+	}
+	for _, role := range []string{"owner", "cofounder", "admin"} {
+		if a := w.call("POST", "/v1/admin/staff", map[string]any{"email": "helper@example.com", "role": role}, owner); a.status != 400 {
+			t.Fatalf("%q given: %d", role, a.status)
+		}
+	}
+}
