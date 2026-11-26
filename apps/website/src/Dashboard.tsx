@@ -90,6 +90,7 @@ function UsageOverview({ access, auth, authBase, me }: { access: Access; auth: A
 function StaffDashboard({ access, auth, authBase, me, onSaved }: { access: Access; auth: Auth; authBase: string; me: Me; onSaved: () => void }) {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error" | "verify">(me.mfa_passed === false ? "verify" : "loading");
+  const [loadProblem, setLoadProblem] = useState(""); // why the staff list could not be shown, in the service's own words
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("tester");
   const [query, setQuery] = useState("");
@@ -149,8 +150,8 @@ function StaffDashboard({ access, auth, authBase, me, onSaved }: { access: Acces
       const problem = await response.json().catch(() => null) as { error?: string; code?: string } | null;
       // A second step done just now is asked for in place, so the screen keeps the code (step_up_required) and lets the person act on it.
       if (problem?.code === "step_up_required") throw new ApiError(problem.error || "Confirm it's you with your authenticator code.", problem.code);
-      if (response.status === 403) throw new Error("A verified second step and the required staff role are needed.");
-      throw new Error(problem?.error || "Staff information is unavailable. Try again.");
+      // Every refusal says its own reason (no second step yet, not staff, a founder's role, an account not found): shown as it is.
+      throw new ApiError(problem?.error || (response.status === 403 ? "You do not have access to this." : "Staff information is unavailable. Try again."), problem?.code || "");
     }
     return response.json();
   };
@@ -161,7 +162,8 @@ function StaffDashboard({ access, auth, authBase, me, onSaved }: { access: Acces
       setStaff(data.staff);
       setStatus("ready");
     } catch (error) {
-      setStatus(error instanceof Error && error.message.includes("second step") ? "verify" : "error");
+      setStatus(error instanceof ApiError && (error.code === "mfa_required" || error.code === "step_up_required") ? "verify" : "error");
+      setLoadProblem(error instanceof Error ? error.message : "");
     }
   };
   useEffect(() => {
@@ -260,7 +262,7 @@ function StaffDashboard({ access, auth, authBase, me, onSaved }: { access: Acces
       {message && <p className="notice bad" role="alert">{message}</p>}
     </div>}
     {recovery.length > 0 && <div className="staff-recovery" role="status"><span className="eyebrow">One-time backup</span><h3>Save your recovery codes</h3><p>These codes can restore staff access if you lose your authenticator. Each code works once. They will not be shown again after you leave this page.</p><ol>{recovery.map(value => <li key={value}><code>{value}</code></li>)}</ol><div className="staff-recovery-actions"><button type="button" className="button raised" onClick={() => void copy(recovery.join("\n"), "Recovery codes")}>Copy codes</button><button type="button" className="button raised" onClick={downloadRecovery}>Download text file</button></div>{copyMessage && <p className="fine" role="status">{copyMessage}</p>}<button type="button" className="button primary" onClick={() => { setRecovery([]); setCopyMessage(""); }}>I saved my codes</button></div>}
-    {shownView !== "account" && shownView !== "profile" && !recovery.length && status === "error" && <div className="admin-feedback card" role="alert"><h2>Staff information is unavailable</h2><p>Check your connection and try again.</p><button type="button" className="button primary" onClick={() => void load()}>Try again</button></div>}
+    {shownView !== "account" && shownView !== "profile" && !recovery.length && status === "error" && <div className="admin-feedback card" role="alert"><h2>Staff information is unavailable</h2><p>{loadProblem || "Check your connection and try again."}</p><button type="button" className="button primary" onClick={() => void load()}>Try again</button></div>}
     {status === "ready" && shownView === "overview" && (canManage
       ? <>
         <div className="settings-tabs" role="tablist" aria-label="Overview">
