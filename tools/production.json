@@ -458,7 +458,6 @@
         "services/grafana-proxy",
         "services/alert-relay",
         "packages/go",
-        "docs/operations/grafana-access.md",
         "env/grafana.production.example"
       ],
       "build": "go test ./... in services/grafana-proxy; in Coolify: a Docker Compose resource from this branch with deploy/grafana/compose.yml (deploy/grafana/README.md)",
