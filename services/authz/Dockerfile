@@ -1,4 +1,4 @@
-# Authorization (plan: docs/history/plans/authorization-service.md). Build with this folder as the context:
+# Authorization. Build with this folder as the context:
 #   docker build -t callerwhale-authz services/authz
 FROM golang:1 AS runtime-log-build
 COPY packages/go/runtimelog /src

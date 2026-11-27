@@ -1,4 +1,4 @@
-// Builds the production branches (docs/operations/production-branches.md): one branch per part, holding only that part's
+// Builds the production branches: one branch per part, holding only that part's
 // files. A component with paths ["."] exports its base folder at the branch root.
 // Reads tools/production.json, takes the files from `main` (or --from <ref>), and writes each branch as a new
 // commit on top of its previous one, so a branch's history is the list of snapshots of main it was made from.

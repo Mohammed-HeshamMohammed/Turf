@@ -1,7 +1,6 @@
 // messaging: conversations between the people of a workspace (direct chats and groups), and later with leads by text. It owns every
 // conversation; the live server (Centrifugo) only delivers what this service has already saved. Who someone is comes from the auth
 // service's signed tokens (checked locally); whether they are in the workspace comes from the authorization service.
-// Plan: docs/plans/messaging-sms-voice.md.
 package main
 
 import (

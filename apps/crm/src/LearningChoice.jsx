@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "./remote/api.ts";
 import { Badge, Button, Card } from "./ui.jsx";
 
-// What happens to a workspace's lists once they are added, and the administrator's choice (docs/legal/research/learning-store-compliance.md).
+// What happens to a workspace's lists once they are added, and the administrator's choice.
 // Plain words first: a short list of what is kept and what is never kept, and one switch.
 export function LearningChoice({ notify }) {
   const [status, setStatus] = useState(null);

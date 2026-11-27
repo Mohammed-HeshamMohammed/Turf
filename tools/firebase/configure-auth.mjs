@@ -1,4 +1,4 @@
-// Sets a Firebase project's sign-in rules for Caller Whale (docs/history/plans/firebase-auth.md): authenticator-app codes on,
+// Sets a Firebase project's sign-in rules for Caller Whale: authenticator-app codes on,
 // passwords of 12 characters or more, and sign-in that does not reveal which emails have accounts. Safe to run again.
 //
 //   node tools/firebase/configure-auth.mjs [project-id]

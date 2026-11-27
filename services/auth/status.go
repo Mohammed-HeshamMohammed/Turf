@@ -7,8 +7,7 @@ package main
 //     own health checks (see probeSource; three failed checks in a row mark it down). Anyone may read it; signed-in screens show its banner while something is wrong, and people
 //     who chose it get an email when an incident opens and when it ends (D235).
 //   - Breach notices: staff record what happened and what to do for each affected agency; its owner is emailed at once, and each notice
-//     shows whether it went within 72 hours of Caller Whale knowing (D236). What to tell leads and authorities is the lawyer's, in
-//     docs/legal/breach-response-plan.md.
+//     shows whether it went within 72 hours of Caller Whale knowing (D236). What to tell leads and authorities is the lawyer's.
 
 import (
 	"context"

@@ -1,9 +1,7 @@
 # messaging
 
 Conversations between the people of a workspace: direct chats and groups, with replies, mentions, reactions, polls, edits, deletes
-and unread counts. Later it also holds text threads with leads; the `sms` service will only carry them. Plan:
-[messaging-sms-voice.md](../../docs/plans/messaging-sms-voice.md), detail in
-[messaging-sms-voice-detail.md](../../docs/plans/messaging-sms-voice-detail.md).
+and unread counts. Later it also holds text threads with leads; the `sms` service will only carry them.
 
 **Status (2026-11-14):** the service, its tables and its tests are written and pass against a local PostgreSQL. It has not been run in
 a container, against the real authorization service, or against a real Centrifugo. The CRM's Inbox does not use it yet.

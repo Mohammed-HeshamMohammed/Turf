@@ -1,4 +1,4 @@
-# messaging (plan: docs/plans/messaging-sms-voice.md). Build with this folder as the context:
+# messaging. Build with this folder as the context:
 #   docker build -t callerwhale-messaging services/messaging
 FROM golang:1 AS runtime-log-build
 COPY packages/go/runtimelog /src

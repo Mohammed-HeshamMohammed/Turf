@@ -1,5 +1,5 @@
 {
-  "comment": "The deployable parts, for tools/gen-infra.mjs (docs/history/plans/scaling-and-deployment.md). Resource numbers are starting points: measure, then change them here and run the script again.",
+  "comment": "The deployable parts, for tools/gen-infra.mjs. Resource numbers are starting points: measure, then change them here and run the script again.",
   "namespace": "callerwhale",
   "registry": "registry.example.com/callerwhale",
   "services": [

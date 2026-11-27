@@ -1,6 +1,6 @@
 # Billing service
 
-Plans, subscriptions, payments, call minutes and desktop credits. Plan: [docs/history/plans/billing-service.md](../../docs/history/plans/billing-service.md).
+Plans, subscriptions, payments, call minutes and desktop credits.
 Money never moves through Caller Whale's servers: the payment provider takes it, and this service records what the provider's
 signed webhooks say.
 

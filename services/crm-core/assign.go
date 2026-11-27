@@ -1,6 +1,6 @@
 package crm
 
-// Giving leads to people, following the team tree (docs/plans/database-and-backend.pdf, chapter 17):
+// Giving leads to people, following the team tree:
 //
 //   - The agency owner (or anyone who sees the whole workspace) may give leads to any working member: a team manager, a caller,
 //     a closer, themself.

@@ -1,6 +1,6 @@
 # Gateway
 
-The one public entry point for Caller Whale's servers. It routes by host name to the service behind it, and checks every request first. The services behind it check again for themselves: the gateway narrows what reaches them, it doesn't replace their checks. Plan and decisions: [docs/history/plans/gateway.md](../../docs/history/plans/gateway.md).
+The one public entry point for Caller Whale's servers. It routes by host name to the service behind it, and checks every request first. The services behind it check again for themselves: the gateway narrows what reaches them, it doesn't replace their checks.
 
 | | |
 | --- | --- |

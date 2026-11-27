@@ -1,4 +1,4 @@
-// Shapes follow DataForge's IPC contract (docs/ipc-contract.md) so the sample
+// Shapes follow DataForge's IPC contract so the sample
 // client in dataforge.ts can be swapped for the real one without touching the UI.
 
 export type DatasetKind = "import" | "scrape" | "cleaned" | "checked" | "combined";

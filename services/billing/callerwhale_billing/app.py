@@ -108,7 +108,7 @@ def create_app(settings: Settings, store, now: Callable[[], datetime] = lambda: 
 
     @app.middleware("http")
     async def access_log(request: Request, call_next):
-        """Method, path, status and time only: never headers or bodies (docs/operations/runtime-logs.md)."""
+        """Method, path, status and time only: never headers or bodies."""
         started = time.perf_counter()
         status = 500
         try:

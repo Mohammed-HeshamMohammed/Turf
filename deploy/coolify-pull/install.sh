@@ -1,5 +1,5 @@
 #!/bin/sh
-# Installs the deploy puller on the VPS (docs/history/plans/coolify-image-swap.md, "Deploys from GitHub"). Run as root on the server,
+# Installs the deploy puller on the VPS. Run as root on the server,
 # for example in Coolify's Terminal for the server. It asks for a Coolify API token (write and deploy, every moved application)
 # without showing it, stores it readable by root only, and starts a timer that applies approved deploys every two minutes.
 # Running it again updates the puller's files and keeps the token and what was already applied.

@@ -1,5 +1,5 @@
 # The messaging service on Coolify (application "messaging", branch messaging-backend-production, port 8108, network alias messaging, NO domain of its own).
-# It keeps team chats and groups; the gateway routes chat.callerwhale.com to it. Setup: docs/operations/coolify-setup-messaging.md.
+# It keeps team chats and groups; the gateway routes chat.callerwhale.com to it.
 # Paste into Environment Variables -> Developer View. Fill every <...>. Secrets stay in Coolify; never commit a filled copy.
 # HTTP port; default 8108. Match Coolify's container port and the gateway's ROUTES.
 PORT=8108

@@ -6,7 +6,7 @@
 //   node tools/make-token.mjs auth       the pair to paste: "auth=<token>" for the service called, and the bare token for the caller
 //
 // The token is printed once and not saved anywhere. Paste it into Coolify's environment variables only (never into a file in
-// this repository). How to replace one without downtime: docs/operations/rotating-service-tokens.md.
+// this repository).
 import { randomBytes } from "node:crypto";
 
 const token = randomBytes(48).toString("base64url");

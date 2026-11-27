@@ -660,7 +660,7 @@ func (s *server) exchange(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// desktopHandoff: the signed-in person's browser hands its sign-in to the desktop app (docs/operations/bot-protection.md, "Desktop sign-in").
+// desktopHandoff: the signed-in person's browser hands its sign-in to the desktop app.
 // The desktop window never shows a password form or a reCAPTCHA: the person signs in at callerwhale.com, and the page asks for this
 // code, which it sends only to 127.0.0.1 on the person's computer. The code works once, for two minutes, and becomes a separate
 // "desktop" session with the same second-step result; the browser's own session is left as it is.
