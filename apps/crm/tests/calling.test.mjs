@@ -162,3 +162,25 @@ test("a second click while the first call is being placed does not place two cal
   assert.equal(second.ok, false);
   assert.deepEqual(log.placed, ["lead-1"]);
 });
+
+test("a listed team phone gets a real call that the page logs itself", async () => {
+  const events = {};
+  const real = {
+    allowed: phone => phone === "+201001234567",
+    start: async (_lead, handlers) => Object.assign(events, handlers),
+    hangup: () => {
+      events.hungUp = true;
+    },
+  };
+  const { dialer, log } = fakeDialer();
+  const calling = createCalling({ dialer, hasDialer: () => true, every: manualClock().every, real });
+  const teamPhone = { id: "lead-9", name: "Team phone", phone: "+201001234567" };
+  assert.deepEqual(await calling.start(signedIn, teamPhone), { ok: true, mode: "real" });
+  assert.equal(getCallSession().answeredAt, null, "ringing");
+  events.onAnswered();
+  assert.ok(getCallSession().answeredAt);
+  events.onEnded("contact");
+  assert.equal(getCallSession().endedBy, "contact");
+  assert.deepEqual(await calling.wrapUp({ outcome: "Not interested" }), { logHere: true });
+  assert.deepEqual(log.placed, [], "the dialer never sees a real call");
+});

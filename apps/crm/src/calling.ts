@@ -6,6 +6,7 @@
 
 import { beginDemoCall, beginServerCall, canBeginCall, clearCallOutcome, endDemoCall, getCallSession, markAnswered } from "./callSession.ts";
 import { dialer as defaultDialer, dialerBase } from "./remote/dialer.ts";
+import { realCalls } from "./realCall.ts";
 
 export type CallMode = "demo" | "dialer" | "real";
 
@@ -120,7 +121,5 @@ export function createCalling({ dialer, hasDialer, every, real }: Deps) {
   return { modeFor, start, end, wrapUp };
 }
 
-// Option B replaces this with realCall.ts (Task 10). Until then no number is ever called for real.
-const noRealCalls: RealCalls = { allowed: () => false, start: async () => {}, hangup: () => {} };
-
-export const calling = createCalling({ dialer: defaultDialer, hasDialer: () => Boolean(dialerBase()), every: everyInterval, real: noRealCalls });
+// Real calls happen only in a build with VITE_CALLERWHALE_REAL_CALL_NUMBERS and a login token on the device (realCall.ts).
+export const calling = createCalling({ dialer: defaultDialer, hasDialer: () => Boolean(dialerBase()), every: everyInterval, real: realCalls });

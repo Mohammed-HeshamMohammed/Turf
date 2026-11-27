@@ -618,6 +618,8 @@ export function App() {
     );
   return (
     <CrmContext.Provider value={context}>
+      {/* Option B: the other side's voice on a real call plays here (realCall.ts). */}
+      <audio id="callerwhale-remote-audio" autoPlay hidden />
       <div className={"crm-window" + (profile.reduceMotion ? " reduce-motion" : "")}>
         {state.remote && (
           <Suspense fallback={null}>
