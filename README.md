@@ -1,8 +1,7 @@
 # Caller Whale
 
 Caller Whale is a CRM for real-estate lead calling: the CRM app (desktop and browser), the public website, and the services
-behind them. Everything lives in this one repository. **New here? Start with [docs/README.md](docs/README.md)**: how the parts fit
-together and where each document is.
+behind them. Everything lives in this one repository.
 
 ## Layout
 
@@ -22,7 +21,6 @@ together and where each document is.
 | `env/` | Example settings for every part. Real settings files stay here on your machine only; git ignores them. |
 | `tools/` | Repository tools: CI parts, image builds and deploys, checks, generators. |
 | `deploy/` | Deployment: `coolify-pull` (the server's deploy puller), `monitoring` (Grafana and friends), `compose` (local development), `k8s` (kept as history). |
-| `docs/` | [The docs map](docs/README.md): plans for what is built or running, history for what is finished, features, legal, design. |
 
 ## Working on it
 

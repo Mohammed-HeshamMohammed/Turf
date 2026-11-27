@@ -9,4 +9,4 @@ Changes reach `main` by pull request (step 46, D376). This is the user's standin
 
 `main` has a ruleset: no direct pushes, no force pushes, no deleting it; a pull request and a passing **CI summary** are required, for admins too. No approval is required while there is one person (GitHub does not let anyone approve their own pull request).
 
-Then refresh and push the production branches (see `docs/operations/production-branches.md`): from the repo root, on the merged `main`, run `node tools/publish-production.mjs --push`. It refuses a commit whose **CI summary** has not passed, only adds commits to branches whose files changed and never force-pushes. Never edit a production branch by hand. This is also the user's standing instruction.
+Then refresh and push the production branches: from the repo root, on the merged `main`, run `node tools/publish-production.mjs --push`. It refuses a commit whose **CI summary** has not passed, only adds commits to branches whose files changed and never force-pushes. Never edit a production branch by hand. This is also the user's standing instruction.
