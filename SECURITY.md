@@ -16,4 +16,3 @@ under `deploy/`. Scaffolds under `scaffolds/` are not deployed.
 - Secret scanning with push protection blocks committed credentials. Secrets live only in Coolify, never in the repository.
 - Dependabot opens security updates at once and version updates monthly; minor and patch updates merge after CI passes.
 - `.github/workflows/audit.yml` checks what each container ships against known advisories every morning.
-- How secrets are rotated and dependencies reviewed: `docs/operations/security-upkeep.md`.
