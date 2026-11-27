@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CALL_DAYS, CALL_OUTCOMES, CALL_TREND, TODAY, seedState } from "../src/data.ts";
+import { CALL_DAYS, CALL_OUTCOMES, CALL_TREND, setClock, today, seedState } from "../src/data.ts";
 import { callbackLabel, canEditLead, loadState, personalProfile, reducer, visibleLeads, visibleTasks, visibleThreads } from "../src/model.ts";
+
+// The sample data and these expectations are written for 15 October 2026.
+setClock(() => new Date(2026, 9, 15, 12, 0));
 
 const as = role => ({ ...seedState(), role });
 test("personal details persist per account without renaming lead responsibility", () => {
@@ -135,7 +138,7 @@ test("ReadyMode call outcomes keep every call and schedule the next one", () => 
   const michael = asked.leads.find(lead => lead.id === "l02");
   assert.deepEqual([michael.callbackDate, michael.callback], ["2026-10-20", "09:15"]);
   assert.equal(callbackLabel(michael.callbackDate, michael.callback), "Oct 20, 09:15");
-  assert.equal(callbackLabel(TODAY, "10:30"), "Today, 10:30");
+  assert.equal(callbackLabel(today(), "10:30"), "Today, 10:30");
 
   const notInterested = reducer(caller, { type: "CALL", id: "l04", outcome: "Not interested" }).leads.find(lead => lead.id === "l04");
   assert.deepEqual([notInterested.stage, notInterested.callbackDate], ["Contacted", "2027-01-13"]);
@@ -155,7 +158,7 @@ test("a transfer qualifies the lead and books an appointment task", () => {
   const transferred = reducer(caller, { type: "CALL", id: "l02", outcome: "Transfer" });
   const lead = transferred.leads.find(item => item.id === "l02");
   assert.deepEqual([lead.stage, lead.sentTo, lead.callback], ["Qualified", "Appointments", ""]);
-  assert.ok(transferred.tasks.some(task => task.leadId === "l02" && task.type === "Appointment" && task.date === TODAY));
+  assert.ok(transferred.tasks.some(task => task.leadId === "l02" && task.type === "Appointment" && task.date === today()));
 });
 test("a saved schema 1 workspace gains empty call history and today's callback dates", () => {
   const old = { ...seedState(), schema: 1 };
@@ -166,7 +169,7 @@ test("a saved schema 1 workspace gains empty call history and today's callback d
   const loaded = loadState({ getItem: () => JSON.stringify(old) });
   assert.equal(loaded.schema, 2);
   assert.deepEqual(loaded.leads[0].calls, []);
-  assert.equal(loaded.leads[0].callbackDate, TODAY);
+  assert.equal(loaded.leads[0].callbackDate, today());
   assert.equal(loaded.leads.find(lead => !lead.callback).callbackDate, "");
 });
 

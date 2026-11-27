@@ -1,4 +1,4 @@
-import { CALL_OUTCOMES, PEOPLE, ROLES, TODAY, seedState } from "./data.ts";
+import { CALL_OUTCOMES, PEOPLE, ROLES, today, seedState } from "./data.ts";
 
 /** The workspace's people by name: the real members when connected (clients left out), the sample team otherwise. */
 export function teamNames(state): string[] {
@@ -226,17 +226,17 @@ function addDays(day, days) {
 export function nextCall(lead, outcome, callbackAt) {
   if (outcome.label === "Callback") return callbackAt && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(callbackAt) ? callbackAt : "";
   if (!outcome.recallDays) return "";
-  return addDays(TODAY, outcome.recallDays) + "T" + (lead.callback || "10:00");
+  return addDays(today(), outcome.recallDays) + "T" + (lead.callback || "10:00");
 }
 /** "Today" or "Oct 16": a day the way every page shows it, never "2026-10-16". */
 export function dayLabel(date) {
-  if (!date || date === TODAY) return "Today";
+  if (!date || date === today()) return "Today";
   return new Date(date + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 /** "Today, 10:30", "Oct 16, 10:30", or "" when nothing is scheduled. */
 export function callbackLabel(date, time) {
   if (!time) return "";
-  if (!date || date === TODAY) return "Today, " + time;
+  if (!date || date === today()) return "Today, " + time;
   return new Date(date + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) + ", " + time;
 }
 function callbackTasks(state, lead, at, title) {
@@ -379,7 +379,7 @@ export function reducer(state, action) {
             leadId: lead.id,
             assignee: lead.assignee,
             time: "",
-            date: TODAY,
+            date: today(),
             priority: "High",
             done: false,
             type: "Appointment",
@@ -756,7 +756,7 @@ export function restoreState(saved) {
   // Schema 1 had no call history or callback dates: its callbacks were times today.
   return saved.schema === 2
     ? saved
-    : { ...saved, schema: 2, leads: saved.leads.map(lead => ({ calls: [], callbackDate: lead.callback ? TODAY : "", ...lead })) };
+    : { ...saved, schema: 2, leads: saved.leads.map(lead => ({ calls: [], callbackDate: lead.callback ? today() : "", ...lead })) };
 }
 
 /** The workspace an earlier version left in localStorage; the IndexedDB copy (workspace-store.js) replaces it. */

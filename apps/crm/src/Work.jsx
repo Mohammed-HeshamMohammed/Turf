@@ -27,7 +27,7 @@ import {
   PencilSimple,
   X,
 } from "@phosphor-icons/react";
-import { CALL_OUTCOMES, DEAL_STAGES, ROLES, TODAY } from "./data.ts";
+import { CALL_OUTCOMES, DEAL_STAGES, ROLES, today } from "./data.ts";
 import { callbackLabel, canEditLead, dayLabel, capability, uid, visibleLeads, visibleTasks, visibleThreads, teamNames, assignableNames } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { CallAssistant } from "./CallAssistant.jsx";
@@ -424,7 +424,7 @@ export function Calls({ target }) {
                     <Field label="Call back at" help="The callback is added to the lead and your tasks.">
                       <DateTimePicker
                         aria-label="Call back at"
-                        min={TODAY + "T00:00"}
+                        min={today() + "T00:00"}
                         value={callbackAt}
                         onChange={event => setCallbackAt(event.target.value)}
                       />
@@ -695,7 +695,7 @@ export function NewDealModal({ lead, onClose }) {
             </Select>
           </Field>
           <Field label="Target close date">
-            <DatePicker name="closeDate" aria-label="Target close date" min={TODAY} defaultValue={TODAY} required />
+            <DatePicker name="closeDate" aria-label="Target close date" min={today()} defaultValue={today()} required />
           </Field>
           <Field label="Offer amount">
             <input name="amount" type="number" min="0" step="1000" placeholder="0" required />
@@ -1081,7 +1081,7 @@ export function Tasks({ create = false }) {
               </Select>
             </Field>
             <Field label="Due date">
-              <DatePicker name="date" aria-label="Due date" defaultValue={TODAY} required />
+              <DatePicker name="date" aria-label="Due date" defaultValue={today()} required />
             </Field>
             <Field label="Time">
               <TimePicker name="time" aria-label="Time" defaultValue="10:30" />
@@ -1257,9 +1257,9 @@ export function Tasks({ create = false }) {
 
 export function Calendar() {
   const { state, dispatch, navigate } = useCrm();
-  const [month, setMonth] = useState(9);
-  const [year, setYear] = useState(2026);
-  const [selected, setSelected] = useState(TODAY);
+  const [month, setMonth] = useState(() => Number(today().slice(5, 7)) - 1);
+  const [year, setYear] = useState(() => Number(today().slice(0, 4)));
+  const [selected, setSelected] = useState(() => today());
   const tasks = visibleTasks(state);
   const first = new Date(Date.UTC(year, month, 1));
   const offset = (first.getUTCDay() + 6) % 7;
@@ -1315,7 +1315,7 @@ export function Calendar() {
   return (
     <>
       <PageHeader title="Calendar" description={"Appointments and next steps · " + state.settings.timezone}>
-        <Button onClick={() => goTo(2026, 9, TODAY)}>Today</Button>
+        <Button onClick={() => { const day = today(); goTo(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, day); }}>Today</Button>
         {capability(state, "edit") && (
           <Button variant="primary" icon={Plus} onClick={() => navigate("work/tasks/new")}>
             New task
@@ -1350,7 +1350,7 @@ export function Calendar() {
                       "calendar-day " +
                       (date.getUTCMonth() !== month ? "outside " : "") +
                       (value === selected ? "selected " : "") +
-                      (value === TODAY ? "today" : "")
+                      (value === today() ? "today" : "")
                     }
                     aria-label={value + ", " + found.length + " tasks"}
                     aria-pressed={value === selected}
@@ -1369,7 +1369,7 @@ export function Calendar() {
             </div>
           </div>
         </Card>
-        <Card className="agenda-card" title={selected === TODAY ? "Today, October 15" : new Date(selected + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })} subtitle="The next steps on this day.">
+        <Card className="agenda-card" title={selected === today() ? "Today, " + new Date(selected + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" }) : new Date(selected + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })} subtitle="The next steps on this day.">
           <div className="agenda-list">
             {tasks
               .filter(task => task.date === selected)

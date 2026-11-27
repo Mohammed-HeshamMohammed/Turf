@@ -1,7 +1,7 @@
 import { flushSync } from "react-dom";
 import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Bell, CalendarBlank, ChatCircle, CheckCircle, HouseLine, List, MagnifyingGlass, WifiSlash, X } from "@phosphor-icons/react";
-import { ROLES } from "./data.ts";
+import { ROLES, setWorkspaceTimeZone } from "./data.ts";
 import { loadPersonalPreferences, savePersonalPreferences, START_PAGES } from "./personal-preferences.ts";
 import { loadWorkspace, saveWorkspace } from "./workspace-store.ts";
 import { setLearnedHeaders } from "./skiptrace-fields.ts";
@@ -68,6 +68,8 @@ const readRoute = () => (openedWithRoute ? window.location.hash.slice(1).replace
 
 export function App() {
   const [state, apply] = useReducer(remoteReducer, undefined, () => loadState(window.localStorage));
+  // today() reads the workspace's zone; setting it while rendering keeps every screen on the same day.
+  setWorkspaceTimeZone(state.settings?.timezone);
   // Headers mapped by hand before are used for every list (skiptrace-fields.js). Set during render so the first
   // render of a page already uses them.
   setLearnedHeaders(state.settings?.learnedHeaders);

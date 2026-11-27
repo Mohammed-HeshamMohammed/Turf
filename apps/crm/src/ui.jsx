@@ -17,7 +17,7 @@ import { Children, Fragment, isValidElement, useEffect, useId, useLayoutEffect, 
 import { createPortal } from "react-dom";
 import { useCrm } from "./context.jsx";
 import { avatarSources } from "./avatars.ts";
-import { TODAY } from "./data.ts";
+import { today } from "./data.ts";
 import { DatePicker as SharedDatePicker } from "@callerwhale/calendar";
 import "@callerwhale/calendar/calendar.css";
 
@@ -1030,7 +1030,7 @@ const pad = number => String(number).padStart(2, "0");
 export function DatePicker(props) {
   return (
     <SharedDatePicker
-      today={TODAY}
+      today={today()}
       className="select"
       triggerClassName="select-trigger"
       portalHost="dialog, .callerwhale-menu, .personal-menu"
@@ -1072,7 +1072,7 @@ export function DateTimePicker({ value, onChange, min, disabled, "aria-label": a
         value={time}
         required
         disabled={disabled}
-        onChange={event => emit((date || TODAY) + "T" + event.target.value)}
+        onChange={event => emit((date || today()) + "T" + event.target.value)}
       />
     </div>
   );

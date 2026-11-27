@@ -1,4 +1,28 @@
-export const TODAY = "2026-10-15";
+// The clock the app reads. Tests pin it with setClock(() => new Date(...)); the app never calls setClock.
+let clock: () => Date = () => new Date();
+export function setClock(next?: () => Date) {
+  clock = next || (() => new Date());
+}
+
+// The workspace's time zone (Settings → time zone), set by App.jsx. Empty: the device's own zone.
+let workspaceZone = "";
+export function setWorkspaceTimeZone(timeZone?: string) {
+  workspaceZone = timeZone || "";
+}
+
+/** Today as YYYY-MM-DD in the workspace's time zone, so a caller in Cairo after midnight still works the US day. */
+export function today(): string {
+  const now = clock();
+  if (workspaceZone) {
+    try {
+      // en-CA writes dates as YYYY-MM-DD.
+      return new Intl.DateTimeFormat("en-CA", { timeZone: workspaceZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+    } catch {
+      /* An unknown zone name falls back to the device's day. */
+    }
+  }
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
 export const LEAD_STAGES = ["New", "Contacted", "Interested", "Qualified", "Closed"];
 // The call results a ReadyMode dialer logs ("Log Type", with its abbreviation), and what each means for the lead.
 // meaning follows Caller Whale's status reader; recallDays is when the dialer schedules the next try, null for no next try.
@@ -133,7 +157,7 @@ const LEADS = [
   team: row[7],
   datasetId: row[8],
   callback: row[9],
-  callbackDate: row[9] ? TODAY : "",
+  callbackDate: "",
   value: row[10],
   shared: row[11],
   verdict: row[12],
@@ -168,7 +192,8 @@ export function seedState() {
     role: "manager",
     online: true,
     callLog: [],
-    leads: structuredClone(LEADS),
+    // A sample lead with a callback time is due today: dated when the sample workspace is made, not when the file loads.
+    leads: structuredClone(LEADS).map(lead => ({ ...lead, callbackDate: lead.callback ? today() : "" })),
     datasets: [
       {
         id: "d01",
@@ -220,7 +245,7 @@ export function seedState() {
         leadId: "l01",
         assignee: "Maya Chen",
         time: "10:30",
-        date: TODAY,
+        date: today(),
         priority: "High",
         done: false,
         type: "Callback",
@@ -231,7 +256,7 @@ export function seedState() {
         leadId: "l02",
         assignee: "Maya Chen",
         time: "11:15",
-        date: TODAY,
+        date: today(),
         priority: "Normal",
         done: false,
         type: "Callback",
@@ -242,7 +267,7 @@ export function seedState() {
         leadId: "l03",
         assignee: "Alex Rivera",
         time: "14:00",
-        date: TODAY,
+        date: today(),
         priority: "High",
         done: false,
         type: "Offer",
@@ -264,7 +289,7 @@ export function seedState() {
         leadId: "l06",
         assignee: "Ben Carter",
         time: "09:00",
-        date: TODAY,
+        date: today(),
         priority: "Normal",
         done: false,
         type: "Data review",
@@ -275,7 +300,7 @@ export function seedState() {
         leadId: "l03",
         assignee: "Alex Rivera",
         time: "12:00",
-        date: TODAY,
+        date: today(),
         priority: "Normal",
         done: false,
         type: "Document",
