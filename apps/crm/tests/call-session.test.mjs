@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { addTranscriptLine, beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, setCallSession } from "../src/callSession.ts";
+import { addTranscriptLine, beginDemoCall, beginServerCall, canBeginCall, clearCallOutcome, endDemoCall, getCallSession, markAnswered, setCallSession } from "../src/callSession.ts";
 
 const sarah = { id: "sarah", name: "Sarah Johnson", phone: "+1 (813) 555-0101" };
 const michael = { id: "michael", name: "Michael Bennett", phone: "+1 (813) 555-0102" };
@@ -58,4 +58,34 @@ test("manual dial-pad calls share the call gate and retain their unlinked number
   clearCallOutcome();
   assert.equal(beginDemoCall(sarah), true);
   assert.equal(getCallSession().lead.adHoc, false);
+});
+
+test("a dialer call shares the call gate, keeps the dialer's id, and rings until it is answered", () => {
+  assert.equal(canBeginCall(sarah), true);
+  assert.equal(beginServerCall(sarah, "call-1", "dialer"), true);
+  assert.equal(getCallSession().mode, "dialer");
+  assert.equal(getCallSession().serverCallId, "call-1");
+  assert.equal(getCallSession().answeredAt, null, "ringing");
+  assert.equal(canBeginCall(michael), false, "one call at a time");
+  assert.equal(beginServerCall(michael, "call-2", "dialer"), false);
+  markAnswered(1234);
+  assert.equal(getCallSession().answeredAt, 1234);
+  markAnswered(9999);
+  assert.equal(getCallSession().answeredAt, 1234, "the first answer time stays");
+  endDemoCall("contact");
+  assert.equal(getCallSession().serverCallId, "call-1", "the id stays until the outcome is saved");
+  clearCallOutcome();
+  assert.equal(getCallSession().serverCallId, null);
+  assert.equal(getCallSession().mode, "demo");
+  assert.equal(getCallSession().answeredAt, null);
+});
+
+test("a demo call is answered as soon as it starts", () => {
+  beginDemoCall(sarah);
+  assert.equal(getCallSession().mode, "demo");
+  assert.equal(getCallSession().answeredAt, getCallSession().startedAt);
+});
+
+test("no call starts without a phone number", () => {
+  assert.equal(canBeginCall({ id: "x", name: "No phone", phone: " " }), false);
 });
