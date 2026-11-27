@@ -35,7 +35,8 @@ import { CallTimer } from "./CallTimer.jsx";
 import { CallLog } from "./CallLog.jsx";
 import { ReadyModeImport } from "./ReadyModeImport.jsx";
 import { smsRecipient } from "./sms.ts";
-import { beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, setCallSession, useCallSession } from "./callSession.ts";
+import { clearCallOutcome, endDemoCall, getCallSession, setCallSession, useCallSession } from "./callSession.ts";
+import { calling } from "./calling.ts";
 import { SkeletonRows } from "./Skeleton.jsx";
 import { leadSource } from "./lead-source.ts";
 import {
@@ -186,6 +187,14 @@ export function Calls({ target }) {
     setSmsLeadId("");
     notify(state.online ? "Demo SMS added to Inbox" : "SMS draft saved offline");
   }
+  // How calls are made here: through the dialer (a signed-in workspace), Option B's real call, or the demo.
+  const callMode = calling.modeFor(state, lead);
+  // Starts a call the way this workspace calls. A refused call says why; calling.ts has already cleaned up after it.
+  async function startCall(target) {
+    const started = await calling.start(state, target);
+    if (!started.ok) notify(started.error || "The call did not start");
+    return started;
+  }
   function pauseAutoDial() {
     autoQueue.current = [];
     setAutoDial(false);
@@ -205,18 +214,28 @@ export function Calls({ target }) {
     setAutoDial(true);
     if (!callLocked) {
       setChosen(first.id);
-      beginDemoCall(first);
+      void startCall(first);
     }
     notify(awaitingOutcome ? "Auto dial is waiting for this call's outcome" : "Auto dial started · save each outcome to continue");
   }
-  function outcome(value) {
+  async function outcome(value) {
     if (!lead) return;
     if (value === "Callback" && !callbackAt) {
       setAskingCallback(true);
       return;
     }
-    dispatch({ type: "CALL", leadId: lead.id, outcome: value, callbackAt, session: getCallSession() });
-    if (callNote.trim()) dispatch({ type: "NOTE", leadId: lead.id, text: callNote });
+    // A quick outcome during a dialer or real call ends that call first.
+    if (getCallSession().active && getCallSession().mode !== "demo") await calling.end();
+    const saved = await calling.wrapUp({ outcome: value, callbackAt, notes: callNote });
+    if (saved.error) {
+      notify(saved.error);
+      return;
+    }
+    // The dialer has logged its own calls in the CRM; only demo and real calls are logged from here.
+    if (saved.logHere) {
+      dispatch({ type: "CALL", leadId: lead.id, outcome: value, callbackAt, session: getCallSession() });
+      if (callNote.trim()) dispatch({ type: "NOTE", leadId: lead.id, text: callNote });
+    }
     setCallNote("");
     setSelectedOutcome("");
     setCallbackAt("");
@@ -231,7 +250,7 @@ export function Calls({ target }) {
         }
         if (next) {
           setChosen(next.id);
-          beginDemoCall(next);
+          void startCall(next);
           notify(value + " recorded · calling " + next.name);
           return;
         }
@@ -247,7 +266,7 @@ export function Calls({ target }) {
   }
   function chooseOutcome(value) {
     if (!callLocked || CALL_OUTCOMES.find(item => item.label === value)?.quick) return outcome(value);
-    if (activeCall) endDemoCall();
+    if (activeCall) void calling.end();
     setSelectedOutcome(value);
     setAskingCallback(value === "Callback");
     if (value !== "Callback") setCallbackAt("");
@@ -335,7 +354,7 @@ export function Calls({ target }) {
                 <div className="call-person-top">
                   <div className="row">
                     <Badge tone="good" className="demo-note">
-                      {state.remote ? "Call preview · no number dialed" : "Sample phone workspace"}
+                      {callMode === "dialer" ? "Dialer · test phone network" : callMode === "real" ? "Real call to a team phone" : state.remote ? "Call preview · no number dialed" : "Sample phone workspace"}
                     </Badge>
                     <Status value={lead.stage} />
                   </div>
@@ -354,13 +373,19 @@ export function Calls({ target }) {
                     icon={callLocked ? PhoneDisconnect : Phone}
                     disabled={manualDialBusy || awaitingOutcome || (!activeCall && (!state.online || !lead.phone?.trim()))}
                     title={awaitingOutcome ? "Record an outcome below before starting another call" : undefined}
-                    onClick={() => {
-                      if (activeCall) endDemoCall();
-                      else beginDemoCall(lead);
-                      notify(activeCall ? "Call ended · record the outcome below" : "Demo call started — no real number is dialed");
+                    onClick={async () => {
+                      if (activeCall) {
+                        await calling.end();
+                        notify("Call ended · record the outcome below");
+                        return;
+                      }
+                      const started = await startCall(lead);
+                      if (started.ok) notify(started.mode === "demo" ? "Demo call started — no real number is dialed" : "Calling " + lead.name);
                     }}
                   >
-                    {activeCall ? "End demo call" : awaitingOutcome ? "Call ended" : "Start demo call"}
+                    {callMode === "demo"
+                      ? activeCall ? "End demo call" : awaitingOutcome ? "Call ended" : "Start demo call"
+                      : activeCall ? "End call" : awaitingOutcome ? "Call ended" : "Start call"}
                   </Button>
                 </div>
                 <div className={"call-status" + (callLocked ? " is-live" : "")}>
@@ -375,11 +400,11 @@ export function Calls({ target }) {
                   <div className="call-status-live" aria-hidden={!callLocked}>
                     <div className="call-status-inner">
                       <div className={"call-live" + (awaitingOutcome ? " is-ended" : "")} role="status">
-                        <span className="call-live-label"><span className="status-dot" />{awaitingOutcome ? session.endedBy === "contact" ? "Contact ended the call" : "Call ended" : "Call in progress"}</span>
+                        <span className="call-live-label"><span className="status-dot" />{awaitingOutcome ? session.endedBy === "contact" ? "Contact ended the call" : "Call ended" : session.answeredAt ? "Call in progress" : "Ringing…"}</span>
                         {callStatus.mounted && <CallTimer key={session.startedAt} startedAt={session.startedAt} endedAt={session.endedAt} />}
                         {awaitingOutcome && <span className="call-wrapup-help">{autoDial ? "Auto dial is waiting. Record an outcome below to continue." : "Record an outcome below before starting another call."}</span>}
-                        {activeCall && <button type="button" className="text-button demo-note" onClick={() => endDemoCall("contact")}>Simulate contact hangup</button>}
-                        <span className="demo-note">Demo audio, no number is dialled</span>
+                        {activeCall && session.mode === "demo" && <button type="button" className="text-button demo-note" onClick={() => endDemoCall("contact")}>Simulate contact hangup</button>}
+                        {session.mode === "demo" && <span className="demo-note">Demo audio, no number is dialled</span>}
                       </div>
                     </div>
                   </div>
