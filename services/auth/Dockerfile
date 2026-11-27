@@ -1,4 +1,4 @@
-# Auth, in Go (plan: docs/history/plans/go-auth.md). Build with this folder as the context:
+# Auth, in Go. Build with this folder as the context:
 #   docker build -t callerwhale-auth services/auth
 FROM golang:1 AS runtime-log-build
 COPY packages/go/runtimelog /src

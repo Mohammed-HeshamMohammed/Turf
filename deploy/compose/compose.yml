@@ -1,4 +1,4 @@
-# Every service on one machine (decision 1 of docs/history/plans/service-architecture.md). Only the gateway is published.
+# Every service on one machine. Only the gateway is published.
 # From the repository root:  docker compose --env-file env/compose.env -f deploy/compose/compose.yml up --build
 # The scaffolds (scaffolds/, D384) are never built here.
 # The secrets come from env/compose.env (node tools/env-init.mjs creates it; env/README.md).

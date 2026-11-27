@@ -3,7 +3,7 @@ package main
 // Connectors: how an AI assistant (Claude, ChatGPT, Gemini) is allowed to act for a person. The assistant registers itself, sends the
 // person to Caller Whale's consent page, and trades the one-time code it gets back for tokens (OAuth 2.1: authorization code with
 // PKCE, no client secrets). The tokens are opaque and only their hashes are stored, so ending a grant ends the assistant's access at
-// once. The `mcp` service never sees a password: it asks this service who a token belongs to (docs/plans/ai-connectors.md).
+// once. The `mcp` service never sees a password: it asks this service who a token belongs to.
 
 import (
 	"context"

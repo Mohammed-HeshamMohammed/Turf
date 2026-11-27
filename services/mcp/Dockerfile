@@ -1,4 +1,4 @@
-# MCP (plan: docs/plans/ai-connectors.md). Build with this folder as the context:
+# MCP. Build with this folder as the context:
 #   docker build -t callerwhale-mcp services/mcp
 FROM golang:1 AS runtime-log-build
 COPY packages/go/runtimelog /src

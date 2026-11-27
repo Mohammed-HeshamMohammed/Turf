@@ -1,6 +1,6 @@
 package telnyx
 
-// Telnyx, the first carrier (docs/plans/messaging-sms-voice.md, "Carriers, in order"). This file is the only one that knows
+// Telnyx, the first carrier. This file is the only one that knows
 // Telnyx's API: the REST calls the dialer makes and the shape and signature of the webhooks Telnyx sends. The simulator
 // (sim.go) answers the same requests and sends the same webhooks, so with TELNYX_MODE=simulate every other line of the service
 // runs as it would against the real carrier.

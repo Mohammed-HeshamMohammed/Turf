@@ -1,6 +1,6 @@
 package main
 
-// The second step at sign-in (phase 3; docs/history/plans/second-factor.md): an authenticator app (up to three devices), a code by email, a
+// The second step at sign-in (phase 3): an authenticator app (up to three devices), a code by email, a
 // code by Telegram, or an approval on a device that is already signed in, plus ten recovery codes for a lost device. This service
 // owns it, and the `mfa` claim in a token means one of these passed.
 //

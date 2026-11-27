@@ -5,7 +5,6 @@ package main
 // service does not check it any more: this is the one place a token is verified, because
 // Google accepts a token only once. The same check will guard payment routes, each with its own minimum score.
 //
-// Plan: docs/history/plans/go-auth.md and docs/operations/bot-protection.md.
 
 import (
 	"bytes"

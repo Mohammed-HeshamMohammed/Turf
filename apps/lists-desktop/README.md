@@ -2,7 +2,7 @@
 
 The place to manage your lists and the areas they cover.
 
-Start with [PLAN.md](../../docs/history/PLAN.md). The mockup that started the idea is in `docs/design/reference/` (only its look is a reference: revenue, appointments, messages and agent names are not part of Caller Whale).
+The mockup that started the idea is kept outside this repository (only its look is a reference: revenue, appointments, messages and agent names are not part of Caller Whale).
 
 This folder is `apps/lists-desktop` in the Caller Whale repository; run the `npm` commands below from here. The repository layout is in the [root README](../../README.md).
 

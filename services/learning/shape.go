@@ -1,6 +1,6 @@
 package main
 
-// What the learning store keeps of a lead, and what it never keeps. Plan: docs/legal/research/learning-store-compliance.md.
+// What the learning store keeps of a lead, and what it never keeps.
 //
 // Kept: keyed hashes of the phone and the email (one-way; the key is held only by the platform owners), the shape of the name (a person
 // with so many words, or a company), the city, state and five-digit ZIP, how complete the row was, a few property facts from a fixed list,

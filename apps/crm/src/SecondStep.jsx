@@ -3,7 +3,7 @@ import { DeviceMobile, EnvelopeSimple, PaperPlaneTilt, ShieldCheck, TelegramLogo
 import { needsCode } from "@callerwhale/auth-client/sign-in-flow.jsx";
 import { Button, Field } from "./ui.jsx";
 
-// The second step after the password (docs/history/plans/second-factor.md), drawn the CRM's way. The steps themselves (which way,
+// The second step after the password, drawn the CRM's way. The steps themselves (which way,
 // sending, answering, waiting for an approval, coming back after a refresh) are shared with the website: the `flow` from
 // useSignInFlow (@callerwhale/auth-client/sign-in-flow.jsx). The auth service offers only the ways this person has.
 

@@ -1,4 +1,4 @@
-# Learning store (plan: docs/legal/research/learning-store-compliance.md). Build with this folder as the context:
+# Learning store. Build with this folder as the context:
 #   docker build -t callerwhale-learning services/learning
 FROM golang:1 AS runtime-log-build
 COPY packages/go/runtimelog /src

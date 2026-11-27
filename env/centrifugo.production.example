@@ -1,6 +1,6 @@
 # The live server on Coolify (application "centrifugo", built from branch live-backend-production = services/live, port 8000, network alias centrifugo, NO domain of its own).
 # The settings that are not secret (log level, chat channel rules, health, metrics, connection limits) are in services/live/config.json, not here.
-# It holds the apps' sockets and reads the messaging service's outbox and delivers it; the gateway routes live.callerwhale.com to it. Setup: docs/operations/coolify-setup-messaging.md.
+# It holds the apps' sockets and reads the messaging service's outbox and delivers it; the gateway routes live.callerwhale.com to it.
 # Paste into Environment Variables -> Developer View. Fill every <...>. Secrets stay in Coolify; never commit a filled copy.
 # Secret: 64 random hex characters. Only the messaging service called the API, with this key (its LIVE_API_KEY), and only until the live server reads the outbox.
 CENTRIFUGO_HTTP_API_KEY=<the live server's API key>

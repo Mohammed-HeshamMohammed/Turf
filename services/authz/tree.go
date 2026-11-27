@@ -1,6 +1,6 @@
 package main
 
-// The team tree and who may manage whom (docs/plans/database-and-backend.pdf, chapters 3 and 4).
+// The team tree and who may manage whom.
 //
 //   - A workspace's teams each have at most one manager (authz_teams). A manager may run several teams.
 //   - A caller or closer sits in exactly one team (authz_members.team_ids); a manager's teams come from authz_teams.

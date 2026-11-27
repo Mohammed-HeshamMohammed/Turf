@@ -1,6 +1,6 @@
 // MCP: the one address (https://mcp.callerwhale.com) an AI assistant such as Claude, ChatGPT or Gemini is connected to. It speaks the
 // Model Context Protocol over HTTPS, asks the auth service who each access token belongs to, and runs the few tools that person has
-// allowed. It holds no data of its own and no secrets of the person's: only a shared secret for asking auth (docs/plans/ai-connectors.md).
+// allowed. It holds no data of its own and no secrets of the person's: only a shared secret for asking auth.
 package main
 
 import (

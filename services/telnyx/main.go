@@ -1,7 +1,7 @@
 // dialer-sms: calling, auto dialing and texting through the carrier (Telnyx first), and the carrier's webhooks. Each finished
 // call is logged in the CRM (crm-core) as the person who made it. With TELNYX_MODE=simulate it talks to a built-in Telnyx
 // simulator instead, so the CRM's calling and texting can be tried end to end before any minute is bought.
-// Plan: docs/plans/messaging-sms-voice.md; how to run, simulate and go live: README.md.
+// How to run, simulate and go live: README.md.
 //
 //	dialer-sms             serve (PORT, default 8113)
 //	dialer-sms health      the container's health check

@@ -40,7 +40,7 @@ var presets = []preset{
 // heldRoles belong to whoever opened the workspace: never given by an invitation or a role change, and they manage access.
 var heldRoles = []string{"owner", "solo"}
 
-// dbRoles is the database role each action runs under in the core database (docs/history/plans/authorization-service.md). The role
+// dbRoles is the database role each action runs under in the core database. The role
 // decides which tables can be touched at all; row security decides which rows.
 var dbRoles = map[string]string{
 	"read":          "cw_read",
