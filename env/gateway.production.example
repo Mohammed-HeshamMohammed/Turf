@@ -2,7 +2,7 @@
 # Gateway HTTP listen port; default 8100. Match Coolify's upstream container port.
 PORT=8100
 # Comma-separated public-host=http(s)://private-upstream mappings. Changing this changes traffic destinations; do not expose internal-only services as public routes.
-ROUTES=gate.callerwhale.com=http://notifications:8102,auth.callerwhale.com=http://auth:8101,mcp.callerwhale.com=http://mcp:8106,chat.callerwhale.com=http://messaging:8108,live.callerwhale.com=http://centrifugo:8000
+ROUTES=gate.callerwhale.com=http://notifications:8102,auth.callerwhale.com=http://auth:8101,mcp.callerwhale.com=http://mcp:8106,chat.callerwhale.com=http://messaging:8108,live.callerwhale.com=http://centrifugo:8000,dialer.callerwhale.com=http://dialer-sms:8113
 # Hostname in ROUTES that receives core-API access policy and private monitoring routing. Must match a configured route exactly.
 CORE_HOST=gate.callerwhale.com
 # Internal worker origin for /api/v1/imports upload start, chunks, resume and completion. Defaults to this value.
