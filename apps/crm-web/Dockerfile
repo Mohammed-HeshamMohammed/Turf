@@ -22,10 +22,18 @@ ARG VITE_CALLERWHALE_API_URL
 # Where team chat is (the messaging service). Empty: the Inbox has no team chats.
 ARG VITE_CALLERWHALE_MESSAGING_URL=
 ARG VITE_CALLERWHALE_SITE_URL=https://callerwhale.com
+# Where the dialer is (services/telnyx through the gateway). Empty: calls stay demo calls.
+ARG VITE_CALLERWHALE_DIALER_URL=
+# Option B only: the team's own phones that may get a real call, comma separated, and the Trial account's caller ID. Empty: no real calls.
+ARG VITE_CALLERWHALE_REAL_CALL_NUMBERS=
+ARG VITE_CALLERWHALE_REAL_CALL_FROM=
 ENV VITE_CALLERWHALE_AUTH_URL=$VITE_CALLERWHALE_AUTH_URL \
     VITE_CALLERWHALE_API_URL=$VITE_CALLERWHALE_API_URL \
     VITE_CALLERWHALE_MESSAGING_URL=$VITE_CALLERWHALE_MESSAGING_URL \
     VITE_CALLERWHALE_SITE_URL=$VITE_CALLERWHALE_SITE_URL \
+    VITE_CALLERWHALE_DIALER_URL=$VITE_CALLERWHALE_DIALER_URL \
+    VITE_CALLERWHALE_REAL_CALL_NUMBERS=$VITE_CALLERWHALE_REAL_CALL_NUMBERS \
+    VITE_CALLERWHALE_REAL_CALL_FROM=$VITE_CALLERWHALE_REAL_CALL_FROM \
     VITE_CALLERWHALE_REQUIRE_SIGN_IN=true
 RUN mkdir -p /out && node /headers/security-headers.mjs /out/security-headers.conf && npx tsc -p . && npx vite build && cp -r dist/client /out/client
 

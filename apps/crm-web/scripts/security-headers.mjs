@@ -2,7 +2,8 @@
 // security policy names the other addresses the app may talk to (the auth service and the gateway), so they come from the
 // same build settings the app is built with, and the build stops when one is missing or is not a safe address.
 //
-//   node security-headers.mjs <output file>      reads VITE_CALLERWHALE_AUTH_URL and VITE_CALLERWHALE_API_URL
+//   node security-headers.mjs <output file>      reads VITE_CALLERWHALE_AUTH_URL and VITE_CALLERWHALE_API_URL, and when set
+//                                                 VITE_CALLERWHALE_DIALER_URL and VITE_CALLERWHALE_REAL_CALL_NUMBERS
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -19,9 +20,13 @@ export function originOf(value, setting) {
 }
 
 /** The headers, one `add_header` per line. Included again in every nginx location that sets a header of its own. */
-export function securityHeaders(authUrl, apiUrl) {
+export function securityHeaders(authUrl, apiUrl, { dialerUrl = "", realCalls = false } = {}) {
   const auth = originOf(authUrl, "VITE_CALLERWHALE_AUTH_URL");
   const api = originOf(apiUrl, "VITE_CALLERWHALE_API_URL");
+  // The dialer service, when this build calls through it (VITE_CALLERWHALE_DIALER_URL).
+  const dialer = dialerUrl ? " " + originOf(dialerUrl, "VITE_CALLERWHALE_DIALER_URL") : "";
+  // Option B's real calls talk to Telnyx's signalling server (VITE_CALLERWHALE_REAL_CALL_NUMBERS set).
+  const telnyx = realCalls ? " wss://rtc.telnyx.com" : "";
   const events = new URL(api);
   events.protocol = events.protocol === "https:" ? "wss:" : "ws:";
   const policy = [
@@ -34,7 +39,7 @@ export function securityHeaders(authUrl, apiUrl) {
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
     "media-src 'self' blob: data:",
-    `connect-src 'self' ${auth} ${api} ${events.origin} https://www.google.com/recaptcha/ https://api.giphy.com https://cloudflareinsights.com`,
+    `connect-src 'self' ${auth} ${api} ${events.origin}${dialer}${telnyx} https://www.google.com/recaptcha/ https://api.giphy.com https://cloudflareinsights.com`,
     "frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/",
     "worker-src 'self' blob:",
     "form-action 'self'",
@@ -58,5 +63,8 @@ export function securityHeaders(authUrl, apiUrl) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [file] = process.argv.slice(2);
   if (!file) throw new Error("Usage: node security-headers.mjs <output file>");
-  writeFileSync(file, securityHeaders(process.env.VITE_CALLERWHALE_AUTH_URL, process.env.VITE_CALLERWHALE_API_URL));
+  writeFileSync(file, securityHeaders(process.env.VITE_CALLERWHALE_AUTH_URL, process.env.VITE_CALLERWHALE_API_URL, {
+    dialerUrl: process.env.VITE_CALLERWHALE_DIALER_URL,
+    realCalls: Boolean(process.env.VITE_CALLERWHALE_REAL_CALL_NUMBERS),
+  }));
 }
