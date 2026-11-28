@@ -1,0 +1,94 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Homepage layout reference</title><style>
+:root{color-scheme:light;--paper:#eee;--sheet:#fff;--ink:#111;--ink2:#444;--ink3:#777;--fill:#f3f3f3;--fill2:#e6e6e6;--f:Helvetica,Arial,sans-serif}*{box-sizing:border-box}body{margin:24px;background:var(--paper);font:13px var(--f);color:var(--ink)}header{border:1.2px solid #111;border-radius:16px;background:#fff;padding:20px;margin-bottom:20px}.meta{display:grid;grid-template-columns:3fr repeat(5,1fr);gap:16px}.meta div+div{border-left:.8px solid #111;padding-left:16px}h1{font-size:25px;font-weight:400;letter-spacing:.08em;margin:0 0 8px}small{display:block;font-size:9.5px;letter-spacing:.08em;margin-bottom:8px}.notes{columns:2;line-height:1.8;border-block:.8px solid #111;margin:20px 0;padding:12px 0}.keys{display:flex;gap:30px;flex-wrap:wrap}.scroll{overflow-x:auto;background:#fff}svg{width:100%;min-width:1100px;display:block}.footer{display:flex;justify-content:space-between;margin:12px 0}
+/* drawing */
+.u{font-family:var(--f);text-transform:uppercase;letter-spacing:.07em}
+.border{fill:none;stroke:var(--ink);stroke-width:1.2}
+.obj{fill:var(--sheet);stroke:var(--ink);stroke-width:1.6;stroke-linejoin:round}
+.well{fill:var(--fill);stroke:var(--ink);stroke-width:1}
+.slot{fill:none;stroke:var(--ink2);stroke-width:.8;stroke-dasharray:4 3}
+.hug{fill:var(--fill2);stroke:var(--ink);stroke-width:1}
+.thin{fill:none;stroke:var(--ink);stroke-width:.8}
+.ph{fill:none;stroke:var(--ink3);stroke-width:.8;stroke-dasharray:14 3 3 3}
+.cl{fill:none;stroke:var(--ink3);stroke-width:.7;stroke-dasharray:16 3 2 3}
+.cut{stroke:var(--ink);stroke-width:2}
+.dl{stroke:var(--ink);stroke-width:.7;fill:none}
+.ext{stroke:var(--ink);stroke-width:.55;fill:none}
+.arrow{fill:var(--ink)}
+.hl{stroke:var(--ink2);stroke-width:.7}
+.hs{stroke:var(--ink);stroke-width:.8}
+.env{fill:none;stroke:var(--ink);stroke-width:.8;stroke-dasharray:10 3 2 3}
+.dt{font:400 11px var(--f);fill:var(--ink);paint-order:stroke;stroke:var(--sheet);stroke-width:4px;stroke-linejoin:round}
+.dts{font:400 9.5px var(--f);fill:var(--ink2);letter-spacing:.06em;text-transform:uppercase;paint-order:stroke;stroke:var(--sheet);stroke-width:3px}
+.sl{font:400 9px var(--f);fill:var(--ink2);letter-spacing:.08em;text-transform:uppercase}
+.nt{font:400 11.5px var(--f);fill:var(--ink);letter-spacing:.06em;text-transform:uppercase}
+.nth{font:700 13px var(--f);fill:var(--ink);letter-spacing:.06em}
+.vt{font:400 12px var(--f);fill:var(--ink);letter-spacing:.1em;text-transform:uppercase}
+.vtb{font:400 20px var(--f);fill:var(--ink);letter-spacing:.06em}
+.nb{fill:var(--sheet);stroke:var(--ink);stroke-width:.9}
+.nbt{font:400 9.5px var(--f);fill:var(--ink)}
+.lead{stroke:var(--ink);stroke-width:.7;fill:none}
+.dot{fill:var(--ink)}
+.th{font:400 10.5px var(--f);fill:var(--ink);letter-spacing:.05em;text-transform:uppercase}
+.tc{font:400 10.5px var(--f);fill:var(--ink)}
+.tbk{font:400 7px var(--f);fill:var(--ink2);letter-spacing:.04em;text-transform:uppercase}
+.tbt{font:700 15px var(--f);fill:var(--ink)}
+.tbv{font:400 17px var(--f);fill:var(--ink);letter-spacing:.06em}
+
+/* title block restyled to match the drawing sheet: thin black rules, plain caps lettering */
+.tb{border:1.2px solid var(--ink);border-radius:16px;overflow:hidden}
+.tb>div{border-right:.8px solid var(--ink);border-bottom:.8px solid var(--ink);padding:10px 14px}
+.tb>div:nth-child(4),.tb>div:nth-child(7){border-right:0}
+.tb .lbl{font-size:9.5px;font-weight:400;letter-spacing:.06em;color:var(--ink2)}
+.tb h1{font-weight:400;letter-spacing:.1em;font-size:clamp(28px,4vw,44px);margin-top:4px}
+.tb .v{font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink)}
+.tb .big .v{font-size:11px;color:var(--ink2);line-height:1.6}
+.tb .notes{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink);line-height:1.9}
+.tb .notes ol{padding-left:20px}
+.tb .nh{font-weight:700;font-size:13px;letter-spacing:.06em}
+.tb .nh span{font-weight:400;font-size:11.5px;margin-left:6px}
+.tb .figs>div{border-left:.8px solid var(--ink);padding-left:14px}
+.tb .figs>div:first-child{border-left:0;padding-left:0}
+.tb .figs .v{font-size:18px;letter-spacing:.06em;text-transform:none;margin-top:4px}
+.foot{font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.foot b{font-weight:700}
+</style><header><div class="meta"><div><h1>HOMEPAGE ARCHITECTURE</h1>Responsive page regions and shared footer</div><div><small>DWG NO.</small>UI-PAGE-001</div><div><small>REV</small>A</div><div><small>SHEETS</small>1</div><div><small>UNITS</small>CSS PX</div><div><small>SCALE</small>SCHEMATIC</div></div><div class="notes">NOTES: (UNLESS OTHERWISE SPECIFIED)<br>Do not scale. Slot outlines show architecture, never final copy.<br>Dimensions follow implementation variables. HUG follows content.<br>FLEX takes remaining space. FILL occupies the parent region.<br>Viewports 600 and 960 are responsive thresholds in source.<br>Unspecified permanent-brand safe area remains [TBD].<br>All drawing surfaces are grayscale. No logo artwork on this sheet.<br>SOURCE: src/home.css, src/studio.css, src/Home.jsx, src/components.jsx.</div><div class="keys"><span>G · gutter = clamp(24, 4vw, 80)</span><span>W · content = viewport − 2·G</span><span>H1 · header-min = 86</span><span>S1 · section = clamp(64, 7vw, 112)</span><span>S2 · footer-gap = 40</span><span>T1 · action-min = 48</span></div></header><div class="scroll"><svg id="sheet" viewBox="0 0 1700 1060" aria-label="Homepage responsive architecture and footer dimensions"></svg></div><div class="footer"><span>2026-11-02 | UI COMPONENT REFERENCE</span><span>PAGE REGIONS, ARCHITECTURE | 1</span></div><script>(()=>{
+const NS='http://www.w3.org/2000/svg';let sv,A,HAT,uid=0;
+function mk(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)if(a[k]!=null)e.setAttribute(k,a[k]);(p||sv).appendChild(e);return e}
+function tx(x,y,s,c,a,p){const t=mk('text',Object.assign({x:x,y:y,class:c||'dt'},a||{}),p);t.textContent=s;return t}
+function begin(id){sv=document.getElementById(id);sv.innerHTML='';const n=uid++;const d=mk('defs',{});const m=mk('marker',{id:'ar'+n,viewBox:'0 0 10 10',refX:10,refY:5,markerWidth:7,markerHeight:7,orient:'auto-start-reverse',markerUnits:'userSpaceOnUse'},d);mk('path',{d:'M0,1.7 L10,5 L0,8.3 z',class:'arrow'},m);
+ const pt=mk('pattern',{id:'hat'+n,width:5,height:5,patternUnits:'userSpaceOnUse',patternTransform:'rotate(45)'},d);mk('line',{x1:0,y1:0,x2:0,y2:5,class:'hl'},pt);A='url(#ar'+n+')';HAT='url(#hat'+n+')';rr(20,20,1660,1020,16,'border')}
+
+/* ---- kit ---- */
+function dimH(x1,x2,y,e1,e2,l,o){o=o||{};[[x1,e1],[x2,e2]].forEach(([x,e])=>{if(e==null)return;const s=Math.sign(y-e)||1;mk('line',{x1:x,y1:e+s*3,x2:x,y2:y+s*5,class:'ext'})});
+ if(x2-x1>=28)mk('line',{x1:x1,y1:y,x2:x2,y2:y,class:'dl','marker-start':A,'marker-end':A});else{mk('line',{x1:x1-13,y1:y,x2:x1,y2:y,class:'dl','marker-end':A});mk('line',{x1:x2+13,y1:y,x2:x2,y2:y,class:'dl','marker-end':A});mk('line',{x1:x1,y1:y,x2:x2,y2:y,class:'dl'})}
+ tx((x1+x2)/2+(o.dx||0),(o.below?y+13:y-4)+(o.dy||0),l,o.c||'dt',{'text-anchor':'middle'})}
+function dimV(y1,y2,x,e1,e2,l,o){o=o||{};[[y1,e1],[y2,e2]].forEach(([y,e])=>{if(e==null)return;const s=Math.sign(x-e)||1;mk('line',{x1:e+s*3,y1:y,x2:x+s*5,y2:y,class:'ext'})});
+ if(y2-y1>=28)mk('line',{x1:x,y1:y1,x2:x,y2:y2,class:'dl','marker-start':A,'marker-end':A});else{mk('line',{x1:x,y1:y1-13,x2:x,y2:y1,class:'dl','marker-end':A});mk('line',{x1:x,y1:y2+13,x2:x,y2:y2,class:'dl','marker-end':A});mk('line',{x1:x,y1:y1,x2:x,y2:y2,class:'dl'})}
+ const c=(y1+y2)/2;if(o.side){const r=o.side==='r';tx(r?x+6:x-6,c+4,l,o.c||'dt',{'text-anchor':r?'start':'end'})}else tx(x-5,c,l,o.c||'dt',{'text-anchor':'middle',transform:'rotate(-90 '+(x-5)+' '+c+')'})}
+function callout(px,py,ex,ey,l,dir,c){const s=dir||(ex>=px?1:-1);mk('circle',{cx:px,cy:py,r:1.8,class:'dot'});mk('polyline',{points:px+','+py+' '+ex+','+ey+' '+(ex+s*10)+','+ey,class:'lead'});tx(ex+s*14,ey+4,l,c||'dt',{'text-anchor':s>0?'start':'end'})}
+function rad(cx,cy,r,c,l,L){const sx=c.includes('l')?-1:1,sy=c.includes('t')?-1:1;const ox=cx-sx*r,oy=cy-sy*r;const px=ox+sx*r*Math.SQRT1_2,py=oy+sy*r*Math.SQRT1_2;callout(px,py,px+sx*L,py+sy*L,l,sx)}
+function nb(x,y,n){mk('rect',{x:x-6,y:y-6,width:12,height:12,class:'nb'});tx(x,y+3.5,String(n),'nbt',{'text-anchor':'middle'})}
+function rr(x,y,w,h,r,c){return mk('rect',{x:x,y:y,width:w,height:h,rx:r,class:c})}
+function slotLabel(x,y,w,h,l,al){tx(al==='l'?x+6:x+w/2,y+h/2+3.2,l,'sl',{'text-anchor':al==='l'?'start':'middle'})}
+function title(x,y,t,s){tx(x,y,t,'vt',{'text-anchor':'middle'});if(s)tx(x,y+14,s,'dts',{'text-anchor':'middle'})}
+function notes(list,extra){const NX=50,NY=58;tx(NX,NY,'NOTES:','nth');tx(NX+62,NY,'(UNLESS OTHERWISE SPECIFIED)','nt');
+ list.forEach(([n,t],i)=>{const y=NY+30+i*24;if(n){nb(NX+6,y-4,n);tx(NX+22,y,t,'nt')}else tx(NX,y,t,'nt')})}
+function table(x,y,ttl,rows){const ws=[40,140,220],rh=17;tx(x,y-8,ttl,'vt');
+ const all=[['Code','Variable','Value']].concat(rows);all.forEach((r,i)=>{let cx2=x;r.forEach((c,j)=>{mk('rect',{x:cx2,y:y+i*rh,width:ws[j],height:rh,class:'thin'});tx(cx2+(j?ws[j]/2:6),y+i*rh+12,c,i?'tc':'th',{'text-anchor':j?'middle':'start'});cx2+=ws[j]})});return y+all.length*rh+36}
+function detailRef(cx,cy,r,lbl,lx,ly){mk('circle',{cx:cx,cy:cy,r:r,class:'ph'});const a=Math.atan2(ly-cy,lx-cx);mk('line',{x1:cx+r*Math.cos(a),y1:cy+r*Math.sin(a),x2:lx,y2:ly,class:'lead'});tx(lx+(lx<cx?-4:4),ly+4,lbl,'dts',{'text-anchor':lx<cx?'end':'start'})}
+
+begin('sheet');
+notes([[1,'HEADER REMAINS STICKY'],[2,'HERO STACKS BELOW 960'],[3,'ONE PRODUCT IMAGE ONLY'],[4,'STORIES STACK BELOW 600'],[5,'FOOTER CONTROLS KEEP CLEAR'],[0,'HEIGHTS ARE CONTENT-DRIVEN'],[0,'VIEWS ARE PROPORTIONAL ONLY']]);
+function box(x,y,w,h,label,c='slot'){rr(x,y,w,h,0,c);slotLabel(x,y,w,h,label);}
+title(750,60,'DESKTOP PLAN','REFERENCE VIEWPORT 1440 · PROPORTIONAL');
+rr(440,100,620,620,0,'obj');box(440,100,620,38,'LEAD HUG / NAV FLEX / ACTION HUG','hug');
+box(440,138,316,250,'TITLE SLOT · FLEX');box(756,138,304,250,'IMAGE SLOT · FILL');mk('line',{x1:756,y1:138,x2:1060,y2:388,class:'thin'});mk('line',{x1:1060,y1:138,x2:756,y2:388,class:'thin'});nb(450,148,2);
+box(465,404,570,56,'FOUR WORKFLOW SLOTS · FLEX');
+box(465,485,570,44,'SECTION TITLE / SUPPORT SLOT');box(465,545,570,125,'PRODUCT IMAGE SLOT · FILL');nb(1020,555,3);
+dimH(440,1060,82,100,100,'VIEWPORT');dimH(465,1035,700,670,670,'W = viewport − 2·G');dimV(100,138,420,440,440,'H1',{side:'l'});dimV(138,388,420,440,440,'HUG',{side:'l'});dimH(440,465,470,460,460,'G',{dx:-12});
+title(1160,60,'PHONE PLAN','BELOW 600 · PROPORTIONAL');rr(1090,100,140,620,0,'obj');box(1090,100,140,34,'LEAD / MENU','hug');box(1100,145,120,150,'TITLE SLOT · FILL');box(1090,310,140,130,'IMAGE SLOT · FILL');box(1100,455,120,90,'WORKFLOW STACK');box(1100,565,120,120,'CONTENT STACK');nb(1100,320,2);dimV(310,440,1240,1230,1230,'H2',{side:'r'});
+let ty=100;ty=table(1270,ty,'SPACING', [['G','page-gutter','clamp(24, 4vw, 80)'],['S1','section-space','clamp(64, 7vw, 112)'],['S2','footer-gap','40 / phone 12'],['S3','footer-pad-y','48 / phone 32'],['S4','control-clearance','80 / phone 56']]);ty=table(1270,ty,'SIZE', [['W','content-width','viewport − 2·G'],['H1','header-min','86'],['H2','phone-image','330'],['T1','action-min','48'],['Z1','header-mark','38'],['Z2','footer-mark','46']]);ty=table(1270,ty,'SURFACES / RESPONSIVE', [['B','border','1'],['R1','product-frame','8'],['W1','hero-columns','1.04fr / 1fr'],['W2','story-columns','1.1fr / 1fr'],['V1','stack-hero-at','960'],['V2','stack-stories-at','600']]);table(1270,ty,'BRAND KEEP-OUT', [['S5','final-logo-safe-area','[TBD]']]);
+title(760,768,'FOOTER PLAN · DETAIL A','DESKTOP FOUR COLUMNS / PHONE BRAND ABOVE THREE NAV COLUMNS');rr(440,800,790,205,0,'obj');box(465,818,740,38,'TITLE SLOT · FLEX / CONTACT ACTION · HUG');box(465,876,278,64,'BRAND SLOT · 2fr');box(783,876,114,64,'NAV · 1fr');box(937,876,114,64,'NAV · 1fr');box(1091,876,114,64,'NAV · 1fr');dimH(743,783,866,876,876,'S2');box(465,957,740,30,'META SLOT · FLEX / CONTROLS · HUG');nb(1200,976,5);
+title(210,420,'REGION LAYERING','NO SCRIM / NO MODAL');[0,1,2].forEach((n)=>{let y=465+n*48;mk('polygon',{points:`70,${y} 285,${y+12} 345,${y-12} 130,${y-24}`,class:'well'});tx(70,y+28,['CANVAS','SECTION SURFACE','SLOTS & CONTROLS'][n],'sl')});
+rr(55,680,300,275,0,'thin');tx(70,705,'RESPONSIVE RULES','vt');['HERO: ONE COLUMN AT V1','WORKFLOW: FOUR → TWO → ONE','STORIES: STACK AT V2','IMAGE ABOVE COPY ON PHONE','FOOTER: 2:1:1:1 → BRAND + 3','CONTROLS WRAP IN FOOTER','TITLE / BODY HEIGHTS: HUG','HORIZONTAL OVERFLOW: NONE'].forEach((t,i)=>tx(70,735+i*26,t,'nt'));
+})();</script>
