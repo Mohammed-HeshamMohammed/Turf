@@ -1,6 +1,6 @@
 // Option B: a real call from the browser to one of the team's own phones, through a Telnyx Trial account.
 // A demo shortcut: the browser places the call itself with a short-lived login token. In production the dialer places
-// the call and joins the caller to it (Plan 1, Phase 2). The dialer never sees these calls, so the page logs them.
+// the call and joins the caller to it. The dialer never sees these calls, so the page logs them.
 // Safety: only numbers listed at build time (VITE_CALLERWHALE_REAL_CALL_NUMBERS) are ever called, and the Trial account
 // itself refuses every number except its one verified phone.
 
@@ -15,7 +15,7 @@ const listed = (): string[] =>
     .map(item => item.trim())
     .filter(Boolean);
 
-/** The login token the presenter pasted on this device (see the demo script). */
+/** The short-lived login token the presenter saved on this device under TOKEN_KEY. */
 export function savedToken(): string {
   try {
     return window.localStorage.getItem(TOKEN_KEY) || "";
