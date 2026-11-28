@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { dialerClient, toDialerOutcome } from "../src/remote/dialer.ts";
+import { setWorkspaceTimeZone } from "../src/data.ts";
 
 function recorder(answer = { id: "call-1" }) {
   const sent = [];
@@ -32,11 +33,14 @@ test("following and hanging up use the dialer's call id", async () => {
   assert.deepEqual(sent.map(item => item.method + " " + item.path), ["GET /api/v1/calls/call-1", "POST /api/v1/calls/call-1/hangup"]);
 });
 
-test("a callback carries its time as RFC 3339, and do-not-call goes on the agency's list", async () => {
+test("a callback is the workspace's wall-clock time sent as RFC 3339, and do-not-call goes on the agency's list", async () => {
   const { sent, client } = recorder();
+  // 15:00 in New York is 20:00 UTC in November, whatever zone the caller's own computer is in.
+  setWorkspaceTimeZone("America/New_York");
   await client.wrapUp("call-1", { outcome: "Callback", callbackAt: "2026-11-28T15:00", notes: "After work" });
+  setWorkspaceTimeZone();
   assert.equal(sent[0].path, "/api/v1/calls/call-1/disposition");
-  assert.deepEqual(sent[0].body, { outcome: "Callback", callback_at: new Date("2026-11-28T15:00").toISOString(), notes: "After work", dnc_kind: "" });
+  assert.deepEqual(sent[0].body, { outcome: "Callback", callback_at: "2026-11-28T20:00:00.000Z", notes: "After work", dnc_kind: "" });
   await client.wrapUp("call-1", { outcome: "Do not call" });
   assert.equal(sent[1].body.dnc_kind, "agency");
   assert.equal(sent[1].body.callback_at, "");

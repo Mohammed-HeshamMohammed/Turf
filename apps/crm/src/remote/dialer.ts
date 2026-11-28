@@ -3,6 +3,7 @@
 // app must not log the same call again (calling.ts decides that).
 
 import { request } from "./api.ts";
+import { wallTimeInstant } from "../data.ts";
 
 const remembered = key => {
   try {
@@ -48,7 +49,8 @@ export function dialerClient(send: Send = request, base: () => string = dialerBa
     wrapUp: (id: string, { outcome, callbackAt = "", notes = "" }: { outcome: string; callbackAt?: string; notes?: string }): Promise<DialerCall> =>
       call("POST", `/api/v1/calls/${encodeURIComponent(id)}/disposition`, {
         outcome: toDialerOutcome(outcome),
-        callback_at: callbackAt ? new Date(callbackAt).toISOString() : "",
+        // The picker's time is the workspace's clock, not the caller's computer's.
+        callback_at: callbackAt ? wallTimeInstant(callbackAt) : "",
         notes,
         dnc_kind: outcome === "Do not call" ? "agency" : "",
       }),

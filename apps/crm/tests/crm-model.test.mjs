@@ -113,7 +113,7 @@ test("blocked contacts cannot be logged as called and client comments stay share
   assert.equal(reducer(client, { type: "NOTE", id: "l02", text: "Private record" }), client);
   const commented = reducer(client, { type: "NOTE", id: "l01", text: "Please update the brief", visibility: "internal" });
   assert.equal(commented.leads.find(lead => lead.id === "l01").notes.at(-1).visibility, "shared");
-  assert.equal(loadState({ getItem: () => "{broken" }).schema, 2);
+  assert.equal(loadState({ getItem: () => "{broken" }).schema, 3);
 });
 test("ReadyMode call outcomes keep every call and schedule the next one", () => {
   const caller = as("caller");
@@ -160,6 +160,21 @@ test("a transfer qualifies the lead and books an appointment task", () => {
   assert.deepEqual([lead.stage, lead.sentTo, lead.callback], ["Qualified", "Appointments", ""]);
   assert.ok(transferred.tasks.some(task => task.leadId === "l02" && task.type === "Appointment" && task.date === today()));
 });
+test("a sample workspace saved when its day was fixed at 15 October moves that day's items to today", () => {
+  const saved = { ...seedState(), schema: 2 };
+  saved.tasks = [...saved.tasks, { ...saved.tasks[0], id: "later", date: "2026-10-20" }];
+  setClock(() => new Date(2026, 10, 28, 12, 0));
+  try {
+    const loaded = loadState({ getItem: () => JSON.stringify(saved) });
+    assert.equal(loaded.schema, 3);
+    assert.ok(loaded.tasks.filter(task => task.id !== "later").every(task => task.date !== "2026-10-15"));
+    assert.equal(loaded.tasks.find(task => task.leadId === "l01").date, "2026-11-28");
+    assert.equal(loaded.tasks.find(task => task.id === "later").date, "2026-10-20", "other days are left as they were");
+    assert.ok(loaded.leads.filter(lead => lead.callback).every(lead => lead.callbackDate === "2026-11-28"));
+  } finally {
+    setClock(() => new Date(2026, 9, 15, 12, 0));
+  }
+});
 test("a saved schema 1 workspace gains empty call history and today's callback dates", () => {
   const old = { ...seedState(), schema: 1 };
   for (const lead of old.leads) {
@@ -167,7 +182,7 @@ test("a saved schema 1 workspace gains empty call history and today's callback d
     delete lead.callbackDate;
   }
   const loaded = loadState({ getItem: () => JSON.stringify(old) });
-  assert.equal(loaded.schema, 2);
+  assert.equal(loaded.schema, 3);
   assert.deepEqual(loaded.leads[0].calls, []);
   assert.equal(loaded.leads[0].callbackDate, today());
   assert.equal(loaded.leads.find(lead => !lead.callback).callbackDate, "");
@@ -273,7 +288,7 @@ test("a workspace read back from storage replaces the sample one, and anything e
   assert.equal(reducer(sample, { type: "HYDRATE", state: null }), sample);
   // Schema 1 workspaces are brought up to date on the way in.
   const old = reducer(sample, { type: "HYDRATE", state: { ...sample, schema: 1, leads: [{ ...sample.leads[0], calls: undefined, callback: "09:00" }] } });
-  assert.equal(old.schema, 2);
+  assert.equal(old.schema, 3);
 });
 test("correcting a mapping teaches Caller Whale that header for later lists", () => {
   const owner = as("owner");

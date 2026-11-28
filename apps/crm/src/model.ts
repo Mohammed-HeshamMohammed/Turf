@@ -749,14 +749,24 @@ export function reducer(state, action) {
   }
 }
 
+// The day the app was fixed at before it read the clock (schema 2 and earlier).
+const FIXED_DAY = "2026-10-15";
+
 /** A saved workspace brought up to the current schema, or null when it is not one. */
 export function restoreState(saved) {
-  if (!([1, 2].includes(saved?.schema) && ROLES[saved.role] && Array.isArray(saved.leads) && Array.isArray(saved.queue) && saved.settings && saved.permissions))
+  if (!([1, 2, 3].includes(saved?.schema) && ROLES[saved.role] && Array.isArray(saved.leads) && Array.isArray(saved.queue) && saved.settings && saved.permissions))
     return null;
+  if (saved.schema === 3) return saved;
+  const day = today(saved.settings.timezone);
   // Schema 1 had no call history or callback dates: its callbacks were times today.
-  return saved.schema === 2
-    ? saved
-    : { ...saved, schema: 2, leads: saved.leads.map(lead => ({ calls: [], callbackDate: lead.callback ? today() : "", ...lead })) };
+  const leads = saved.schema === 1 ? saved.leads.map(lead => ({ calls: [], callbackDate: lead.callback ? day : "", ...lead })) : saved.leads;
+  // Until schema 3 the app's day was fixed at FIXED_DAY, so what was "today" then is today now.
+  return {
+    ...saved,
+    schema: 3,
+    leads: leads.map(lead => (lead.callbackDate === FIXED_DAY ? { ...lead, callbackDate: day } : lead)),
+    ...(Array.isArray(saved.tasks) && { tasks: saved.tasks.map(task => (task.date === FIXED_DAY ? { ...task, date: day } : task)) }),
+  };
 }
 
 /** The workspace an earlier version left in localStorage; the IndexedDB copy (workspace-store.js) replaces it. */

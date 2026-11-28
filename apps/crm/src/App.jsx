@@ -1,7 +1,7 @@
 import { flushSync } from "react-dom";
 import { Fragment, Suspense, lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Bell, CalendarBlank, ChatCircle, CheckCircle, HouseLine, List, MagnifyingGlass, WifiSlash, X } from "@phosphor-icons/react";
-import { ROLES, setWorkspaceTimeZone } from "./data.ts";
+import { ROLES, setWorkspaceTimeZone, today } from "./data.ts";
 import { loadPersonalPreferences, savePersonalPreferences, START_PAGES } from "./personal-preferences.ts";
 import { loadWorkspace, saveWorkspace } from "./workspace-store.ts";
 import { setLearnedHeaders } from "./skiptrace-fields.ts";
@@ -164,10 +164,10 @@ export function App() {
   const accessible = ["sync", "personal"].includes(page) || role.pages.includes(page);
   const leads = useMemo(() => visibleLeads(state), [state]);
   const tasks = useMemo(() => visibleTasks(state).filter(item => !item.done), [state]);
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  // Due means due on the workspace's day, the same day the overview and the task list use.
+  const dueBy = today();
   const taskNotices = profile.taskReminders && role.pages.includes("tasks")
-    ? tasks.filter(task => profile.taskNoticeScope !== "due" || (task.date && task.date <= today))
+    ? tasks.filter(task => profile.taskNoticeScope !== "due" || (task.date && task.date <= dueBy))
     : [];
   const replyNotices = useMemo(
     () => (profile.replyReminders && role.pages.includes("inbox") ? visibleThreads(state).filter(thread => thread.unread) : []),
