@@ -22,6 +22,8 @@ ARG VITE_CALLERWHALE_API_URL
 # Where team chat is (the messaging service). Empty: the Inbox has no team chats.
 ARG VITE_CALLERWHALE_MESSAGING_URL=
 ARG VITE_CALLERWHALE_SITE_URL=https://callerwhale.com
+# The next three come from the repository Actions variables CALLERWHALE_DIALER_URL, CALLERWHALE_REAL_CALL_NUMBERS and
+# CALLERWHALE_REAL_CALL_FROM (tools/production.json); each may be left unset.
 # Where the dialer is (services/telnyx through the gateway). Empty: calls stay demo calls.
 ARG VITE_CALLERWHALE_DIALER_URL=
 # Option B only: the team's own phones that may get a real call, comma separated, and the Trial account's caller ID. Empty: no real calls.
