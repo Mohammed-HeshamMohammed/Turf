@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { addTranscriptLine, beginDemoCall, beginServerCall, canBeginCall, clearCallOutcome, endDemoCall, getCallSession, markAnswered, setCallSession } from "../src/callSession.ts";
+import { addTranscriptLine, beginDemoCall, beginServerCall, canBeginCall, clearCallOutcome, endDemoCall, getCallSession, markAnswered, setCallSession, subscribeCallLog } from "../src/callSession.ts";
 
 const sarah = { id: "sarah", name: "Sarah Johnson", phone: "+1 (813) 555-0101" };
 const michael = { id: "michael", name: "Michael Bennett", phone: "+1 (813) 555-0102" };
@@ -88,4 +88,17 @@ test("a demo call is answered as soon as it starts", () => {
 
 test("no call starts without a phone number", () => {
   assert.equal(canBeginCall({ id: "x", name: "No phone", phone: " " }), false);
+});
+
+test("a dialer call adds nothing to the page's own call log, because the dialer records it", () => {
+  const seen = [];
+  const stop = subscribeCallLog(call => seen.push(call));
+  beginServerCall(sarah, "call-1", "dialer");
+  endDemoCall("agent");
+  assert.deepEqual(seen, []);
+  clearCallOutcome();
+  beginServerCall(sarah, null, "real");
+  endDemoCall("agent");
+  assert.equal(seen.length, 1, "a real call is the page's to log");
+  stop();
 });

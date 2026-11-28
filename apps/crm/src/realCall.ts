@@ -8,6 +8,8 @@ import { phoneNumberKey } from "./phone.ts";
 
 const TOKEN_KEY = "callerwhale.realcall.token";
 const AUDIO_ID = "callerwhale-remote-audio";
+// How long Telnyx may take to accept the login. Ending a call waits for a call still connecting, so this must end.
+const CONNECT_MS = 15000;
 
 const listed = (): string[] =>
   String(import.meta.env?.VITE_CALLERWHALE_REAL_CALL_NUMBERS || "")
@@ -56,8 +58,18 @@ async function connect(): Promise<any> {
     }
   });
   await new Promise<void>((resolve, reject) => {
-    rtc.on("telnyx.ready", () => resolve());
-    rtc.on("telnyx.error", (error: any) => reject(new Error(error?.message || "Telnyx refused the login. Mint a new token.")));
+    const timer = setTimeout(() => {
+      rtc.disconnect?.();
+      reject(new Error("Telnyx did not answer. Check the connection and try again."));
+    }, CONNECT_MS);
+    rtc.on("telnyx.ready", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+    rtc.on("telnyx.error", (error: any) => {
+      clearTimeout(timer);
+      reject(new Error(error?.message || "Telnyx refused the login. Mint a new token."));
+    });
     rtc.connect();
   });
   client = rtc;

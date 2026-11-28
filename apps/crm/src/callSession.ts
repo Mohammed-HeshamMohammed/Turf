@@ -33,6 +33,8 @@ let session = {
   serverCallId: null,
   // When the other side answered; null while it rings.
   answeredAt: null,
+  // Why the call's status is unknown right now (the dialer stopped answering), or "".
+  trouble: "",
   lead: null,
   // Settled lines, oldest first: { id, who, side, text }.
   transcript: [],
@@ -77,6 +79,7 @@ function startSession(lead, mode, serverCallId) {
     serverCallId,
     // Nothing rings in a demo call: it is "in progress" at once.
     answeredAt: mode === "demo" ? startedAt : null,
+    trouble: "",
   });
 }
 
@@ -101,14 +104,16 @@ export function markAnswered(at = Date.now()) {
 /** Both sides hanging up enter the same feedback step, retaining the lead and transcript. */
 export function endDemoCall(endedBy = "agent") {
   if (!session.active) return false;
-  setCallSession({ active: false, awaitingOutcome: true, endedAt: Date.now(), endedBy });
+  setCallSession({ active: false, awaitingOutcome: true, endedAt: Date.now(), endedBy, trouble: "" });
+  // The dialer records the calls it places in the CRM itself, so only demo and real calls go in the page's call log.
+  if (session.mode === "dialer") return true;
   const call = { id: session.callId, leadId: session.lead.adHoc ? null : session.lead.id, name: session.lead.adHoc ? "" : session.lead.name, phone: session.lead.phone, startedAt: session.startedAt, endedAt: session.endedAt, endedBy };
   logListeners.forEach(listener => listener(call));
   return true;
 }
 
 export function clearCallOutcome() {
-  setCallSession({ active: false, awaitingOutcome: false, callId: null, lead: null, transcript: [], startedAt: null, endedAt: null, endedBy: null, mode: "demo", serverCallId: null, answeredAt: null });
+  setCallSession({ active: false, awaitingOutcome: false, callId: null, lead: null, transcript: [], startedAt: null, endedAt: null, endedBy: null, mode: "demo", serverCallId: null, answeredAt: null, trouble: "" });
 }
 
 let lineCounter = 0;

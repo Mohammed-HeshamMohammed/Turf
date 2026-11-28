@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { createCalling } from "../src/calling.ts";
-import { clearCallOutcome, getCallSession } from "../src/callSession.ts";
+import { beginDemoCall, clearCallOutcome, getCallSession } from "../src/callSession.ts";
 
 const lead = { id: "lead-1", name: "Sarah Johnson", phone: "+1 (813) 555-0001" };
 const signedIn = { remote: { id: "org-1" } };
@@ -183,4 +183,114 @@ test("a listed team phone gets a real call that the page logs itself", async () 
   assert.equal(getCallSession().endedBy, "contact");
   assert.deepEqual(await calling.wrapUp({ outcome: "Not interested" }), { logHere: true });
   assert.deepEqual(log.placed, [], "the dialer never sees a real call");
+});
+
+const teamPhone = { id: "lead-9", name: "Team phone", phone: "+201001234567" };
+
+test("the sample workspace never makes a real call, even to a listed team phone", () => {
+  const real = { allowed: () => true, start: async () => {}, hangup: () => {} };
+  const calling = createCalling({ dialer: fakeDialer().dialer, hasDialer: () => true, every: manualClock().every, real });
+  assert.equal(calling.modeFor(sample, teamPhone), "demo");
+  assert.equal(calling.modeFor(signedIn, teamPhone), "real");
+});
+
+test("a hangup the dialer refuses keeps the call on screen and followed, and says why", async () => {
+  const { dialer } = fakeDialer([{ id: "call-1", answered_at: null, ended_at: null, hangup_source: "" }]);
+  dialer.hangup = async () => {
+    throw Object.assign(new Error("The carrier did not end the call. Try again in a moment."), { status: 502 });
+  };
+  const clock = manualClock();
+  const calling = createCalling({ dialer, hasDialer: () => true, every: clock.every, real: noReal });
+  await calling.start(signedIn, lead);
+  assert.deepEqual(await calling.end(), { ok: false, error: "The carrier did not end the call. Try again in a moment." });
+  assert.equal(getCallSession().active, true);
+  assert.equal(clock.running(), true, "a hangup from the lead's side is still seen");
+  dialer.hangup = async () => ({});
+  assert.deepEqual(await calling.end(), { ok: true });
+  assert.equal(getCallSession().awaitingOutcome, true);
+});
+
+test("the call rings on screen while the dialer places it, and ending it then hangs it up once placed", async () => {
+  const { dialer, log } = fakeDialer([{ id: "call-1", answered_at: null, ended_at: null, hangup_source: "" }]);
+  let placed = () => {};
+  dialer.place = leadId => {
+    log.placed.push(leadId);
+    return new Promise(resolve => {
+      placed = () => resolve({ id: "call-1" });
+    });
+  };
+  const clock = manualClock();
+  const calling = createCalling({ dialer, hasDialer: () => true, every: clock.every, real: noReal });
+  const starting = calling.start(signedIn, lead);
+  assert.equal(getCallSession().active, true, "on screen at once");
+  assert.equal(getCallSession().mode, "dialer");
+  assert.equal(beginDemoCall({ id: "lead-2", name: "Someone else", phone: "+1 (813) 555-0002" }), false, "nothing else starts meanwhile");
+  const ending = calling.end();
+  placed();
+  assert.deepEqual(await starting, { ok: true, mode: "dialer" });
+  assert.deepEqual(await ending, { ok: true });
+  assert.deepEqual(log.hungUp, ["call-1"]);
+  assert.equal(getCallSession().awaitingOutcome, true);
+  assert.equal(getCallSession().serverCallId, "call-1", "its outcome still goes to the dialer");
+  assert.equal(clock.running(), false);
+});
+
+test("ending a real call while it is still connecting hangs it up once it exists", async () => {
+  const steps = [];
+  let connected = () => {};
+  const real = {
+    allowed: () => true,
+    start: () =>
+      new Promise(resolve => {
+        connected = () => {
+          steps.push("called");
+          resolve();
+        };
+      }),
+    hangup: () => steps.push("hung up"),
+  };
+  const calling = createCalling({ dialer: fakeDialer().dialer, hasDialer: () => true, every: manualClock().every, real });
+  const starting = calling.start(signedIn, teamPhone);
+  const ending = calling.end();
+  connected();
+  await starting;
+  await ending;
+  assert.deepEqual(steps, ["called", "hung up"]);
+  assert.equal(getCallSession().awaitingOutcome, true);
+});
+
+test("a dialer that stops answering shows on the call, and the message goes once it answers again", async () => {
+  const { dialer } = fakeDialer([{ id: "call-1", answered_at: null, ended_at: null, hangup_source: "" }]);
+  const clock = manualClock();
+  const calling = createCalling({ dialer, hasDialer: () => true, every: clock.every, real: noReal });
+  await calling.start(signedIn, lead);
+  const answering = dialer.get;
+  dialer.get = async () => {
+    throw new Error("The server cannot be reached");
+  };
+  await clock.run();
+  await clock.run();
+  assert.equal(getCallSession().trouble, "", "a missed answer or two is normal");
+  await clock.run();
+  assert.match(getCallSession().trouble, /not answering/);
+  dialer.get = answering;
+  await clock.run();
+  assert.equal(getCallSession().trouble, "");
+});
+
+test("an outcome the dialer had already logged differently says so instead of claiming it was saved", async () => {
+  const { dialer } = fakeDialer([{ id: "call-1", answered_at: null, ended_at: null, hangup_source: "" }]);
+  dialer.wrapUp = async () => {
+    throw Object.assign(new Error("This call is already logged."), { status: 409 });
+  };
+  const calling = createCalling({ dialer, hasDialer: () => true, every: manualClock().every, real: noReal });
+  await calling.start(signedIn, lead);
+  await calling.end();
+  dialer.get = async () => ({ id: "call-1", outcome: "Reached" });
+  assert.deepEqual(await calling.wrapUp({ outcome: "Not interested" }), {
+    logHere: false,
+    notice: "The dialer had already logged this call as Reached, so Not interested was not saved.",
+  });
+  dialer.get = async () => ({ id: "call-1", outcome: "Not interested" });
+  assert.deepEqual(await calling.wrapUp({ outcome: "Not interested" }), { logHere: false });
 });

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { ArrowUpRight, Phone } from "@phosphor-icons/react";
 import { useCrm } from "./context.jsx";
-import { beginDemoCall, useCallSession } from "./callSession.ts";
+import { useCallSession } from "./callSession.ts";
+import { calling } from "./calling.ts";
 import { dialerTarget } from "./dialer.ts";
 import { callDuration, visibleCallLog } from "./callLog.ts";
 import { Button, Empty, Search } from "./ui.jsx";
@@ -29,8 +30,12 @@ export function CallLog({ onCall }) {
             {call.source === "readymode" && <span className="muted">ReadyMode{call.details?.phones?.length > 1 ? " · Other numbers: " + call.details.phones.slice(1).join(", ") : ""}</span>}
             <div className="call-log-when"><time>{new Date(call.startedAt || call.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</time><span>{call.agent}</span></div>
             <div className="call-log-actions">
-              <Button icon={Phone} disabled={busy || !state.online || Boolean(target.error)} title={busy ? "Finish the current call and its outcome first" : target.error} onClick={() => {
-                if (beginDemoCall(target.lead)) { notify("Demo call started — no real number is dialed"); onCall?.(); }
+              <Button icon={Phone} disabled={busy || !state.online || Boolean(target.error)} title={busy ? "Finish the current call and its outcome first" : target.error} onClick={async () => {
+                // Called again the way the Calls page calls: through the dialer when this workspace has one.
+                const started = await calling.start(state, target.lead);
+                if (!started.ok) { notify(started.error || "The call did not start"); return; }
+                notify(started.mode === "demo" ? "Demo call started — no real number is dialed" : "Calling " + (target.lead.name || target.lead.phone));
+                onCall?.();
               }}>Call again</Button>
               {call.leadId && <button type="button" className="text-button" onClick={() => navigate("work/leads/" + call.leadId)}><ArrowUpRight size={15} />Lead</button>}
             </div>
