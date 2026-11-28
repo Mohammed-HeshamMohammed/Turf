@@ -21,6 +21,7 @@ behind them. Everything lives in this one repository.
 | `env/` | Example settings for every part. Real settings files stay here on your machine only; git ignores them. |
 | `tools/` | Repository tools: CI parts, image builds and deploys, checks, generators. |
 | `deploy/` | Deployment: `coolify-pull` (the server's deploy puller), `monitoring` (Grafana and friends), `compose` (local development), `k8s` (kept as history). |
+| `docs/` | [The docs](docs/README.md): legal, plans, team, flow charts, ideas, reviews, operations, design, pricing, product, history. |
 
 ## Working on it
 
