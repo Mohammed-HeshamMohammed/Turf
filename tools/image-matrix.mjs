@@ -3,6 +3,7 @@
 //   node tools/image-matrix.mjs            prints matrix=[{branch, image, context, dockerfile, args, coolify, setting}, ...]
 //     coolify and setting: the Coolify application and the setting the deploy job writes the image's digest to, or ""
 //   node tools/image-matrix.mjs --args     reads VARS (the Actions variables as JSON) and ARGS, prints the build arguments
+// A variable written with a trailing "?" (CALLERWHALE_DIALER_URL?) may be left unset: its argument is then empty.
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,14 +24,16 @@ export function matrix(config) {
   );
 }
 
-/** "ARG=VARIABLE,..." with the variables' values: build-args lines, and the variables that are not set. */
+/** "ARG=VARIABLE,..." with the variables' values: build-args lines, and the required variables that are not set. */
 export function buildArgs(args, vars) {
   const lines = [];
   const missing = [];
   for (const pair of args.split(",").filter(Boolean)) {
-    const [arg, variable] = pair.split("=");
+    const [arg, named] = pair.split("=");
+    const optional = named.endsWith("?");
+    const variable = optional ? named.slice(0, -1) : named;
     const value = String(vars[variable] ?? "").trim();
-    if (!value) missing.push(variable);
+    if (!value && !optional) missing.push(variable);
     lines.push(`${arg}=${value}`);
   }
   return { lines, missing };

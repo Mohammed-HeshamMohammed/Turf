@@ -25,3 +25,13 @@ test("build arguments come from the Actions variables, and a missing one is name
   assert.deepEqual(buildArgs("A=X,B=Y", { X: " https://a.test\n", Y: "" }), { lines: ["A=https://a.test", "B="], missing: ["Y"] });
   assert.deepEqual(buildArgs("", {}), { lines: [], missing: [] });
 });
+
+test("a variable marked with ? may be left unset: its argument stays empty and nothing is reported missing", () => {
+  assert.deepEqual(buildArgs("A=X?,B=Y", { X: "", Y: "y" }), { lines: ["A=", "B=y"], missing: [] });
+  assert.deepEqual(buildArgs("A=X?", { X: "https://dialer.test" }), { lines: ["A=https://dialer.test"], missing: [] });
+});
+
+test("the CRM web image takes the dialer and Option B settings, all optional", () => {
+  const web = matrix(config).find(i => i.image === "cw-crm-web");
+  for (const pair of ["VITE_CALLERWHALE_DIALER_URL=CALLERWHALE_DIALER_URL?", "VITE_CALLERWHALE_REAL_CALL_NUMBERS=CALLERWHALE_REAL_CALL_NUMBERS?", "VITE_CALLERWHALE_REAL_CALL_FROM=CALLERWHALE_REAL_CALL_FROM?"]) assert.ok(web.args.split(",").includes(pair), pair);
+});

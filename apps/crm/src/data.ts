@@ -1,4 +1,59 @@
-export const TODAY = "2026-10-15";
+// The clock the app reads. Tests pin it with setClock(() => new Date(...)); the app never calls setClock.
+let clock: () => Date = () => new Date();
+export function setClock(next?: () => Date) {
+  clock = next || (() => new Date());
+}
+
+// The workspace's time zone (Settings → time zone), set by App.jsx. Empty: the device's own zone.
+let workspaceZone = "";
+export function setWorkspaceTimeZone(timeZone?: string) {
+  workspaceZone = timeZone || "";
+}
+
+/** Today as YYYY-MM-DD in the workspace's time zone (or the one given), so a caller in Cairo after midnight still works the US day. */
+export function today(timeZone = workspaceZone): string {
+  const now = clock();
+  if (timeZone) {
+    try {
+      // en-CA writes dates as YYYY-MM-DD.
+      return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+    } catch {
+      /* An unknown zone name falls back to the device's day. */
+    }
+  }
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+/** How far the zone's clock is ahead of UTC at that instant, in milliseconds. */
+function zoneOffset(at: number, timeZone: string): number {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" })
+      .formatToParts(new Date(at))
+      .map(part => [part.type, Number(part.value)]),
+  );
+  return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) - Math.floor(at / 1000) * 1000;
+}
+
+/**
+ * A wall-clock time from a picker ("2026-11-28T10:00") read in the workspace's zone (or the one given), as the exact
+ * instant in RFC 3339 ("2026-11-28T15:00:00.000Z"). Empty when it is not a date and time.
+ */
+export function wallTimeInstant(wall: string, timeZone = workspaceZone): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(wall || "");
+  if (!match) return "";
+  const [year, month, day, hour, minute] = match.slice(1).map(Number);
+  const asUTC = Date.UTC(year, month - 1, day, hour, minute);
+  if (timeZone) {
+    try {
+      // The zone's offset at the guess, then again at the result, so a time near a daylight-saving change lands right.
+      const first = asUTC - zoneOffset(asUTC, timeZone);
+      return new Date(asUTC - zoneOffset(first, timeZone)).toISOString();
+    } catch {
+      /* An unknown zone name falls back to the device's zone. */
+    }
+  }
+  return new Date(year, month - 1, day, hour, minute).toISOString();
+}
+
 export const LEAD_STAGES = ["New", "Contacted", "Interested", "Qualified", "Closed"];
 // The call results a ReadyMode dialer logs ("Log Type", with its abbreviation), and what each means for the lead.
 // meaning follows Caller Whale's status reader; recallDays is when the dialer schedules the next try, null for no next try.
@@ -133,7 +188,7 @@ const LEADS = [
   team: row[7],
   datasetId: row[8],
   callback: row[9],
-  callbackDate: row[9] ? TODAY : "",
+  callbackDate: "",
   value: row[10],
   shared: row[11],
   verdict: row[12],
@@ -162,13 +217,18 @@ const LEADS = [
   ],
 }));
 
+// The sample workspace's time zone. Its dates are made in it, even before the app has set the workspace's zone.
+const SAMPLE_ZONE = "America/New_York";
+
 export function seedState() {
+  const day = today(SAMPLE_ZONE);
   return {
-    schema: 2,
+    schema: 3,
     role: "manager",
     online: true,
     callLog: [],
-    leads: structuredClone(LEADS),
+    // A sample lead with a callback time is due today: dated when the sample workspace is made, not when the file loads.
+    leads: structuredClone(LEADS).map(lead => ({ ...lead, callbackDate: lead.callback ? day : "" })),
     datasets: [
       {
         id: "d01",
@@ -220,7 +280,7 @@ export function seedState() {
         leadId: "l01",
         assignee: "Maya Chen",
         time: "10:30",
-        date: TODAY,
+        date: day,
         priority: "High",
         done: false,
         type: "Callback",
@@ -231,7 +291,7 @@ export function seedState() {
         leadId: "l02",
         assignee: "Maya Chen",
         time: "11:15",
-        date: TODAY,
+        date: day,
         priority: "Normal",
         done: false,
         type: "Callback",
@@ -242,7 +302,7 @@ export function seedState() {
         leadId: "l03",
         assignee: "Alex Rivera",
         time: "14:00",
-        date: TODAY,
+        date: day,
         priority: "High",
         done: false,
         type: "Offer",
@@ -264,7 +324,7 @@ export function seedState() {
         leadId: "l06",
         assignee: "Ben Carter",
         time: "09:00",
-        date: TODAY,
+        date: day,
         priority: "Normal",
         done: false,
         type: "Data review",
@@ -275,7 +335,7 @@ export function seedState() {
         leadId: "l03",
         assignee: "Alex Rivera",
         time: "12:00",
-        date: TODAY,
+        date: day,
         priority: "Normal",
         done: false,
         type: "Document",
@@ -384,7 +444,7 @@ export function seedState() {
     ],
     queue: [],
     conflicts: [],
-    settings: { workspace: "Oak & Palm Partners", timezone: "America/New_York", dailyGoal: 30 },
+    settings: { workspace: "Oak & Palm Partners", timezone: SAMPLE_ZONE, dailyGoal: 30 },
     rules: [
       { id: "r01", name: "A missed call gets a next step", when: "No answer", action: "Create callback in 2 days", enabled: true },
       { id: "r02", name: "Keep handoffs moving", when: "Handoff waiting 24 hours", action: "Notify team manager", enabled: true },

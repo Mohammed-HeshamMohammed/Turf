@@ -27,7 +27,7 @@ import {
   PencilSimple,
   X,
 } from "@phosphor-icons/react";
-import { CALL_OUTCOMES, DEAL_STAGES, ROLES, TODAY } from "./data.ts";
+import { CALL_OUTCOMES, DEAL_STAGES, ROLES, today } from "./data.ts";
 import { callbackLabel, canEditLead, dayLabel, capability, uid, visibleLeads, visibleTasks, visibleThreads, teamNames, assignableNames } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { CallAssistant } from "./CallAssistant.jsx";
@@ -35,7 +35,8 @@ import { CallTimer } from "./CallTimer.jsx";
 import { CallLog } from "./CallLog.jsx";
 import { ReadyModeImport } from "./ReadyModeImport.jsx";
 import { smsRecipient } from "./sms.ts";
-import { beginDemoCall, clearCallOutcome, endDemoCall, getCallSession, setCallSession, useCallSession } from "./callSession.ts";
+import { clearCallOutcome, endDemoCall, getCallSession, setCallSession, useCallSession } from "./callSession.ts";
+import { calling } from "./calling.ts";
 import { SkeletonRows } from "./Skeleton.jsx";
 import { leadSource } from "./lead-source.ts";
 import {
@@ -98,6 +99,9 @@ export function Calls({ target }) {
   const [autoDial, setAutoDial] = useState(false);
   const callsView = new URLSearchParams(route.split("?")[1]).get("view") === "log" ? "Call log" : "Call queue";
   const autoQueue = useRef([]);
+  // One outcome is saved at a time: the ref stops a second click at once, the state greys the buttons.
+  const savingOutcome = useRef(false);
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (!state.online || !capability(state, "call")) {
       autoQueue.current = [];
@@ -186,6 +190,14 @@ export function Calls({ target }) {
     setSmsLeadId("");
     notify(state.online ? "Demo SMS added to Inbox" : "SMS draft saved offline");
   }
+  // How calls are made here: through the dialer (a signed-in workspace), Option B's real call, or the demo.
+  const callMode = calling.modeFor(state, lead);
+  // Starts a call the way this workspace calls. A refused call says why; calling.ts has already cleaned up after it.
+  async function startCall(target) {
+    const started = await calling.start(state, target);
+    if (!started.ok) notify(started.error || "The call did not start");
+    return started;
+  }
   function pauseAutoDial() {
     autoQueue.current = [];
     setAutoDial(false);
@@ -205,18 +217,46 @@ export function Calls({ target }) {
     setAutoDial(true);
     if (!callLocked) {
       setChosen(first.id);
-      beginDemoCall(first);
+      void startCall(first);
     }
     notify(awaitingOutcome ? "Auto dial is waiting for this call's outcome" : "Auto dial started · save each outcome to continue");
   }
-  function outcome(value) {
-    if (!lead) return;
+  async function outcome(value) {
+    if (!lead || savingOutcome.current) return;
     if (value === "Callback" && !callbackAt) {
       setAskingCallback(true);
       return;
     }
-    dispatch({ type: "CALL", leadId: lead.id, outcome: value, callbackAt, session: getCallSession() });
-    if (callNote.trim()) dispatch({ type: "NOTE", leadId: lead.id, text: callNote });
+    savingOutcome.current = true;
+    setSaving(true);
+    try {
+      await saveOutcome(value);
+    } finally {
+      savingOutcome.current = false;
+      setSaving(false);
+    }
+  }
+  async function saveOutcome(value) {
+    // A quick outcome during a dialer or real call ends that call first; a call that did not end keeps its outcome open.
+    if (getCallSession().active && getCallSession().mode !== "demo") {
+      const ended = await calling.end();
+      if (!ended.ok) {
+        notify(ended.error);
+        return;
+      }
+    }
+    const saved = await calling.wrapUp({ outcome: value, callbackAt, notes: callNote });
+    if (saved.error) {
+      notify(saved.error);
+      return;
+    }
+    // What the caller is told was recorded; a notice when the dialer had already logged the call another way.
+    const recorded = saved.notice || value + " recorded";
+    // The dialer has logged its own calls in the CRM; only demo and real calls are logged from here.
+    if (saved.logHere) {
+      dispatch({ type: "CALL", leadId: lead.id, outcome: value, callbackAt, session: getCallSession() });
+      if (callNote.trim()) dispatch({ type: "NOTE", leadId: lead.id, text: callNote });
+    }
     setCallNote("");
     setSelectedOutcome("");
     setCallbackAt("");
@@ -231,23 +271,26 @@ export function Calls({ target }) {
         }
         if (next) {
           setChosen(next.id);
-          beginDemoCall(next);
-          notify(value + " recorded · calling " + next.name);
+          void startCall(next);
+          notify(recorded + " · calling " + next.name);
           return;
         }
         pauseAutoDial();
-        notify(value + " recorded · Auto dial queue complete");
+        notify(recorded + " · Auto dial queue complete");
         return;
       }
       pauseAutoDial();
     }
-    notify(state.online ? value + " recorded" : "Manual call outcome queued for sync");
+    notify(state.online ? recorded : "Manual call outcome queued for sync");
     // A live conversation stays on screen for the next step; anything else moves to the next lead.
     if (!["Transfer", "Callback"].includes(value)) setChosen(leads[(leads.findIndex(item => item.id === lead.id) + 1) % leads.length]?.id || "");
   }
   function chooseOutcome(value) {
     if (!callLocked || CALL_OUTCOMES.find(item => item.label === value)?.quick) return outcome(value);
-    if (activeCall) endDemoCall();
+    if (activeCall)
+      void calling.end().then(ended => {
+        if (!ended.ok) notify(ended.error);
+      });
     setSelectedOutcome(value);
     setAskingCallback(value === "Callback");
     if (value !== "Callback") setCallbackAt("");
@@ -334,8 +377,8 @@ export function Calls({ target }) {
               <Card className="call-person">
                 <div className="call-person-top">
                   <div className="row">
-                    <Badge tone="good" className="demo-note">
-                      {state.remote ? "Call preview · no number dialed" : "Sample phone workspace"}
+                    <Badge tone="good" className={callMode === "demo" ? "demo-note" : ""}>
+                      {callMode === "dialer" ? "Dialer · test phone network" : callMode === "real" ? "Real call to a team phone" : state.remote ? "Call preview · no number dialed" : "Sample phone workspace"}
                     </Badge>
                     <Status value={lead.stage} />
                   </div>
@@ -354,13 +397,19 @@ export function Calls({ target }) {
                     icon={callLocked ? PhoneDisconnect : Phone}
                     disabled={manualDialBusy || awaitingOutcome || (!activeCall && (!state.online || !lead.phone?.trim()))}
                     title={awaitingOutcome ? "Record an outcome below before starting another call" : undefined}
-                    onClick={() => {
-                      if (activeCall) endDemoCall();
-                      else beginDemoCall(lead);
-                      notify(activeCall ? "Call ended · record the outcome below" : "Demo call started — no real number is dialed");
+                    onClick={async () => {
+                      if (activeCall) {
+                        const ended = await calling.end();
+                        notify(ended.ok ? "Call ended · record the outcome below" : ended.error);
+                        return;
+                      }
+                      const started = await startCall(lead);
+                      if (started.ok) notify(started.mode === "demo" ? "Demo call started — no real number is dialed" : "Calling " + lead.name);
                     }}
                   >
-                    {activeCall ? "End demo call" : awaitingOutcome ? "Call ended" : "Start demo call"}
+                    {callMode === "demo"
+                      ? activeCall ? "End demo call" : awaitingOutcome ? "Call ended" : "Start demo call"
+                      : activeCall ? "End call" : awaitingOutcome ? "Call ended" : "Start call"}
                   </Button>
                 </div>
                 <div className={"call-status" + (callLocked ? " is-live" : "")}>
@@ -375,11 +424,12 @@ export function Calls({ target }) {
                   <div className="call-status-live" aria-hidden={!callLocked}>
                     <div className="call-status-inner">
                       <div className={"call-live" + (awaitingOutcome ? " is-ended" : "")} role="status">
-                        <span className="call-live-label"><span className="status-dot" />{awaitingOutcome ? session.endedBy === "contact" ? "Contact ended the call" : "Call ended" : "Call in progress"}</span>
+                        <span className="call-live-label"><span className="status-dot" />{awaitingOutcome ? session.endedBy === "contact" ? "Contact ended the call" : "Call ended" : session.answeredAt ? "Call in progress" : "Ringing…"}</span>
                         {callStatus.mounted && <CallTimer key={session.startedAt} startedAt={session.startedAt} endedAt={session.endedAt} />}
+                        {activeCall && session.trouble && <span className="call-wrapup-help" role="alert">{session.trouble}</span>}
                         {awaitingOutcome && <span className="call-wrapup-help">{autoDial ? "Auto dial is waiting. Record an outcome below to continue." : "Record an outcome below before starting another call."}</span>}
-                        {activeCall && <button type="button" className="text-button demo-note" onClick={() => endDemoCall("contact")}>Simulate contact hangup</button>}
-                        <span className="demo-note">Demo audio, no number is dialled</span>
+                        {activeCall && session.mode === "demo" && <button type="button" className="text-button demo-note" onClick={() => endDemoCall("contact")}>Simulate contact hangup</button>}
+                        {session.mode === "demo" && <span className="demo-note">Demo audio, no number is dialled</span>}
                       </div>
                     </div>
                   </div>
@@ -410,7 +460,7 @@ export function Calls({ target }) {
                     <Button
                       key={item.label}
                       title={item.help + (item.quick ? " · Saves immediately; no written feedback needed" : "")}
-                      disabled={manualDialBusy}
+                      disabled={manualDialBusy || saving}
                       variant={item.label === "Transfer" ? "peach-button" : item.label === "Do not call" ? "danger-button" : ""}
                       aria-pressed={callLocked ? selectedOutcome === item.label : undefined}
                       onClick={() => chooseOutcome(item.label)}
@@ -424,12 +474,12 @@ export function Calls({ target }) {
                     <Field label="Call back at" help="The callback is added to the lead and your tasks.">
                       <DateTimePicker
                         aria-label="Call back at"
-                        min={TODAY + "T00:00"}
+                        min={today() + "T00:00"}
                         value={callbackAt}
                         onChange={event => setCallbackAt(event.target.value)}
                       />
                     </Field>
-                    {!awaitingOutcome && <Button variant="primary" disabled={!callbackAt || manualDialBusy} onClick={() => outcome("Callback")}>
+                    {!awaitingOutcome && <Button variant="primary" disabled={!callbackAt || manualDialBusy || saving} onClick={() => outcome("Callback")}>
                       Schedule callback
                     </Button>}
                     <Button
@@ -450,7 +500,7 @@ export function Calls({ target }) {
                   {awaitingOutcome && <Button
                     variant="primary"
                     icon={CheckCircle}
-                    disabled={!selectedOutcome || (selectedOutcome === "Callback" && !callbackAt)}
+                    disabled={saving || !selectedOutcome || (selectedOutcome === "Callback" && !callbackAt)}
                     onClick={() => outcome(selectedOutcome)}
                   >
                     {autoDial && !["Transfer", "Callback"].includes(selectedOutcome) ? "Save feedback & next call" : "Save feedback"}
@@ -695,7 +745,7 @@ export function NewDealModal({ lead, onClose }) {
             </Select>
           </Field>
           <Field label="Target close date">
-            <DatePicker name="closeDate" aria-label="Target close date" min={TODAY} defaultValue={TODAY} required />
+            <DatePicker name="closeDate" aria-label="Target close date" min={today()} defaultValue={today()} required />
           </Field>
           <Field label="Offer amount">
             <input name="amount" type="number" min="0" step="1000" placeholder="0" required />
@@ -1081,7 +1131,7 @@ export function Tasks({ create = false }) {
               </Select>
             </Field>
             <Field label="Due date">
-              <DatePicker name="date" aria-label="Due date" defaultValue={TODAY} required />
+              <DatePicker name="date" aria-label="Due date" defaultValue={today()} required />
             </Field>
             <Field label="Time">
               <TimePicker name="time" aria-label="Time" defaultValue="10:30" />
@@ -1257,9 +1307,9 @@ export function Tasks({ create = false }) {
 
 export function Calendar() {
   const { state, dispatch, navigate } = useCrm();
-  const [month, setMonth] = useState(9);
-  const [year, setYear] = useState(2026);
-  const [selected, setSelected] = useState(TODAY);
+  const [month, setMonth] = useState(() => Number(today().slice(5, 7)) - 1);
+  const [year, setYear] = useState(() => Number(today().slice(0, 4)));
+  const [selected, setSelected] = useState(() => today());
   const tasks = visibleTasks(state);
   const first = new Date(Date.UTC(year, month, 1));
   const offset = (first.getUTCDay() + 6) % 7;
@@ -1315,7 +1365,7 @@ export function Calendar() {
   return (
     <>
       <PageHeader title="Calendar" description={"Appointments and next steps · " + state.settings.timezone}>
-        <Button onClick={() => goTo(2026, 9, TODAY)}>Today</Button>
+        <Button onClick={() => { const day = today(); goTo(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, day); }}>Today</Button>
         {capability(state, "edit") && (
           <Button variant="primary" icon={Plus} onClick={() => navigate("work/tasks/new")}>
             New task
@@ -1350,7 +1400,7 @@ export function Calendar() {
                       "calendar-day " +
                       (date.getUTCMonth() !== month ? "outside " : "") +
                       (value === selected ? "selected " : "") +
-                      (value === TODAY ? "today" : "")
+                      (value === today() ? "today" : "")
                     }
                     aria-label={value + ", " + found.length + " tasks"}
                     aria-pressed={value === selected}
@@ -1369,7 +1419,7 @@ export function Calendar() {
             </div>
           </div>
         </Card>
-        <Card className="agenda-card" title={selected === TODAY ? "Today, October 15" : new Date(selected + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })} subtitle="The next steps on this day.">
+        <Card className="agenda-card" title={selected === today() ? "Today, " + new Date(selected + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" }) : new Date(selected + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })} subtitle="The next steps on this day.">
           <div className="agenda-list">
             {tasks
               .filter(task => task.date === selected)

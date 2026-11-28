@@ -1,7 +1,7 @@
 import { ImportStrip } from "./ImportStrip.jsx";
 import { ArrowUpRight, ChatCircle, Phone, CheckCircle, Clock, Users, Handshake, ShieldCheck, Database, HardDrives, GearSix, Plus } from "@phosphor-icons/react";
 import { Suspense, lazy } from "react";
-import { ROLES, TODAY } from "./data.ts";
+import { ROLES, today } from "./data.ts";
 import { callbackLabel, capability, conversationPath, dayLabel, leadCounts, personalProfile, visibleLeads, visibleTasks, visibleThreads } from "./model.ts";
 import { useCrm } from "./context.jsx";
 import { Badge, Button, Card, Empty, LeadLink, RoundButton, Status, count, money, PageHeader, propertyFacts } from "./ui.jsx";
@@ -27,7 +27,7 @@ export function Dashboard() {
   const isClient = state.role === "client";
   const leadById = Object.fromEntries(leads.map(lead => [lead.id, lead]));
   const upcoming = tasks
-    .filter(task => task.date && task.date > TODAY)
+    .filter(task => task.date && task.date > today())
     .sort((a, b) => (a.date + (a.time || "")).localeCompare(b.date + (b.time || "")))
     .slice(0, 4);
   const closing = [...deals].sort((a, b) => (a.closeDate || "").localeCompare(b.closeDate || "")).slice(0, 4);
@@ -329,15 +329,15 @@ function NeedsToday() {
   const client = state.role === "client";
   const leads = visibleLeads(state);
   const byId = Object.fromEntries(leads.map(lead => [lead.id, lead]));
-  const due = visibleTasks(state).filter(task => !task.done && task.date && task.date <= TODAY);
+  const due = visibleTasks(state).filter(task => !task.done && task.date && task.date <= today());
   const withCallbackTask = new Set(due.filter(task => task.type === "Callback").map(task => task.leadId));
   const items = [
     ...due.map(task => ({
       key: "task-" + task.id,
-      at: (task.date < TODAY ? "0" : "1") + (task.time || ""),
+      at: (task.date < today() ? "0" : "1") + (task.time || ""),
       icon: CheckCircle,
       title: task.title,
-      detail: (task.date < TODAY ? "Overdue · " : "") + (task.time || "Today") + (byId[task.leadId] ? " · " + byId[task.leadId].name : ""),
+      detail: (task.date < today() ? "Overdue · " : "") + (task.time || "Today") + (byId[task.leadId] ? " · " + byId[task.leadId].name : ""),
       complete: client
         ? null
         : () => {
@@ -348,14 +348,14 @@ function NeedsToday() {
     })),
     // A callback with its own task is already listed above.
     ...leads
-      .filter(lead => lead.callback && lead.callbackDate && lead.callbackDate <= TODAY && lead.stage !== "Closed")
+      .filter(lead => lead.callback && lead.callbackDate && lead.callbackDate <= today() && lead.stage !== "Closed")
       .filter(lead => !withCallbackTask.has(lead.id))
       .map(lead => ({
         key: "call-" + lead.id,
-        at: (lead.callbackDate < TODAY ? "0" : "1") + lead.callback,
+        at: (lead.callbackDate < today() ? "0" : "1") + lead.callback,
         icon: Phone,
         title: "Call " + lead.name,
-        detail: (lead.callbackDate < TODAY ? "Missed callback · " : "Callback at ") + lead.callback + " · " + lead.address,
+        detail: (lead.callbackDate < today() ? "Missed callback · " : "Callback at ") + lead.callback + " · " + lead.address,
         action: capability(state, "call") ? { label: "Call", go: "work/calls/" + lead.id, primary: true } : { label: "Open", go: "work/leads/" + lead.id },
       })),
     ...(capability(state, "accept")

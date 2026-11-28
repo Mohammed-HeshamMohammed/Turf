@@ -44,7 +44,7 @@
         "apps/crm",
         "apps/website/package.json"
       ],
-      "build": "The image is built in GitHub Actions from this branch's files with the branch root as the context (images.yml): Dockerfile apps/crm-web/Dockerfile, port 8080, health /healthz, build args VITE_CALLERWHALE_AUTH_URL, VITE_CALLERWHALE_API_URL and VITE_CALLERWHALE_MESSAGING_URL",
+      "build": "The image is built in GitHub Actions from this branch's files with the branch root as the context (images.yml): Dockerfile apps/crm-web/Dockerfile, port 8080, health /healthz, build args VITE_CALLERWHALE_AUTH_URL, VITE_CALLERWHALE_API_URL and VITE_CALLERWHALE_MESSAGING_URL, and, when set, VITE_CALLERWHALE_DIALER_URL (empty: calls stay demo calls) and Option B's VITE_CALLERWHALE_REAL_CALL_NUMBERS and VITE_CALLERWHALE_REAL_CALL_FROM (empty: no real calls)",
       "exclude": [
         "apps/crm-web/README.md"
       ],
@@ -59,7 +59,10 @@
           "buildArgs": {
             "VITE_CALLERWHALE_AUTH_URL": "CALLERWHALE_AUTH_URL",
             "VITE_CALLERWHALE_API_URL": "CALLERWHALE_API_URL",
-            "VITE_CALLERWHALE_MESSAGING_URL": "CALLERWHALE_MESSAGING_URL"
+            "VITE_CALLERWHALE_MESSAGING_URL": "CALLERWHALE_MESSAGING_URL",
+            "VITE_CALLERWHALE_DIALER_URL": "CALLERWHALE_DIALER_URL?",
+            "VITE_CALLERWHALE_REAL_CALL_NUMBERS": "CALLERWHALE_REAL_CALL_NUMBERS?",
+            "VITE_CALLERWHALE_REAL_CALL_FROM": "CALLERWHALE_REAL_CALL_FROM?"
           }
         }
       ]

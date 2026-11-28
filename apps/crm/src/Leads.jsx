@@ -3,7 +3,7 @@ import { PropertyMap } from "./PropertyMap.jsx";
 import { LeadsMap } from "./LeadsMap.jsx";
 import { coordinates } from "./skiptrace-fields.ts";
 import { Archive, ArrowUpRight, ArrowLeft, Plus, Phone, Envelope, Handshake, Clock, FileText, CheckCircle, Export, HouseLine } from "@phosphor-icons/react";
-import { LEAD_STAGES, ROLES, TODAY } from "./data.ts";
+import { LEAD_STAGES, ROLES, today } from "./data.ts";
 import { AssignLeadsDialog } from "./AssignLeads.jsx";
 import { archivedLeads, callbackLabel, canEditLead, capability, scopedLeads, uid, visibleLeads, teamNames, assignableNames } from "./model.ts";
 import { CallHistory, NewDealModal } from "./Work.jsx";
@@ -806,7 +806,7 @@ export function LeadDetail({ id }) {
                 <Field label="Callback date">
                   <DatePicker
                     aria-label="Callback date"
-                    min={TODAY}
+                    min={today()}
                     disabled={!editable}
                     value={lead.callbackDate || ""}
                     onChange={event =>
@@ -827,7 +827,7 @@ export function LeadDetail({ id }) {
                       dispatch({
                         type: "UPDATE_LEAD",
                         id,
-                        change: { callback: event.target.value, callbackDate: event.target.value ? lead.callbackDate || TODAY : "" },
+                        change: { callback: event.target.value, callbackDate: event.target.value ? lead.callbackDate || today() : "" },
                       })
                     }
                   />
@@ -1024,7 +1024,7 @@ export function NewLead() {
             datasetId: "d04",
             stage: "New",
             callback: String(form.get("callback")),
-            callbackDate: form.get("callback") ? TODAY : "",
+            callbackDate: form.get("callback") ? today() : "",
             calls: [],
             verdict: "Unverified",
             shared: false,
@@ -1141,7 +1141,7 @@ function NextStepPanel({ lead, tasks, client }) {
   const people = capability(state, "assign") ? [...new Set([lead.assignee, me, ...assignableNames(state)].filter(name => name && name !== "Unassigned"))] : [me];
   const [form, setForm] = useState(null);
   const open = (type = "Call", title = "") =>
-    setForm({ type, title, date: TODAY, time: "10:00", assignee: lead.assignee && people.includes(lead.assignee) ? lead.assignee : me });
+    setForm({ type, title, date: today(), time: "10:00", assignee: lead.assignee && people.includes(lead.assignee) ? lead.assignee : me });
   const later = tasks.filter(task => !task.done && task.id !== (step?.kind === "task" ? step.id : ""));
   return (
     <div className="next-step-panel">
@@ -1211,7 +1211,7 @@ function NextStepPanel({ lead, tasks, client }) {
             <input value={form.title} placeholder={form.type + " · " + lead.name} onChange={event => setForm({ ...form, title: event.target.value })} />
           </Field>
           <Field label="Day">
-            <DatePicker aria-label="Step day" min={TODAY} value={form.date} onChange={event => setForm({ ...form, date: event.target.value })} />
+            <DatePicker aria-label="Step day" min={today()} value={form.date} onChange={event => setForm({ ...form, date: event.target.value })} />
           </Field>
           <Field label="Time">
             <TimePicker aria-label="Step time" value={form.time} onChange={event => setForm({ ...form, time: event.target.value })} />
